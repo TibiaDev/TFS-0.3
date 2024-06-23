@@ -12,7 +12,7 @@ ResourceIncludes=
 MakeIncludes=
 Compiler=
 CppCompiler=-D__USE_MYSQL___@@_-D__USE_SQLITE___@@_-D__ENABLE_SERVER_DIAGNOSTIC___@@_-D__CONSOLE___@@_-D__EXCEPTION_TRACER___@@_
-Linker=-O1_@@_-lboost_system_@@_-lgmp_@@_-llua5.1_@@_-lmysql_@@_-lboost_regex_@@_-lsqlite3_@@_-lwsock32_@@_-lxml2_@@_-lmysql_@@_-lws2_32_@@_-s_@@_-lboost_filesystem_@@_-Wl,-Map=forgottenserver.map_@@_
+Linker=-O1_@@_-lboost_system_@@_-lgmp_@@_-llua5.1_@@_-lmysql_@@_-lboost_regex_@@_-lsqlite3_@@_-lwsock32_@@_-lxml2_@@_-lmysql_@@_-lws2_32_@@_-s_@@_-lboost_filesystem_@@_-lboost_thread_@@_-Wl,-Map=forgottenserver.map_@@_
 IsCpp=1
 Icon=TheForgottenServer.ico
 ExeOutput=
@@ -1689,26 +1689,6 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit168]
-FileName=..\protocolhttp.cpp
-CompileCpp=1
-Folder=TheForgottenServer
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit169]
-FileName=..\protocolhttp.h
-CompileCpp=1
-Folder=TheForgottenServer
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
 [Unit1]
 FileName=..\waypoints.h
 CompileCpp=1
@@ -1739,21 +1719,41 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
+[Unit168]
+FileName=..\itemattributes.cpp
+CompileCpp=1
+Folder=TheForgottenServer
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=0
+
+[Unit169]
+FileName=..\itemattributes.h
+CompileCpp=1
+Folder=TheForgottenServer
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=0
+
 [VersionInfo]
 Major=0
 Minor=3
-Release=5
-Build=2576
+Release=6
+Build=3293
 LanguageID=1033
 CharsetID=1250
 CompanyName=OtLand.net
-FileVersion=0.3.5
+FileVersion=0.3.6
 FileDescription=The Forgotten Server
 InternalName=Crying Damson
 LegalCopyright=
 LegalTrademarks=
 OriginalFilename=Crying Damson.exe
 ProductName=The Forgotten Server
-ProductVersion=0.3.5
+ProductVersion=0.3.6
 AutoIncBuildNr=0
 

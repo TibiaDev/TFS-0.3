@@ -27,9 +27,11 @@
 #include "npc.h"
 
 #include "house.h"
-#include "chat.h"
+#include "town.h"
+
 #include "teleport.h"
 #include "status.h"
+#include "textlogger.h"
 
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 #include "outputmessage.h"
@@ -41,17 +43,18 @@
 
 #include "configmanager.h"
 #include "game.h"
-#include "textlogger.h"
+#include "chat.h"
+#include "tools.h"
 
 extern ConfigManager g_config;
-extern TalkActions* g_talkActions;
 extern Game g_game;
 extern Chat g_chat;
+extern TalkActions* g_talkActions;
 
 TalkActions::TalkActions() :
-m_scriptInterface("TalkAction Interface")
+m_interface("TalkAction Interface")
 {
-	m_scriptInterface.initState();
+	m_interface.initState();
 }
 
 TalkActions::~TalkActions()
@@ -65,13 +68,13 @@ void TalkActions::clear()
 		delete it->second;
 
 	talksMap.clear();
-	m_scriptInterface.reInitState();
+	m_interface.reInitState();
 }
 
 Event* TalkActions::getEvent(const std::string& nodeName)
 {
 	if(asLowerCaseString(nodeName) == "talkaction")
-		return new TalkAction(&m_scriptInterface);
+		return new TalkAction(&m_interface);
 
 	return NULL;
 }
@@ -168,7 +171,7 @@ bool TalkActions::onPlayerSay(Creature* creature, uint16_t channelId, const std:
 		if(player)
 			player->sendTextMessage(MSG_STATUS_CONSOLE_RED, words.c_str());
 
-		Loggar::getInstance()->log("talkactions/" + creature->getName() + ".log", words);
+		Logger::getInstance()->eFile("talkactions/" + creature->getName() + ".log", words, true);
 	}
 
 	if(talkAction->isScripted())
@@ -290,12 +293,13 @@ bool TalkAction::loadFunction(const std::string& functionName)
 	return true;
 }
 
-int32_t TalkAction::executeSay(Creature* creature, const std::string& words, const std::string& param, uint16_t channel)
+int32_t TalkAction::executeSay(Creature* creature, const std::string& words, std::string param, uint16_t channel)
 {
 	//onSay(cid, words, param, channel)
-	if(m_scriptInterface->reserveScriptEnv())
+	if(m_interface->reserveEnv())
 	{
-		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
+		trimString(param);
+		ScriptEnviroment* env = m_interface->getEnv();
 		if(m_scripted == EVENT_SCRIPT_BUFFER)
 		{
 			env->setRealPos(creature->getPosition());
@@ -308,13 +312,13 @@ int32_t TalkAction::executeSay(Creature* creature, const std::string& words, con
 
 			scriptstream << m_scriptData;
 			bool result = true;
-			if(m_scriptInterface->loadBuffer(scriptstream.str()) != -1)
+			if(m_interface->loadBuffer(scriptstream.str()))
 			{
-				lua_State* L = m_scriptInterface->getLuaState();
-				result = m_scriptInterface->getGlobalBool(L, "_result", true);
+				lua_State* L = m_interface->getState();
+				result = m_interface->getGlobalBool(L, "_result", true);
 			}
 
-			m_scriptInterface->releaseScriptEnv();
+			m_interface->releaseEnv();
 			return result;
 		}
 		else
@@ -325,19 +329,19 @@ int32_t TalkAction::executeSay(Creature* creature, const std::string& words, con
 			env->setEventDesc(desc);
 			#endif
 
-			env->setScriptId(m_scriptId, m_scriptInterface);
+			env->setScriptId(m_scriptId, m_interface);
 			env->setRealPos(creature->getPosition());
 
-			lua_State* L = m_scriptInterface->getLuaState();
-			m_scriptInterface->pushFunction(m_scriptId);
+			lua_State* L = m_interface->getState();
+			m_interface->pushFunction(m_scriptId);
 			lua_pushnumber(L, env->addThing(creature));
 
 			lua_pushstring(L, words.c_str());
 			lua_pushstring(L, param.c_str());
 			lua_pushnumber(L, channel);
 
-			bool result = m_scriptInterface->callFunction(4);
-			m_scriptInterface->releaseScriptEnv();
+			bool result = m_interface->callFunction(4);
+			m_interface->releaseEnv();
 			return result;
 		}
 	}
@@ -359,7 +363,7 @@ bool TalkAction::houseBuy(Creature* creature, const std::string& cmd, const std:
 	if(!tile)
 	{
 		player->sendCancel("You have to be looking at door of flat you would like to purchase.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
@@ -367,7 +371,7 @@ bool TalkAction::houseBuy(Creature* creature, const std::string& cmd, const std:
 	if(!houseTile)
 	{
 		player->sendCancel("You have to be looking at door of flat you would like to purchase.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
@@ -375,41 +379,41 @@ bool TalkAction::houseBuy(Creature* creature, const std::string& cmd, const std:
 	if(!house)
 	{
 		player->sendCancel("You have to be looking at door of flat you would like to purchase.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
 	if(!house->getDoorByPosition(pos))
 	{
 		player->sendCancel("You have to be looking at door of flat you would like to purchase.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
 	if(!house->isGuild())
 	{
-		if(Houses::getInstance().getHouseByPlayerId(player->getGUID()))
+		if(Houses::getInstance()->getHouseByPlayerId(player->getGUID()))
 		{
 			player->sendCancel("You already rent another house.");
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 
 		uint16_t accountHouses = g_config.getNumber(ConfigManager::HOUSES_PER_ACCOUNT);
-		if(accountHouses > 0 && Houses::getInstance().getHousesCount(player->getAccount()) >= accountHouses)
+		if(accountHouses > 0 && Houses::getInstance()->getHousesCount(player->getAccount()) >= accountHouses)
 		{
 			char buffer[80];
 			sprintf(buffer, "You may own only %d house%s per account.", accountHouses, (accountHouses != 1 ? "s" : ""));
 
 			player->sendCancel(buffer);
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 
 		if(g_config.getBool(ConfigManager::HOUSE_NEED_PREMIUM) && !player->isPremium())
 		{
 			player->sendCancelMessage(RET_YOUNEEDPREMIUMACCOUNT);
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 
@@ -419,7 +423,7 @@ bool TalkAction::houseBuy(Creature* creature, const std::string& cmd, const std:
 			char buffer[90];
 			sprintf(buffer, "You have to be at least Level %d to purchase a house.", levelToBuyHouse);
 			player->sendCancel(buffer);
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 	}
@@ -428,33 +432,33 @@ bool TalkAction::houseBuy(Creature* creature, const std::string& cmd, const std:
 		if(!player->getGuildId() || player->getGuildLevel() != GUILDLEVEL_LEADER)
 		{
 			player->sendCancel("You have to be at least a guild leader to purchase a hall.");
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 
-		if(Houses::getInstance().getHouseByGuildId(player->getGuildId()))
+		if(Houses::getInstance()->getHouseByGuildId(player->getGuildId()))
 		{
 			player->sendCancel("Your guild rents already another hall.");
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 	}
 
-	if(house->getHouseOwner())
+	if(house->getOwner())
 	{
 		player->sendCancel("This flat is already owned by someone else.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
 	if(g_game.getMoney(player) < house->getPrice() || !g_game.removeMoney(player, house->getPrice()))
 	{
 		player->sendCancel("You do not have enough money.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
-	house->setHouseOwnerEx(player->getGUID(), true);
+	house->setOwnerEx(player->getGUID(), true);
 	std::string ret = "You have successfully bought this ";
 	if(house->isGuild())
 		ret += "hall";
@@ -471,7 +475,7 @@ bool TalkAction::houseBuy(Creature* creature, const std::string& cmd, const std:
 	ret += "depot of this town for rent.";
 	player->sendTextMessage(MSG_INFO_DESCR, ret.c_str());
 
-	g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_ENERGY);
+	g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_WRAPS_BLUE);
 	return false;
 }
 
@@ -481,18 +485,18 @@ bool TalkAction::houseSell(Creature* creature, const std::string& cmd, const std
 	if(!player || !g_config.getBool(ConfigManager::HOUSE_BUY_AND_SELL))
 		return false;
 
-	House* house = Houses::getInstance().getHouseByPlayerId(player->getGUID());
-	if(!house && (!player->getGuildId() || !(house = Houses::getInstance().getHouseByGuildId(player->getGuildId()))))
+	House* house = Houses::getInstance()->getHouseByPlayerId(player->getGUID());
+	if(!house && (!player->getGuildId() || !(house = Houses::getInstance()->getHouseByGuildId(player->getGuildId()))))
 	{
 		player->sendCancel("You do not rent any flat.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
 	if(house->isGuild() && player->getGuildLevel() != GUILDLEVEL_LEADER)
 	{
 		player->sendCancel("You have to be at least a guild leader to sell this hall.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
@@ -501,41 +505,41 @@ bool TalkAction::houseSell(Creature* creature, const std::string& cmd, const std
 	if(ret != RET_NOERROR)
 	{
 		player->sendCancelMessage(ret);
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
 	if(tradePartner == player)
 	{
 		player->sendCancel("You cannot trade with yourself.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
 	if(!house->isGuild())
 	{
-		if(Houses::getInstance().getHouseByPlayerId(tradePartner->getGUID()))
+		if(Houses::getInstance()->getHouseByPlayerId(tradePartner->getGUID()))
 		{
 			player->sendCancel("Trade player already rents another house.");
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 
 		uint16_t housesPerAccount = g_config.getNumber(ConfigManager::HOUSES_PER_ACCOUNT);
-		if(housesPerAccount > 0 && Houses::getInstance().getHousesCount(tradePartner->getAccount()) >= housesPerAccount)
+		if(housesPerAccount > 0 && Houses::getInstance()->getHousesCount(tradePartner->getAccount()) >= housesPerAccount)
 		{
 			char buffer[100];
 			sprintf(buffer, "Trade player has reached limit of %d house%s per account.", housesPerAccount, (housesPerAccount != 1 ? "s" : ""));
 
 			player->sendCancel(buffer);
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 
 		if(!tradePartner->isPremium() && !g_config.getBool(ConfigManager::HOUSE_NEED_PREMIUM))
 		{
 			player->sendCancel("Trade player does not have a premium account.");
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 
@@ -546,7 +550,7 @@ bool TalkAction::houseSell(Creature* creature, const std::string& cmd, const std
 			sprintf(buffer, "Trade player has to be at least Level %d to buy house.", levelToBuyHouse);
 
 			player->sendCancel(buffer);
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 	}
@@ -555,14 +559,14 @@ bool TalkAction::houseSell(Creature* creature, const std::string& cmd, const std
 		if(!tradePartner->getGuildId() || tradePartner->getGuildLevel() != GUILDLEVEL_LEADER)
 		{
 			player->sendCancel("Trade player has to be at least a guild leader to buy a hall.");
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 
-		if(Houses::getInstance().getHouseByGuildId(tradePartner->getGuildId()))
+		if(Houses::getInstance()->getHouseByGuildId(tradePartner->getGuildId()))
 		{
 			player->sendCancel("Trade player's guild already rents another hall.");
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+			g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 			return false;
 		}
 	}
@@ -570,25 +574,25 @@ bool TalkAction::houseSell(Creature* creature, const std::string& cmd, const std
 	if(!Position::areInRange<3,3,0>(tradePartner->getPosition(), player->getPosition()))
 	{
 		player->sendCancel("Trade player is too far away.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
-	if(!Houses::getInstance().payRent(player, house, 0))
+	if(!Houses::getInstance()->payRent(player, house, 0))
 	{
 		player->sendCancel("You have to pay a pre-rent first.");
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
-	Item* transferItem = HouseTransferItem::createHouseTransferItem(house);
+	Item* transferItem = TransferItem::createTransferItem(house);
 	player->transferContainer.__addThing(NULL, transferItem);
 
 	player->transferContainer.setParent(player);
 	if(!g_game.internalStartTrade(player, tradePartner, transferItem))
 		transferItem->onTradeEvent(ON_TRADE_CANCEL, player, NULL);
 
-	g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_ENERGY);
+	g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_WRAPS_BLUE);
 	return false;
 }
 
@@ -602,14 +606,14 @@ bool TalkAction::houseKick(Creature* creature, const std::string& cmd, const std
 	if(g_game.getPlayerByNameWildcard(param, targetPlayer) != RET_NOERROR)
 		targetPlayer = player;
 
-	House* house = Houses::getInstance().getHouseByPlayer(targetPlayer);
+	House* house = Houses::getInstance()->getHouseByPlayer(targetPlayer);
 	if(!house || !house->kickPlayer(player, targetPlayer))
 	{
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		player->sendCancelMessage(RET_NOTPOSSIBLE);
 	}
 	else
-		g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_ENERGY);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_WRAPS_BLUE);
 
 	return false;
 }
@@ -620,11 +624,11 @@ bool TalkAction::houseDoorList(Creature* creature, const std::string& cmd, const
 	if(!player)
 		return false;
 
-	House* house = Houses::getInstance().getHouseByPlayer(player);
+	House* house = Houses::getInstance()->getHouseByPlayer(player);
 	if(!house)
 	{
 		player->sendCancelMessage(RET_NOTPOSSIBLE);
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return false;
 	}
 
@@ -633,12 +637,12 @@ bool TalkAction::houseDoorList(Creature* creature, const std::string& cmd, const
 	{
 		player->setEditHouse(house, door->getDoorId());
 		player->sendHouseWindow(house, door->getDoorId());
-		g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_ENERGY);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_WRAPS_BLUE);
 	}
 	else
 	{
 		player->sendCancelMessage(RET_NOTPOSSIBLE);
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 	}
 
 	return false;
@@ -650,17 +654,17 @@ bool TalkAction::houseGuestList(Creature* creature, const std::string& cmd, cons
 	if(!player)
 		return false;
 
-	House* house = Houses::getInstance().getHouseByPlayer(player);
+	House* house = Houses::getInstance()->getHouseByPlayer(player);
 	if(house && house->canEditAccessList(GUEST_LIST, player))
 	{
 		player->setEditHouse(house, GUEST_LIST);
 		player->sendHouseWindow(house, GUEST_LIST);
-		g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_ENERGY);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_WRAPS_BLUE);
 	}
 	else
 	{
 		player->sendCancelMessage(RET_NOTPOSSIBLE);
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 	}
 
 	return false;
@@ -672,17 +676,17 @@ bool TalkAction::houseSubOwnerList(Creature* creature, const std::string& cmd, c
 	if(!player)
 		return false;
 
-	House* house = Houses::getInstance().getHouseByPlayer(player);
+	House* house = Houses::getInstance()->getHouseByPlayer(player);
 	if(house && house->canEditAccessList(SUBOWNER_LIST, player))
 	{
 		player->setEditHouse(house, SUBOWNER_LIST);
 		player->sendHouseWindow(house, SUBOWNER_LIST);
-		g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_ENERGY);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_WRAPS_BLUE);
 	}
 	else
 	{
 		player->sendCancelMessage(RET_NOTPOSSIBLE);
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 	}
 
 	return false;
@@ -699,9 +703,9 @@ bool TalkAction::guildJoin(Creature* creature, const std::string& cmd, const std
 	if(!player->getGuildId())
 	{
 		uint32_t guildId;
-		if(IOGuild::getInstance()->getGuildIdByName(guildId, param_))
+		if(IOGuild::getInstance()->getGuildId(guildId, param_))
 		{
-			if(player->isInvitedToGuild(guildId))
+			if(player->isGuildInvited(guildId))
 			{
 				IOGuild::getInstance()->joinGuild(player, guildId);
 				player->sendTextMessage(MSG_INFO_DESCR, "You have joined the guild.");
@@ -758,7 +762,7 @@ bool TalkAction::guildCreate(Creature* creature, const std::string& cmd, const s
 	}
 
 	uint32_t guildId;
-	if(IOGuild::getInstance()->getGuildIdByName(guildId, param_))
+	if(IOGuild::getInstance()->getGuildId(guildId, param_))
 	{
 		player->sendCancel("There is already a guild with that name.");
 		return true;
@@ -797,189 +801,179 @@ bool TalkAction::thingProporties(Creature* creature, const std::string& cmd, con
 	if(!player)
 		return false;
 
-	Position playerPos = player->getPosition();
-	Position pos = getNextPosition(player->getDirection(), playerPos);
-
-	Tile* tileInFront = g_game.getTile(pos);
-	if(!tileInFront)
+	const Position& pos = getNextPosition(player->getDirection(), player->getPosition());
+	Tile* tile = g_game.getTile(pos);
+	if(!tile)
 	{
 		player->sendTextMessage(MSG_STATUS_SMALL, "No tile found.");
-		g_game.addMagicEffect(playerPos, NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return true;
 	}
 
-	Thing* thing = tileInFront->getTopVisibleThing(creature);
+	Thing* thing = tile->getTopVisibleThing(creature);
 	if(!thing)
 	{
 		player->sendTextMessage(MSG_STATUS_SMALL, "No object found.");
-		g_game.addMagicEffect(playerPos, NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		return true;
 	}
 
 	boost::char_separator<char> sep(" ");
-	tokenizer cmdtokens(param, sep);
+	tokenizer tokens(param, sep);
 
-	std::string tmp;
-	tokenizer::iterator cmdit = cmdtokens.begin();
-	while(cmdit != cmdtokens.end())
+	std::string invalid;
+	for(tokenizer::iterator it = tokens.begin(); it != tokens.end();)
 	{
+		std::string action = parseParams(it, tokens.end());
+		toLowerCaseString(action);
 		if(Item* item = thing->getItem())
 		{
-			tmp = parseParams(cmdit, cmdtokens.end());
-			if(!strcasecmp(tmp.c_str(), "description") || !strcasecmp(tmp.c_str(), "desc"))
-				item->setSpecialDescription(parseParams(cmdit, cmdtokens.end()));
-			else if(!strcasecmp(tmp.c_str(), "count") || !strcasecmp(tmp.c_str(),
-				"fluidtype") || !strcasecmp(tmp.c_str(), "charges"))
-				item->setSubType(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "action") || !strcasecmp(tmp.c_str(),
-				"actionid") || !strcasecmp(tmp.c_str(), "aid"))
-				item->setActionId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "unique") || !strcasecmp(tmp.c_str(),
-				"uniqueid") || !strcasecmp(tmp.c_str(), "uid"))
-				item->setUniqueId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "duration"))
-				item->setDuration(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "writer"))
-				item->setWriter(parseParams(cmdit, cmdtokens.end()));
-			else if(!strcasecmp(tmp.c_str(), "text"))
-				item->setText(parseParams(cmdit, cmdtokens.end()));
-			else if(!strcasecmp(tmp.c_str(), "name"))
-				item->setName(parseParams(cmdit, cmdtokens.end()));
-			else if(!strcasecmp(tmp.c_str(), "pluralname"))
-				item->setPluralName(parseParams(cmdit, cmdtokens.end()));
-			else if(!strcasecmp(tmp.c_str(), "article"))
-				item->setArticle(parseParams(cmdit, cmdtokens.end()));
-			else if(!strcasecmp(tmp.c_str(), "attack"))
-				item->setAttack(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "extraattack"))
-				item->setExtraAttack(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "defense"))
-				item->setDefense(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "extradefense"))
-				item->setExtraDefense(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "armor"))
-				item->setArmor(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "attackspeed"))
-				item->setAttackSpeed(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "hitchance"))
-				item->setHitChance(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "shootrange"))
-				item->setShootRange(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "depot") || !strcasecmp(tmp.c_str(), "depotid"))
+			if(action == "set")
 			{
-				if(item->getContainer() && item->getContainer()->getDepot())
-					item->getContainer()->getDepot()->setDepotId(
-						atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+				std::string key = parseParams(it, tokens.end()), value = parseParams(it, tokens.end());
+				if(atoi(value.c_str()) || value == "0")
+					item->setAttribute(key, atoi(value.c_str()));
+				else
+					item->setAttribute(key, value);
 			}
-			else if(!strcasecmp(tmp.c_str(), "destination") || !strcasecmp(tmp.c_str(), "position") ||
-				!strcasecmp(tmp.c_str(), "pos") || !strcasecmp(tmp.c_str(), "destpos")) //FIXME
+			else if(action == "erase" || action == "remove")
+				item->eraseAttribute(parseParams(it, tokens.end()));
+			else if(action == "action" || action == "actionid" || action == "aid")
 			{
-				if(item->getTeleport())
-					item->getTeleport()->setDestPos(Position(atoi(parseParams(cmdit,
-						cmdtokens.end()).c_str()), atoi(parseParams(cmdit, cmdtokens.end()).c_str()),
-						atoi(parseParams(cmdit, cmdtokens.end()).c_str())));
+				int32_t tmp = atoi(parseParams(it, tokens.end()).c_str());
+				if(tmp > 0)
+					item->setActionId(tmp);
+				else
+					item->resetActionId();
+			}
+			else if(action == "unique" || action == "uniqueid" || action == "uid")
+			{
+				int32_t tmp = atoi(parseParams(it, tokens.end()).c_str());
+				if(tmp >= 1000 || tmp <= 0xFFFF)
+					item->setUniqueId(tmp);
+			}
+			else if(action == "destination" || action == "position"
+				|| action == "pos" || action == "dest") //TODO: doesn't work
+			{
+				if(Teleport* teleport = item->getTeleport())
+					teleport->setDestination(Position(atoi(parseParams(it,
+						tokens.end()).c_str()), atoi(parseParams(it, tokens.end()).c_str()),
+						atoi(parseParams(it, tokens.end()).c_str())));
 			}
 			else
 			{
-				player->sendTextMessage(MSG_STATUS_SMALL, "No valid action.");
-				g_game.addMagicEffect(playerPos, NM_ME_POFF);
-				return true;
+				std::stringstream s;
+				s << action << " (" << parseParams(it, tokens.end()) << ")";
+				invalid += s.str();
+				break;
 			}
 		}
 		else if(Creature* _creature = thing->getCreature())
 		{
-			tmp = parseParams(cmdit, cmdtokens.end());
-			if(!strcasecmp(tmp.c_str(), "health"))
-				_creature->changeHealth(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "maxhealth"))
-				_creature->changeMaxHealth(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "mana"))
-				_creature->changeMana(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "maxmana"))
-				_creature->changeMaxMana(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "basespeed"))
-				_creature->setBaseSpeed(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "droploot"))
-				_creature->setDropLoot(booleanString(parseParams(cmdit, cmdtokens.end()).c_str()) ? LOOT_DROP_FULL : LOOT_DROP_NONE);
-			else if(!strcasecmp(tmp.c_str(), "lossskill"))
-				_creature->setLossSkill(booleanString(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "cannotmove"))
-				_creature->setNoMove(booleanString(parseParams(cmdit, cmdtokens.end()).c_str()));
-			else if(!strcasecmp(tmp.c_str(), "skull"))
+			if(action == "health")
+				_creature->changeHealth(atoi(parseParams(it, tokens.end()).c_str()));
+			else if(action == "maxhealth")
+				_creature->changeMaxHealth(atoi(parseParams(it, tokens.end()).c_str()));
+			else if(action == "mana")
+				_creature->changeMana(atoi(parseParams(it, tokens.end()).c_str()));
+			else if(action == "maxmana")
+				_creature->changeMaxMana(atoi(parseParams(it, tokens.end()).c_str()));
+			else if(action == "basespeed")
+				_creature->setBaseSpeed(atoi(parseParams(it, tokens.end()).c_str()));
+			else if(action == "droploot")
+				_creature->setDropLoot((lootDrop_t)atoi(parseParams(it, tokens.end()).c_str()));
+			else if(action == "lossskill")
+				_creature->setLossSkill(booleanString(parseParams(it, tokens.end())));
+			else if(action == "cannotmove")
+				_creature->setNoMove(booleanString(parseParams(it, tokens.end())));
+			else if(action == "skull")
 			{
-				_creature->setSkull((Skulls_t)atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+				_creature->setSkull(getSkull(parseParams(it, tokens.end())));
 				g_game.updateCreatureSkull(_creature);
 			}
-			else if(!strcasecmp(param.c_str(), "speaktype"))
-				_creature->setSpeakType((SpeakClasses)atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+			else if(action == "speaktype")
+				_creature->setSpeakType((SpeakClasses)atoi(parseParams(it, tokens.end()).c_str()));
 			else if(Player* _player = _creature->getPlayer())
 			{
-				if(!strcasecmp(tmp.c_str(), "fyi"))
-					_player->sendFYIBox(parseParams(cmdit, cmdtokens.end()).c_str());
-				else if(!strcasecmp(param.c_str(), "tutorial"))
-					_player->sendTutorial(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-				else if(!strcasecmp(tmp.c_str(), "guildrank"))
-					_player->setGuildRankId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-				else if(!strcasecmp(tmp.c_str(), "guildnick"))
-					_player->setGuildNick(parseParams(cmdit, cmdtokens.end()).c_str());
-				else if(!strcasecmp(tmp.c_str(), "group"))
-					_player->setGroupId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-				else if(!strcasecmp(tmp.c_str(), "vocation"))
-					_player->setVocation(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-				else if(!strcasecmp(tmp.c_str(), "sex") || !strcasecmp(tmp.c_str(), "gender"))
-					_player->setSex(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-				else if(!strcasecmp(tmp.c_str(), "stamina"))
-					_player->setStaminaMinutes(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-				else if(!strcasecmp(tmp.c_str(), "town")) //FIXME
-					_player->setTown(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-				else if(!strcasecmp(tmp.c_str(), "balance"))
-					_player->balance = atoi(parseParams(cmdit, cmdtokens.end()).c_str());
-				else if(!strcasecmp(tmp.c_str(), "marriage"))
-					_player->marriage = atoi(parseParams(cmdit, cmdtokens.end()).c_str());
-				else if(!strcasecmp(tmp.c_str(), "rates"))
-					_player->rates[atoi(parseParams(cmdit, cmdtokens.end()).c_str())] = atof(
-						parseParams(cmdit, cmdtokens.end()).c_str());
-				else if(!strcasecmp(tmp.c_str(), "idle"))
-					_player->setIdleTime(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-				else if(!strcasecmp(tmp.c_str(), "capacity"))
-					_player->setCapacity(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
-				else if(!strcasecmp(tmp.c_str(), "saving"))
+				if(action == "fyi")
+					_player->sendFYIBox(parseParams(it, tokens.end()).c_str());
+				else if(action == "tutorial")
+					_player->sendTutorial(atoi(parseParams(it, tokens.end()).c_str()));
+				else if(action == "guildlevel")
+					_player->setGuildLevel((GuildLevel_t)atoi(parseParams(it, tokens.end()).c_str()));
+				else if(action == "guildrank")
+					_player->setRankId(atoi(parseParams(it, tokens.end()).c_str()));
+				else if(action == "guildnick")
+					_player->setGuildNick(parseParams(it, tokens.end()).c_str());
+				else if(action == "group")
+					_player->setGroupId(atoi(parseParams(it, tokens.end()).c_str()));
+				else if(action == "vocation")
+					_player->setVocation(atoi(parseParams(it, tokens.end()).c_str()));
+				else if(action == "sex" || action == "gender")
+					_player->setSex(atoi(parseParams(it, tokens.end()).c_str()));
+				else if(action == "stamina")
+					_player->setStaminaMinutes(atoi(parseParams(it, tokens.end()).c_str()));
+				else if(action == "town" || action == "temple")
+				{
+					if(Town* town = Towns::getInstance()->getTown(parseParams(it, tokens.end())))
+					{
+						_player->setMasterPosition(town->getPosition());
+						_player->setTown(town->getID());
+					}
+				}
+				else if(action == "balance")
+					_player->balance = atoi(parseParams(it, tokens.end()).c_str());
+				else if(action == "marriage" || action == "partner")
+					_player->marriage = atoi(parseParams(it, tokens.end()).c_str());
+				else if(action == "rates")
+					_player->rates[atoi(parseParams(it, tokens.end()).c_str())] = atof(
+						parseParams(it, tokens.end()).c_str());
+				else if(action == "idle")
+					_player->setIdleTime(atoi(parseParams(it, tokens.end()).c_str()));
+				else if(action == "capacity" || action == "cap")
+					_player->setCapacity(atoi(parseParams(it, tokens.end()).c_str()));
+				else if(action == "execute")
+					g_talkActions->onPlayerSay(_player, atoi(parseParams(it, tokens.end()).c_str()),
+						parseParams(it, tokens.end()), booleanString(parseParams(it, tokens.end())));
+				else if(action == "saving" || action == "save")
 					_player->switchSaving();
 				else
 				{
-					player->sendTextMessage(MSG_STATUS_SMALL, "No valid action.");
-					g_game.addMagicEffect(playerPos, NM_ME_POFF);
-					return true;
+					std::stringstream s;
+					s << action << " (" << parseParams(it, tokens.end()) << ")";
+					invalid += s.str();
+					break;
 				}
 			}
-			/*else if(Npc* _npc = _creature->getNpc())
-				//
-			else if(Monster* _monster = _creature->getMonster())
-				//*/
 			else
 			{
-				player->sendTextMessage(MSG_STATUS_SMALL, "No valid action.");
-				g_game.addMagicEffect(playerPos, NM_ME_POFF);
-				return true;
+				std::stringstream s;
+				s << action << " (" << parseParams(it, tokens.end()) << ")";
+				invalid += s.str();
+				break;
 			}
 		}
 	}
 
-	const Position& cylinderMapPos = tileInFront->getPosition();
-	const SpectatorVec& list = g_game.getSpectators(cylinderMapPos);
+	const SpectatorVec& list = g_game.getSpectators(pos);
 	SpectatorVec::const_iterator it;
 
 	Player* tmpPlayer = NULL;
 	for(it = list.begin(); it != list.end(); ++it)
 	{
 		if((tmpPlayer = (*it)->getPlayer()))
-			tmpPlayer->sendUpdateTile(tileInFront, cylinderMapPos);
+			tmpPlayer->sendUpdateTile(tile, pos);
 	}
 
 	for(it = list.begin(); it != list.end(); ++it)
-		(*it)->onUpdateTile(tileInFront, cylinderMapPos);
+		(*it)->onUpdateTile(tile, pos);
 
-	g_game.addMagicEffect(pos, NM_ME_MAGIC_POISON);
+	g_game.addMagicEffect(pos, MAGIC_EFFECT_WRAPS_GREEN);
+	if(invalid.empty())
+		return true;
+
+	std::string tmp = "Following action was invalid: " + invalid;
+	player->sendTextMessage(MSG_STATUS_CONSOLE_BLUE, tmp.c_str());
 	return true;
 }
 
@@ -1159,13 +1153,13 @@ bool TalkAction::addSkill(Creature* creature, const std::string& cmd, const std:
 	if(skill[0] == 'l' || skill[0] == 'e')
 		target->addExperience(uint64_t(Player::getExpForLevel(target->getLevel() + amount) - target->getExperience()));
 	else if(skill[0] == 'm')
-		target->addManaSpent((uint64_t)std::ceil(double(target->getVocation()->getReqMana(target->getMagicLevel() +
-			amount) - target->getSpentMana()) / g_config.getDouble(ConfigManager::RATE_MAGIC)), true, false);
+		target->addManaSpent((uint64_t)(target->getVocation()->getReqMana(target->getMagicLevel() +
+			amount) - target->getSpentMana()), false);
 	else
 	{
 		skills_t skillId = getSkillId(skill);
-		target->addSkillAdvance(skillId, (uint32_t)std::ceil(double(target->getVocation()->getReqSkillTries(skillId, (target->getSkill(skillId,
-			SKILL_LEVEL) + amount)) - target->getSkill(skillId, SKILL_TRIES)) / g_config.getDouble(ConfigManager::RATE_SKILL)), false);
+		target->addSkillAdvance(skillId, (uint32_t)(target->getVocation()->getReqSkillTries(skillId, target->getSkill(skillId,
+			SKILL_LEVEL) + amount) - target->getSkill(skillId, SKILL_TRIES)), false);
 	}
 
 	return true;
@@ -1192,9 +1186,7 @@ bool TalkAction::ghost(Creature* creature, const std::string& cmd, const std::st
 	{
 		player->sendTextMessage(MSG_INFO_DESCR, "You are visible again.");
 		IOLoginData::getInstance()->updateOnlineStatus(player->getGUID(), true);
-
-		Status::getInstance()->addPlayer();
-		for(AutoList<Player>::listiterator pit = Player::listPlayer.list.begin(); pit != Player::listPlayer.list.end(); ++pit)
+		for(AutoList<Player>::iterator pit = Player::autoList.begin(); pit != Player::autoList.end(); ++pit)
 		{
 			if(!pit->second->canSeeCreature(player))
 				pit->second->notifyLogIn(player);
@@ -1203,7 +1195,7 @@ bool TalkAction::ghost(Creature* creature, const std::string& cmd, const std::st
 		for(it = list.begin(); it != list.end(); ++it)
 		{
 			if((tmpPlayer = (*it)->getPlayer()) && !tmpPlayer->canSeeCreature(player))
-				tmpPlayer->sendMagicEffect(player->getPosition(), NM_ME_TELEPORT);
+				tmpPlayer->sendMagicEffect(player->getPosition(), MAGIC_EFFECT_TELEPORT);
 		}
 
 		player->removeCondition(condition);
@@ -1216,17 +1208,23 @@ bool TalkAction::ghost(Creature* creature, const std::string& cmd, const std::st
 		for(it = list.begin(); it != list.end(); ++it)
 		{
 			if((tmpPlayer = (*it)->getPlayer()) && !tmpPlayer->canSeeCreature(player))
-				tmpPlayer->sendMagicEffect(player->getPosition(), NM_ME_POFF);
+				tmpPlayer->sendMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 		}
 
-		for(AutoList<Player>::listiterator pit = Player::listPlayer.list.begin(); pit != Player::listPlayer.list.end(); ++pit)
+		for(AutoList<Player>::iterator pit = Player::autoList.begin(); pit != Player::autoList.end(); ++pit)
 		{
 			if(!pit->second->canSeeCreature(player))
 				pit->second->notifyLogOut(player);
 		}
 
-		Status::getInstance()->removePlayer();
 		IOLoginData::getInstance()->updateOnlineStatus(player->getGUID(), false);
+		if(player->isTrading())
+			g_game.internalCloseTrade(player);
+
+		player->clearPartyInvitations();
+		if(player->getParty())
+			player->getParty()->leave(player);
+
 		player->sendTextMessage(MSG_INFO_DESCR, "You are now invisible.");
 	}
 

@@ -44,7 +44,7 @@ Attr_ReadValue BedItem::readAttr(AttrTypes_t attr, PropStream& propStream)
 				if(IOLoginData::getInstance()->getNameByGuid(_sleeper, name))
 				{
 					setSpecialDescription(name + " is sleeping there.");
-					Beds::getInstance().setBedSleeper(this, _sleeper);
+					Beds::getInstance()->setBedSleeper(this, _sleeper);
 				}
 			}
 
@@ -54,11 +54,11 @@ Attr_ReadValue BedItem::readAttr(AttrTypes_t attr, PropStream& propStream)
 
 		case ATTR_SLEEPSTART:
 		{
-			uint32_t _sleepStart;
-			if(!propStream.GET_ULONG(_sleepStart))
+			uint32_t sleepStart;
+			if(!propStream.GET_ULONG(sleepStart))
 				return ATTR_READ_ERROR;
 
-			sleepStart = (time_t)_sleepStart;
+			setAttribute("sleepstart", (int32_t)sleepStart);
 			return ATTR_READ_CONTINUE;
 		}
 
@@ -71,19 +71,13 @@ Attr_ReadValue BedItem::readAttr(AttrTypes_t attr, PropStream& propStream)
 
 bool BedItem::serializeAttr(PropWriteStream& propWriteStream) const
 {
-	if(sleeper)
-	{
-		propWriteStream.ADD_UCHAR(ATTR_SLEEPERGUID);
-		propWriteStream.ADD_ULONG(sleeper);
-	}
+	bool ret = Item::serializeAttr(propWriteStream);
+	if(!sleeper)
+		return ret;
 
-	if(sleepStart)
-	{
-		propWriteStream.ADD_UCHAR(ATTR_SLEEPSTART);
-		propWriteStream.ADD_ULONG((int32_t)sleepStart);
-	}
-
-	return true;
+	propWriteStream.ADD_UCHAR(ATTR_SLEEPERGUID);
+	propWriteStream.ADD_ULONG(sleeper);
+	return ret;
 }
 
 BedItem* BedItem::getNextBedItem()
@@ -121,7 +115,7 @@ void BedItem::sleep(Player* player)
 
 	if(!sleeper)
 	{
-		Beds::getInstance().setBedSleeper(this, player->getGUID());
+		Beds::getInstance()->setBedSleeper(this, player->getGUID());
 		internalSetSleeper(player);
 
 		BedItem* nextBedItem = getNextBedItem();
@@ -133,13 +127,13 @@ void BedItem::sleep(Player* player)
 			nextBedItem->updateAppearance(player);
 
 		player->getTile()->moveCreature(NULL, player, getTile());
-		g_game.addMagicEffect(player->getPosition(), NM_ME_SLEEP);
-		Scheduler::getScheduler().addEvent(createSchedulerTask(SCHEDULER_MINTICKS, boost::bind(&Game::kickPlayer, &g_game, player->getID(), false)));
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_SLEEP);
+		Scheduler::getInstance().addEvent(createSchedulerTask(SCHEDULER_MINTICKS, boost::bind(&Game::kickPlayer, &g_game, player->getID(), false)));
 	}
 	else if(Item::items[getID()].transformToFree)
 	{
 		wakeUp();
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(player->getPosition(), MAGIC_EFFECT_POFF);
 	}
 	else
 		player->sendCancelMessage(RET_NOTPOSSIBLE);
@@ -165,7 +159,7 @@ void BedItem::wakeUp()
 		}
 	}
 
-	Beds::getInstance().setBedSleeper(NULL, sleeper);
+	Beds::getInstance()->setBedSleeper(NULL, sleeper);
 	internalRemoveSleeper();
 
 	BedItem* nextBedItem = getNextBedItem();
@@ -179,7 +173,8 @@ void BedItem::wakeUp()
 
 void BedItem::regeneratePlayer(Player* player) const
 {
-	int32_t sleptTime = int32_t(time(NULL) - sleepStart);
+	const int32_t* sleepStart = getIntegerAttribute("sleepstart");
+	int32_t sleptTime = (int32_t)time(NULL) - (sleepStart ? *sleepStart : 0);
 	if(Condition* condition = player->getCondition(CONDITION_REGENERATION, CONDITIONID_DEFAULT))
 	{
 		int32_t amount = sleptTime / 30;
@@ -206,11 +201,11 @@ void BedItem::updateAppearance(const Player* player)
 	if(it.type != ITEM_TYPE_BED)
 		return;
 
-	if(player && it.transformToOnUse[player->getSex(false)])
+	if(player && it.transformUseTo[player->getSex(false)])
 	{
-		const ItemType& newType = Item::items[it.transformToOnUse[player->getSex(false)]];
+		const ItemType& newType = Item::items[it.transformUseTo[player->getSex(false)]];
 		if(newType.type == ITEM_TYPE_BED)
-			g_game.transformItem(this, it.transformToOnUse[player->getSex(false)]);
+			g_game.transformItem(this, it.transformUseTo[player->getSex(false)]);
 	}
 	else if(it.transformToFree)
 	{
@@ -222,15 +217,15 @@ void BedItem::updateAppearance(const Player* player)
 
 void BedItem::internalSetSleeper(const Player* player)
 {
-	setSleeper(player->getGUID());
-	setSleepStart(time(NULL));
-	setSpecialDescription(std::string(player->getName() + " is sleeping there."));
+	sleeper = player->getGUID();
+	setAttribute("sleepstart", (int32_t)time(NULL));
+	setSpecialDescription(player->getName() + " is sleeping there.");
 }
 
 void BedItem::internalRemoveSleeper()
 {
-	setSleeper(0);
-	setSleepStart(0);
+	sleeper = 0;
+	eraseAttribute("sleepstart");
 	setSpecialDescription("Nobody is sleeping there.");
 }
 

@@ -57,8 +57,8 @@ class TalkActions : public BaseEvents
 		virtual Event* getEvent(const std::string& nodeName);
 		virtual bool registerEvent(Event* event, xmlNodePtr p, bool override);
 
-		virtual LuaScriptInterface& getScriptInterface() {return m_scriptInterface;}
-		LuaScriptInterface m_scriptInterface;
+		virtual LuaScriptInterface& getInterface() {return m_interface;}
+		LuaScriptInterface m_interface;
 };
 
 typedef bool (TalkFunction)(Creature* creature, const std::string& words, const std::string& param);
@@ -72,7 +72,7 @@ class TalkAction : public Event
 		virtual bool configureEvent(xmlNodePtr p);
 		virtual bool loadFunction(const std::string& functionName);
 
-		int32_t executeSay(Creature* creature, const std::string& words, const std::string& param, uint16_t channel);
+		int32_t executeSay(Creature* creature, const std::string& words, std::string param, uint16_t channel);
 
 		std::string getWords() const {return m_words;}
 		void setWords(const std::string& words) {m_words = words;}

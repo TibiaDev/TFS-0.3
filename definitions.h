@@ -23,14 +23,49 @@
 #define MULTI_SQL_DRIVERS
 #endif
 
-#ifndef WIN32
-	#define __CONSOLE__
+#ifdef __MINGW32__
+	#define XML_GCC_FREE
+	#ifndef __WINDOWS__
+		#define __WINDOWS__
+	#endif
+#endif
+
+#if defined _WIN32 || defined WIN32 || defined _WIN64 || defined WIN64 || defined __WINDOWS__ || defined WINDOWS
+	#if defined _WIN64 || defined WIN64
+		#ifndef _WIN64
+			#define _WIN64
+		#endif
+		#ifndef WIN64
+			#define WIN64
+		#endif
+	#else
+		#ifndef _WIN32
+			#define _WIN32
+		#endif
+		#ifndef WIN32
+			#define WIN32
+		#endif
+	#endif
+	#ifndef __WINDOWS__
+		#define __WINDOWS__
+	#endif
+	#ifndef WINDOWS
+		#define WINDOWS
+	#endif
+#endif
+
+#ifdef __CYGWIN__
+	#undef WIN32
+	#undef WIN64
+	#undef _WIN32
+	#undef _WIN64
+	#undef WINDOWS
+	#undef __WINDOWS__
+	#define HAVE_ERRNO_AS_DEFINE
 #endif
 
 #ifdef XML_GCC_FREE
-	#define xmlFreeOTSERV(s)	free(s)
-#else
-	#define xmlFreeOTSERV(s)	xmlFree(s)
+	#define xmlFree(s) free(s)
 #endif
 
 #ifdef __USE_MINIDUMP__
@@ -50,14 +85,8 @@
 	#endif
 #endif
 
-#if defined _WIN32
-#  ifndef WIN32
-#    define WIN32
-#  endif
-#endif
-
-#if defined __WINDOWS__ || defined WIN32
-
+#define BOOST_ASIO_ENABLE_CANCELIO 1
+#if defined WINDOWS
 #if defined _MSC_VER && defined NDEBUG
 	#define _SECURE_SCL 0
 	#define HAS_ITERATOR_DEBUGGING 0
@@ -67,50 +96,27 @@
 	#define	__FUNCTION__ __func__
 #endif
 
-#define OTSYS_THREAD_RETURN void
-
 #ifdef _WIN32_WINNT
 #undef _WIN32_WINNT
+#endif
+
+#ifdef _WIN64_WINNT
+#undef _WIN64_WINNT
 #endif
 
 //Windows 2000	0x0500
 //Windows XP	0x0501
 //Windows 2003	0x0502
 //Windows Vista	0x0600
+//Windows Seven 0x0601
+
 #define _WIN32_WINNT 0x0501
+#define _WIN64_WINNT 0x0501
 
-#ifdef __GNUC__
-	#if __GNUC__ >= 4
-		#ifndef __GXX_EXPERIMENTAL_CXX0X__
-			#include <tr1/unordered_map>
-			#include <tr1/unordered_set>
-		#else
-			#include <unordered_map>
-			#include <unordered_set>
-		#endif
-
-		#define OTSERV_HASH_MAP std::tr1::unordered_map
-		#define OTSERV_HASH_SET std::tr1::unordered_set
-	#else
-		#include <ext/hash_map>
-		#include <ext/hash_set>
-		#define OTSERV_HASH_MAP __gnu_cxx::hash_map
-		#define OTSERV_HASH_SET __gnu_cxx::hash_set
-	#endif
-
-	#include <assert.h>
-	#define ATOI64 atoll
-#else
+#ifndef __GNUC__
 	#ifndef NOMINMAX
 		#define NOMINMAX
 	#endif
-
-	#include <hash_map>
-	#include <hash_set>
-	#include <limits>
-	#include <assert.h>
-	#define OTSERV_HASH_MAP stdext::hash_map
-	#define OTSERV_HASH_SET stdext::hash_set
 
 	#include <cstring>
 	inline int strcasecmp(const char *s1, const char *s2)
@@ -132,7 +138,7 @@
 	typedef unsigned char uint8_t;
 	typedef signed char int8_t;
 
-	#define ATOI64 _atoi64
+	#define atoll _atoi64
 
 	#pragma warning(disable:4786) // msvc too long debug names in stl
 	#pragma warning(disable:4250) // 'class1' : inherits 'class2::member' via dominance
@@ -141,33 +147,6 @@
 	#pragma warning(disable:4018)
 
 #endif
-//*nix systems
-#else
-	#define OTSYS_THREAD_RETURN void*
-
-	#include <stdint.h>
-	#include <string.h>
-	#if __GNUC__ >= 4
-		#ifndef __GXX_EXPERIMENTAL_CXX0X__
-			#include <tr1/unordered_map>
-			#include <tr1/unordered_set>
-		#else
-			#include <unordered_map>
-			#include <unordered_set>
-		#endif
-
-		#define OTSERV_HASH_MAP std::tr1::unordered_map
-		#define OTSERV_HASH_SET std::tr1::unordered_set
-	#else
-		#include <ext/hash_map>
-		#include <ext/hash_set>
-		#define OTSERV_HASH_MAP __gnu_cxx::hash_map
-		#define OTSERV_HASH_SET __gnu_cxx::hash_set
-	#endif
-	#include <assert.h>
-	#include <time.h>
-
-	#define ATOI64 atoll
 #endif
 #endif
 

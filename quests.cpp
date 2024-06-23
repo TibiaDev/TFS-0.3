@@ -15,6 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
+
 #include "quests.h"
 #include "tools.h"
 
@@ -24,7 +25,7 @@ bool Mission::isStarted(Player* player)
 		return false;
 
 	std::string value;
-	return player->getStorageValue(storageId, value) && atoi(value.c_str()) >= startValue;
+	return player->getStorage(storageId, value) && atoi(value.c_str()) >= startValue;
 }
 
 bool Mission::isCompleted(Player* player)
@@ -33,28 +34,31 @@ bool Mission::isCompleted(Player* player)
 		return false;
 
 	std::string value;
-	return player->getStorageValue(storageId, value) && atoi(value.c_str()) >= endValue;
+	return player->getStorage(storageId, value) && atoi(value.c_str()) >= endValue;
 }
 
 std::string Mission::getDescription(Player* player)
 {
 	std::string value;
-	if(!player->getStorageValue(storageId, value))
-		return "Couldn't retrieve player storage, please report to gamemaster.";
+	if(!player->getStorage(storageId, value))
+		return "Couldn't retrieve player storage, please report to a gamemaster.";
 
 	if(atoi(value.c_str()) >= endValue)
 		return states.rbegin()->second;
 
 	for(int32_t i = endValue; i >= startValue; --i)
 	{
-		if(!player->getStorageValue(storageId, value))
+		if(!player->getStorage(storageId, value) || atoi(value.c_str()) != i)
 			continue;
 
-		if(i == atoi(value.c_str()))
-			return states[i - startValue];
+		std::string ret = states[i - startValue];
+		if(ret.find("{STORAGE}") != std::string::npos)
+			replaceString(ret, "{STORAGE}", value);
+
+		return ret;
 	}
 
-	return "Couldn't retrieve mission description, please report to gamemaster.";
+	return "Couldn't retrieve mission description, please report to a gamemaster.";
 }
 
 Quest::~Quest()
@@ -71,7 +75,7 @@ bool Quest::isStarted(Player* player)
 		return false;
 
 	std::string value;
-	return player->getStorageValue(storageId, value) && atoi(value.c_str()) >= storageValue;
+	return player->getStorage(storageId, value) && atoi(value.c_str()) >= storageValue;
 }
 
 bool Quest::isCompleted(Player* player) const

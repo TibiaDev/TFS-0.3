@@ -17,21 +17,16 @@
 #include "otpch.h"
 #include "trashholder.h"
 
-#include "spells.h"
 #include "game.h"
-extern Game g_game;
+#include "spells.h"
 
-TrashHolder::TrashHolder(uint16_t _type, MagicEffectClasses _effect/* = NM_ME_NONE*/):
-	Item(_type)
-{
-	effect = _effect;
-}
+extern Game g_game;
 
 void TrashHolder::__addThing(Creature* actor, int32_t index, Thing* thing)
 {
 	if(Item* item = thing->getItem())
 	{
-		if(item == this || item->isNotMoveable())
+		if(item == this || !item->isMoveable())
 			return;
 
 		if(getTile()->isSwimmingPool())
@@ -47,7 +42,7 @@ void TrashHolder::__addThing(Creature* actor, int32_t index, Thing* thing)
 		}
 
 		g_game.internalRemoveItem(actor, item);
-		if(effect != NM_ME_NONE)
+		if(effect != MAGIC_EFFECT_NONE)
 			g_game.addMagicEffect(getPosition(), effect);
 	}
 	else if(getTile()->isSwimmingPool(false) && thing->getCreature())
@@ -55,7 +50,7 @@ void TrashHolder::__addThing(Creature* actor, int32_t index, Thing* thing)
 		Player* player = thing->getCreature()->getPlayer();
 		if(player && player->getPosition() == player->getLastPosition())
 		{
-			//player just logged in swimming pool
+			//player has just logged in a swimming pool
 			static Outfit_t outfit;
 			outfit.lookType = 267;
 			Spell::CreateIllusion(player, outfit, -1);
@@ -66,12 +61,14 @@ void TrashHolder::__addThing(Creature* actor, int32_t index, Thing* thing)
 void TrashHolder::postAddNotification(Creature* actor, Thing* thing, const Cylinder* oldParent,
 	int32_t index, cylinderlink_t link /*= LINK_OWNER*/)
 {
-	getParent()->postAddNotification(actor, thing, oldParent, index, LINK_PARENT);
+	if(getParent())
+		getParent()->postAddNotification(actor, thing, oldParent, index, LINK_PARENT);
 }
 
 void TrashHolder::postRemoveNotification(Creature* actor, Thing* thing, const Cylinder* newParent,
 	int32_t index, bool isCompleteRemoval, cylinderlink_t link /*= LINK_OWNER*/)
 {
-	getParent()->postRemoveNotification(actor, thing, newParent,
-		index, isCompleteRemoval, LINK_PARENT);
+	if(getParent())
+		getParent()->postRemoveNotification(actor, thing, newParent,
+			index, isCompleteRemoval, LINK_PARENT);
 }

@@ -127,7 +127,7 @@ struct RefreshBlock_t
 	uint64_t lastRefresh;
 };
 
-typedef std::map< uint32_t, shared_ptr<RuleViolation> > RuleViolationsMap;
+typedef std::map<uint32_t, shared_ptr<RuleViolation> > RuleViolationsMap;
 typedef std::map<Tile*, RefreshBlock_t> RefreshTiles;
 typedef std::vector< std::pair<std::string, uint32_t> > Highscore;
 typedef std::list<Position> Trash;
@@ -224,14 +224,14 @@ class Game
 		  * \param s is the name identifier
 		  * \returns A Pointer to the creature
 		  */
-		Creature* getCreatureByName(const std::string& s);
+		Creature* getCreatureByName(std::string s);
 
 		/**
 		  * Returns a player based on a string name identifier
 		  * \param s is the name identifier
 		  * \returns A Pointer to the player
 		  */
-		Player* getPlayerByName(const std::string& s);
+		Player* getPlayerByName(std::string s);
 
 		/**
 		  * Returns a player based on a string name identifier
@@ -268,7 +268,7 @@ class Game
 		  * \param player will point to the found player (if any)
 		  * \return "RET_PLAYERWITHTHISNAMEISNOTONLINE" or "RET_NAMEISTOOAMBIGUOUS"
 		  */
-		ReturnValue getPlayerByNameWildcard(const std::string& s, Player*& player);
+		ReturnValue getPlayerByNameWildcard(std::string s, Player*& player);
 
 		/**
 		  * Returns a player based on an account number identifier
@@ -276,6 +276,13 @@ class Game
 		  * \returns A Pointer to the player
 		  */
 		Player* getPlayerByAccount(uint32_t acc);
+
+		/**
+		  * Returns all players based on their name
+		  * \param s is the player name
+		  * \return A vector of all players with the selected name
+		  */
+		PlayerVector getPlayersByName(std::string s);
 
 		/**
 		  * Returns all players based on their account number identifier
@@ -319,12 +326,12 @@ class Game
 		void addCreatureCheck(Creature* creature);
 		void removeCreatureCheck(Creature* creature);
 
-		uint32_t getPlayersOnline() {return (uint32_t)Player::listPlayer.list.size();}
-		uint32_t getMonstersOnline() {return (uint32_t)Monster::listMonster.list.size();}
-		uint32_t getNpcsOnline() {return (uint32_t)Npc::listNpc.list.size();}
-		uint32_t getCreaturesOnline() {return (uint32_t)listCreature.list.size();}
+		uint32_t getPlayersOnline() {return (uint32_t)Player::autoList.size();}
+		uint32_t getMonstersOnline() {return (uint32_t)Monster::autoList.size();}
+		uint32_t getNpcsOnline() {return (uint32_t)Npc::autoList.size();}
+		uint32_t getCreaturesOnline() {return (uint32_t)autoList.size();}
 
-		uint32_t getLastPlayersRecord() {return lastPlayersRecord;}
+		uint32_t getPlayersRecord() {return playersRecord;}
 		void getWorldLightInfo(LightInfo& lightInfo);
 
 		void getSpectators(SpectatorVec& list, const Position& centerPos, bool checkforduplicate = false, bool multifloor = false,
@@ -423,11 +430,11 @@ class Game
 		  * \param type Type of message
 		  * \param text The text to say
 		  * \param ghostMode Is creature on ghost mode
-		  * \param listPtr Send message only to creatures pointed in vector
+		  * \param spectators Send message only to creatures pointed in vector
 		  * \param pos Appear as sent from different position
 		  */
 		bool internalCreatureSay(Creature* creature, SpeakClasses type, const std::string& text,
-			bool ghostMode, SpectatorVec* listPtr = NULL, Position* pos = NULL);
+			bool ghostMode, SpectatorVec* spectators = NULL, Position* pos = NULL);
 
 		bool internalStartTrade(Player* player, Player* partner, Item* tradeItem);
 		bool internalCloseTrade(Player* player);
@@ -436,7 +443,7 @@ class Game
 		bool playerBroadcastMessage(Player* player, SpeakClasses type, const std::string& text);
 		bool playerReportBug(uint32_t playerId, std::string bug);
 		bool playerViolationWindow(uint32_t playerId, std::string name, uint8_t reason,
-			ViolationAction_t action, const std::string& comment, std::string statement,
+			ViolationAction_t action, std::string comment, std::string statement,
 			uint32_t statementId, bool ipBanishment);
 		bool playerMoveThing(uint32_t playerId, const Position& fromPos, uint16_t spriteId,
 			int16_t fromStackpos, const Position& toPos, uint8_t count);
@@ -507,7 +514,7 @@ class Game
 		bool broadcastMessage(const std::string& text, MessageClasses type);
 		void showHotkeyUseMessage(Player* player, Item* item);
 
-		int32_t getMotdNum();
+		int32_t getMotdId();
 		void loadMotd();
 		void loadPlayersRecord();
 		void checkPlayersRecord(Player* player);
@@ -515,7 +522,7 @@ class Game
 		bool reloadInfo(ReloadInfo_t reload, uint32_t playerId = 0);
 		void cleanup();
 		void shutdown();
-		void FreeThing(Thing* thing);
+		void freeThing(Thing* thing);
 
 		bool canThrowObjectTo(const Position& fromPos, const Position& toPos, bool checkLineOfSight = true,
 			int32_t rangex = Map::maxClientViewportX, int32_t rangey = Map::maxClientViewportY);
@@ -536,7 +543,7 @@ class Game
 
 		void changeLight(const Creature* creature);
 		void changeSpeed(Creature* creature, int32_t varSpeedDelta);
-		void internalCreatureChangeOutfit(Creature* creature, const Outfit_t& oufit);
+		void internalCreatureChangeOutfit(Creature* creature, const Outfit_t& oufit, bool forced = false);
 		void internalCreatureChangeVisible(Creature* creature, Visible_t visible);
 		void updateCreatureSkull(Creature* creature);
 		void sendPublicSquare(Player* sender, SquareColor_t color);
@@ -564,7 +571,8 @@ class Game
 		bool combatBlockHit(CombatType_t combatType, Creature* attacker, Creature* target,
 			int32_t& healthChange, bool checkDefense, bool checkArmor);
 
-		bool combatChangeHealth(CombatType_t combatType, Creature* attacker, Creature* target, int32_t healthChange, bool force = false);
+		bool combatChangeHealth(CombatType_t combatType, Creature* attacker, Creature* target, int32_t healthChange,
+			MagicEffect_t hitEffect = MAGIC_EFFECT_UNKNOWN, TextColor_t hitColor = TEXTCOLOR_UNKNOWN, bool force = false);
 		bool combatChangeMana(Creature* attacker, Creature* target, int32_t manaChange);
 
 		//animation help functions
@@ -589,6 +597,7 @@ class Game
 
 		inline StageList::const_iterator getFirstStage() const {return stages.begin();}
 		inline StageList::const_iterator getLastStage() const {return stages.end();}
+		size_t getStagesCount() const {return stages.size();}
 
 		void setGlobalSaveMessage(int16_t key, bool value) {globalSaveMessage[key] = value;}
 		bool getGlobalSaveMessage(int16_t key) const {return globalSaveMessage[key];}
@@ -615,9 +624,9 @@ class Game
 			void* data;
 		};
 
-		std::vector<Thing*> ToReleaseThings;
+		std::vector<Thing*> releaseThings;
 		std::map<Item*, uint32_t> tradeItems;
-		AutoList<Creature> listCreature;
+		AutoList<Creature> autoList;
 		RuleViolationsMap ruleViolations;
 
 		size_t checkCreatureLastIndex;
@@ -645,9 +654,9 @@ class Game
 		ServiceManager* services;
 		Map* map;
 
-		std::string lastMotdText;
-		int32_t lastMotdNum;
-		uint32_t lastPlayersRecord;
+		std::string lastMotd;
+		int32_t lastMotdId;
+		uint32_t playersRecord;
 		uint32_t checkLightEvent, checkCreatureEvent, checkDecayEvent, saveEvent;
 		bool globalSaveMessage[2];
 

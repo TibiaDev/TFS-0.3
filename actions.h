@@ -17,11 +17,9 @@
 
 #ifndef __ACTIONS__
 #define __ACTIONS__
-
 #include "baseevents.h"
-#include "luascript.h"
 
-#include "position.h"
+#include "luascript.h"
 #include "thing.h"
 
 class Action;
@@ -58,8 +56,8 @@ class Actions : public BaseEvents
 		virtual Event* getEvent(const std::string& nodeName);
 		virtual bool registerEvent(Event* event, xmlNodePtr p, bool override);
 
-		virtual LuaScriptInterface& getScriptInterface() {return m_scriptInterface;}
-		LuaScriptInterface m_scriptInterface;
+		virtual LuaScriptInterface& getInterface() {return m_interface;}
+		LuaScriptInterface m_interface;
 
 		void registerItemID(int32_t itemId, Event* event);
 		void registerActionID(int32_t actionId, Event* event);

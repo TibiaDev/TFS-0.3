@@ -3,7 +3,7 @@
 		The Forgotten Server
 
 	Version
-		0.3.5
+		0.3.6
 
 	Codenamed
 		Crying Damson
@@ -44,4 +44,5 @@
 	* Name Report + Banishment + Final Warning = 32
 	* Statement Report = 64
 	* IP Banishment = 128
+	* Deletion = 256
 ]

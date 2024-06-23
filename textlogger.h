@@ -19,7 +19,7 @@
 #define __TEXTLOGGER__
 #include "otsystem.h"
 
-#if defined(WIN32) && not defined(__CONSOLE__)
+#if defined(WINDOWS) && !defined(__CONSOLE__)
 #include <ostream>
 #include <fstream>
 #endif
@@ -40,51 +40,50 @@ enum LogType_t
 	LOGTYPE_ERROR,
 };
 
-class Loggar
+class Logger
 {
 	public:
-		virtual ~Loggar() {close();}
-		static Loggar* getInstance()
+		virtual ~Logger() {close();}
+		static Logger* getInstance()
 		{
-			static Loggar instance;
+			static Logger instance;
 			return &instance;
 		}
 
 		void open();
 		void close();
 
-		void log(std::string output, LogFile_t file, bool newLine = true);
-		void log(std::string file, std::string output, bool newLine = true);
-		void internalLog(FILE* file, std::string output, bool newLine = true);
+		void iFile(LogFile_t file, std::string output, bool newLine);
+		void eFile(std::string file, std::string output, bool newLine);
 
-		void logMessage(const char* func, LogType_t type, std::string message, std::string channel = "");
+		void log(const char* func, LogType_t type, std::string message, std::string channel = "", bool newLine = true);
 
 	private:
-		Loggar() {}
+		Logger() {}
+		void internal(FILE* file, std::string output, bool newLine);
+
 		FILE* m_files[LOGFILE_LAST + 1];
 };
 
 #define LOG_MESSAGE(type, message, channel) \
-	Loggar::getInstance()->logMessage(__OTSERV_PRETTY_FUNCTION__, type, message, channel);
+	Logger::getInstance()->log(__OTSERV_FUNCTION__, type, message, channel);
 
-#if defined(WIN32) && not defined(__CONSOLE__)
-class TextLogger : public std::streambuf
+#if defined(WINDOWS) && !defined(__CONSOLE__)
+class GUILogger : public std::streambuf
 {
 	public:
-		TextLogger();
-		virtual ~TextLogger();
+		GUILogger();
+		virtual ~GUILogger();
 
 		std::streambuf* out;
 		std::streambuf* err;
+		std::streambuf* log;
 
 	protected:
 		int32_t overflow(int32_t c);
-		//time_t m_lastDate;
 
 		bool m_displayDate;
 		std::string m_cache;
-		//FILE* m_file;
-		//void init();
 };
 #endif
 #endif

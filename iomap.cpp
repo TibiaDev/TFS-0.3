@@ -64,7 +64,7 @@ Tile* IOMap::createTile(Item*& ground, Item* item, uint16_t px, uint16_t py, uin
 	Tile* tile = NULL;
 	if(ground)
 	{
-		if((item && item->isBlocking()) || ground->isBlocking()) //tile is blocking with possibly some decoration, should be static
+		if((item && item->isBlocking(NULL)) || ground->isBlocking(NULL)) //tile is blocking with possibly some decoration, should be static
 			tile = new StaticTile(px, py, pz);
 		else //tile is not blocking with possibly multiple items, use dynamic
 			tile = new DynamicTile(px, py, pz);
@@ -219,7 +219,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 
 	std::cout << "> Map descriptions: " << std::endl;
 	for(StringVec::iterator it = map->descriptions.begin(); it != map->descriptions.end(); ++it)
-		std::cout << (*it) << std::endl;
+		std::cout << "\"" << (*it) << "\"" << std::endl;
 
 	NODE nodeMapData = f.getChildNode(nodeMap, type);
 	while(nodeMapData != NO_NODE)
@@ -271,7 +271,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 					}
 
 					Tile* tile = NULL;
-					Item* groundItem = NULL;
+					Item* ground = NULL;
 					uint32_t tileflags = 0;
 
 					uint16_t px = base_x + tileCoord->_x, py = base_y + tileCoord->_y, pz = base_z;
@@ -288,7 +288,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 							return false;
 						}
 
-						house = Houses::getInstance().getHouse(_houseid, true);
+						house = Houses::getInstance()->getHouse(_houseid, true);
 						if(!house)
 						{
 							std::stringstream ss;
@@ -355,7 +355,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 
 								if(house && item->isMoveable())
 								{
-									std::cout << "[Warning - IOMap::loadMap] Movable item in house: " << house->getHouseId();
+									std::cout << "[Warning - IOMap::loadMap] Movable item in house: " << house->getId();
 									std::cout << ", item type: " << item->getID() << ", at position " << px << "/" << py << "/";
 									std::cout << pz << std::endl;
 
@@ -370,14 +370,14 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 								}
 								else if(item->isGroundTile())
 								{
-									if(groundItem)
-										delete groundItem;
+									if(ground)
+										delete ground;
 
-									groundItem = item;
+									ground = item;
 								}
 								else
 								{
-									tile = createTile(groundItem, item, px, py, pz);
+									tile = createTile(ground, item, px, py, pz);
 									tile->__internalAddThing(item);
 
 									item->__startDecaying();
@@ -421,7 +421,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 								if(house && item->isMoveable())
 								{
 									std::cout << "[Warning - IOMap::loadMap] Movable item in house: ";
-									std::cout << house->getHouseId() << ", item type: " << item->getID();
+									std::cout << house->getId() << ", item type: " << item->getID();
 									std::cout << ", pos " << px << "/" << py << "/" << pz << std::endl;
 
 									delete item;
@@ -435,14 +435,14 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 								}
 								else if(item->isGroundTile())
 								{
-									if(groundItem)
-										delete groundItem;
+									if(ground)
+										delete ground;
 
-									groundItem = item;
+									ground = item;
 								}
 								else
 								{
-									tile = createTile(groundItem, item, px, py, pz);
+									tile = createTile(ground, item, px, py, pz);
 									tile->__internalAddThing(item);
 
 									item->__startDecaying();
@@ -471,7 +471,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 					}
 
 					if(!tile)
-						tile = createTile(groundItem, NULL, px, py, pz);
+						tile = createTile(ground, NULL, px, py, pz);
 
 					tile->setFlag((tileflags_t)tileflags);
 					map->setTile(px, py, pz, tile);
@@ -505,14 +505,14 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 						return false;
 					}
 
-					Town* town = Towns::getInstance().getTown(townId);
+					Town* town = Towns::getInstance()->getTown(townId);
 					if(!town)
 					{
 						town = new Town(townId);
-						Towns::getInstance().addTown(townId, town);
+						Towns::getInstance()->addTown(townId, town);
 					}
 
-					std::string townName = "";
+					std::string townName;
 					if(!propStream.GET_STRING(townName))
 					{
 						setLastErrorString("Could not read town name.");
@@ -520,14 +520,14 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 					}
 
 					town->setName(townName);
-					OTBM_Destination_coords *town_coords;
-					if(!propStream.GET_STRUCT(town_coords))
+					OTBM_Destination_coords *townCoords;
+					if(!propStream.GET_STRUCT(townCoords))
 					{
 						setLastErrorString("Could not read town coordinates.");
 						return false;
 					}
 
-					town->setTemplePos(Position(town_coords->_x, town_coords->_y, town_coords->_z));
+					town->setPosition(Position(townCoords->_x, townCoords->_y, townCoords->_z));
 				}
 				else
 				{
