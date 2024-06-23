@@ -181,6 +181,8 @@ class ConfigManager
 			RATE_MONSTER_MANA,
 			RATE_MONSTER_ATTACK,
 			RATE_MONSTER_DEFENSE,
+			FORMULA_LEVEL,
+			FORMULA_MAGIC,
 			LAST_DOUBLE_CONFIG /* this must be the last one */
 		};
 
@@ -258,6 +260,7 @@ class ConfigManager
 			ALLOW_FIGHTBACK,
 			VIPLIST_PER_PLAYER,
 			USE_FRAG_HANDLER,
+			ADDONS_PREMIUM,
 			LAST_BOOL_CONFIG /* this must be the last one */
 		};
 

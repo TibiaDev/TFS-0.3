@@ -470,16 +470,19 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 	}
 
 	uint32_t id = 1;
-	if(name != "1" || password != "1" || asLowerCaseString(character) != "account manager") //avoid unecessary queries
+	if(!IOLoginData::getInstance()->getAccountId(name, id))
 	{
-		std::string hash;
-		if(!IOLoginData::getInstance()->getAccountId(name, id) || !IOLoginData::getInstance()->getPassword(
-			id, hash, character) || !encryptTest(password, hash))
-		{
-			ConnectionManager::getInstance()->addAttempt(getIP(), protocolId, false);
-			disconnectClient(0x14, "Invalid account name or password.");
-			return false;
-		}
+		ConnectionManager::getInstance()->addAttempt(getIP(), protocolId, false);
+		disconnectClient(0x14, "Invalid account name.");
+		return false;
+	}
+
+	std::string hash;
+	if(!IOLoginData::getInstance()->getPassword(id, hash, character) || !encryptTest(password, hash))
+	{
+		ConnectionManager::getInstance()->addAttempt(getIP(), protocolId, false);
+		disconnectClient(0x14, "Invalid password.");
+		return false;
 	}
 
 	Ban ban;
@@ -2514,7 +2517,7 @@ void ProtocolGame::sendOutfitWindow()
 				msg->AddString(it->name);
 				if(player->hasCustomFlag(PlayerCustomFlag_CanWearAllAddons))
 					msg->AddByte(0x03);
-				else if(player->isPremium())
+				else if(!g_config.getBool(ConfigManager::ADDONS_PREMIUM) || player->isPremium())
 					msg->AddByte(it->addons);
 				else
 					msg->AddByte(0x00);

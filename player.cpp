@@ -165,7 +165,7 @@ void Player::setVocation(uint32_t vocId)
 
 bool Player::isPushable() const
 {
-	return !hasFlag(PlayerFlag_CannotBePushed) && Creature::isPushable();
+	return accountManager == MANAGER_NONE && !hasFlag(PlayerFlag_CannotBePushed) && Creature::isPushable();
 }
 
 std::string Player::getDescription(int32_t lookDistance) const
@@ -767,7 +767,7 @@ void Player::dropLoot(Container* corpse)
 		bless--;
 	}
 
-	uint32_t itemLoss = (uint32_t)std::floor((double)((loss + 5) * lossPercent[LOSS_ITEMS]) / 1000.);
+	uint32_t itemLoss = (uint32_t)std::floor((5. + loss) * lossPercent[LOSS_ITEMS] / 1000.);
 	for(int32_t i = SLOT_FIRST; i < SLOT_LAST; ++i)
 	{
 		Item* item = inventory[i];
@@ -775,7 +775,7 @@ void Player::dropLoot(Container* corpse)
 			continue;
 
 		uint32_t rand = random_range(1, 100);
-		if(skull > SKULL_WHITE || (item->getContainer() && rand <= loss) || (!item->getContainer() && rand <= itemLoss))
+		if(skull > SKULL_WHITE || (item->getContainer() && rand < loss) || (!item->getContainer() && rand < itemLoss))
 		{
 			g_game.internalMoveItem(NULL, this, corpse, INDEX_WHEREEVER, item, item->getItemCount(), 0);
 			sendRemoveInventoryItem((slots_t)i, inventory[(slots_t)i]);
@@ -846,6 +846,9 @@ bool Player::canSeeCreature(const Creature* creature) const
 
 bool Player::canWalkthrough(const Creature* creature) const
 {
+	if(!creature)
+		return true;
+
 	if(creature == this)
 		return false;
 
@@ -853,7 +856,8 @@ bool Player::canWalkthrough(const Creature* creature) const
 	if(!player)
 		return false;
 
-	if(g_game.getWorldType() == WORLD_TYPE_NO_PVP && getTile()->ground->getID() != ITEM_GLOWING_SWITCH)
+	if(g_game.getWorldType() == WORLD_TYPE_NO_PVP && player->getTile()->ground
+		&& player->getTile()->ground->getID() != ITEM_GLOWING_SWITCH)
 		return true;
 
 	return player->isGhost() && getGhostAccess() < player->getGhostAccess();
@@ -1320,15 +1324,19 @@ void Player::onCreatureAppear(const Creature* creature)
 		int64_t ticks = (int64_t)time(NULL) - lastLogout - 600;
 		if(ticks > 0)
 		{
-			ticks = (int64_t)((double)ticks * 1000 / g_config.getDouble(ConfigManager::RATE_STAMINA_GAIN));
-			int64_t premium = g_config.getNumber(ConfigManager::STAMINA_LIMIT_TOP) * STAMINA_MULTIPLIER,
-				period = stamina + ticks;
-			if(period > premium)
-				period -= premium;
-			else
-				period = 0;
+			ticks = (int64_t)((double)(ticks * 1000) / g_config.getDouble(ConfigManager::RATE_STAMINA_GAIN));
+			int64_t premium = g_config.getNumber(ConfigManager::STAMINA_LIMIT_TOP) * STAMINA_MULTIPLIER, period = ticks;
+			if((int64_t)stamina <= premium)
+			{
+				period += stamina;
+				if(period > premium)
+					period -= premium;
+				else
+					period = 0;
 
-			useStamina(ticks - period);
+				useStamina(ticks - period);
+			}
+
 			if(period > 0)
 			{
 				ticks = (int64_t)((g_config.getDouble(ConfigManager::RATE_STAMINA_GAIN) * period)
@@ -2023,19 +2031,18 @@ BlockType_t Player::blockHit(Creature* attacker, CombatType_t combatType, int32_
 		return blockType;
 
 	if(vocation->getMultiplier(MULTIPLIER_MAGICDEFENSE) != 1.0 && combatType != COMBAT_NONE &&
-		combatType != COMBAT_PHYSICALDAMAGE && combatType != COMBAT_UNDEFINEDDAMAGE && combatType != COMBAT_DROWNDAMAGE)
+		combatType != COMBAT_PHYSICALDAMAGE && combatType != COMBAT_UNDEFINEDDAMAGE &&
+		combatType != COMBAT_DROWNDAMAGE)
 		damage -= (int32_t)std::ceil((double)(damage * vocation->getMultiplier(MULTIPLIER_MAGICDEFENSE)) / 100.);
 
 	if(damage > 0)
 	{
+		Item* item = NULL;
 		int32_t blocked = 0, reflected = 0;
 		for(int32_t slot = SLOT_FIRST; slot < SLOT_LAST; ++slot)
 		{
-			if(!isItemAbilityEnabled((slots_t)slot))
-				continue;
-
-			Item* item = getInventoryItem((slots_t)slot);
-			if(!item)
+			if(!(item = getInventoryItem((slots_t)slot)) || (g_moveEvents->hasEquipEvent(item)
+				&& !isItemAbilityEnabled((slots_t)slot)))
 				continue;
 
 			const ItemType& it = Item::items[item->getID()];
@@ -2110,13 +2117,11 @@ bool Player::onDeath()
 	}
 	else if(skull < SKULL_RED && g_game.getWorldType() != WORLD_TYPE_PVP_ENFORCED)
 	{
+		Item* item = NULL;
 		for(int32_t i = SLOT_FIRST; ((skillLoss || lootDrop == LOOT_DROP_FULL) && i < SLOT_LAST); ++i)
 		{
-			if(!isItemAbilityEnabled((slots_t)i))
-				continue;
-
-			Item* item = getInventoryItem((slots_t)i);
-			if(!item)
+			if(!(item = getInventoryItem((slots_t)i)) || (g_moveEvents->hasEquipEvent(item)
+				&& !isItemAbilityEnabled((slots_t)i)))
 				continue;
 
 			const ItemType& it = Item::items[item->getID()];
@@ -4864,14 +4869,12 @@ void Player::increaseCombatValues(int32_t& min, int32_t& max, bool useCharges, b
 	if(!countWeapon)
 		weapon = getWeapon();
 
+	Item* item = NULL;
 	int32_t minValue = 0, maxValue = 0;
 	for(int32_t i = SLOT_FIRST; i < SLOT_LAST; ++i)
 	{
-		if(!isItemAbilityEnabled((slots_t)i))
-			continue;
-
-		Item* item = getInventoryItem((slots_t)i);
-		if(!item)
+		if(!(item = getInventoryItem((slots_t)i)) || (g_moveEvents->hasEquipEvent(item)
+			&& !isItemAbilityEnabled((slots_t)i)))
 			continue;
 
 		const ItemType& it = Item::items[item->getID()];

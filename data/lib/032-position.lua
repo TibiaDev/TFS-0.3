@@ -1,11 +1,11 @@
-function isInRange(pos, fromPosition, toPosition)
+function isInRange(position, fromPosition, toPosition)
 	return (position.x >= fromPosition.x and position.y >= fromPosition.y and position.z >= fromPosition.z and position.x <= toPosition.x and position.y <= toPosition.y and position.z <= toPosition.z)
 end
 
-function getDistanceBetween(firstPosition, secondPosition)
-	local x, y = math.abs(firstPosition.x - secondPosition.x), math.abs(firstPosition.y - secondPosition.y)
+function getDistanceBetween(fromPosition, toPosition)
+	local x, y = math.abs(fromPosition.x - toPosition.x), math.abs(fromPosition.y - toPosition.y)
 	local diff = math.max(x, y)
-	if(firstPosition.z ~= secondPosition.z) then
+	if(fromPosition.z ~= toPosition.z) then
 		diff = diff + 9 + 6
 	end
 
@@ -35,6 +35,7 @@ function getDirectionTo(pos1, pos2)
 			dir = SOUTH
 		end
 	end
+
 	return dir
 end
 
@@ -42,44 +43,42 @@ function getCreatureLookPosition(cid)
 	return getPosByDir(getThingPos(cid), getCreatureLookDirection(cid))
 end
 
-function getPosByDir(fromPosition, direction, size)
+function getPositionByDirection(position, direction, size)
 	local n = size or 1
-
-	local pos = fromPosition
 	if(direction == NORTH) then
-		pos.y = pos.y - n
+		position.y = position.y - n
 	elseif(direction == SOUTH) then
-		pos.y = pos.y + n
+		position.y = position.y + n
 	elseif(direction == WEST) then
-		pos.x = pos.x - n
+		position.x = position.x - n
 	elseif(direction == EAST) then
-		pos.x = pos.x + n
+		position.x = position.x + n
 	elseif(direction == NORTHWEST) then
-		pos.y = pos.y - n
-		pos.x = pos.x - n
+		position.y = position.y - n
+		position.x = position.x - n
 	elseif(direction == NORTHEAST) then
-		pos.y = pos.y - n
-		pos.x = pos.x + n
+		position.y = position.y - n
+		position.x = position.x + n
 	elseif(direction == SOUTHWEST) then
-		pos.y = pos.y + n
-		pos.x = pos.x - n
+		position.y = position.y + n
+		position.x = position.x - n
 	elseif(direction == SOUTHEAST) then
-		pos.y = pos.y + n
-		pos.x = pos.x + n
+		position.y = position.y + n
+		position.x = position.x + n
 	end
 
-	return pos
+	return position
 end
 
-function doComparePositions(pos, posEx)
-	return pos.x == posEx.x and pos.y == posEx.y and pos.z == posEx.z
+function doComparePositions(position, positionEx)
+	return position.x == positionEx.x and position.y == positionEx.y and position.z == positionEx.z
 end
 
-function getArea(pos, rangeX, rangeY)
+function getArea(position, x, y)
 	local t = {}
-	for i = (pos.x - rangeX), (pos.x + rangeX) do
-		for j = (pos.y - rangeY), (pos.y + rangeY) do
-			table.insert(t, {x = i, y = j, z = pos.z})
+	for i = (position.x - x), (position.x + x) do
+		for j = (position.y - y), (position.y + y) do
+			table.insert(t, {x = i, y = j, z = position.z})
 		end
 	end
 
