@@ -155,55 +155,66 @@
 	-- Item usage
 	timeBetweenActions = 200
 	timeBetweenExActions = 1000
-	checkCorpseOwner = true
 	hotkeyAimbotEnabled = true
-	maximumDoorLevel = 500
 
 	-- Map
 	-- NOTE: storeTrash costs more memory, but will perform alot faster cleaning.
-	-- useHouseDataStorage usage may be found at README.
 	mapName = "forgotten"
 	mapAuthor = "Komic"
 	randomizeTiles = true
-	useHouseDataStorage = false
 	storeTrash = true
 	cleanProtectedZones = true
 	mailboxDisabledTowns = "-1"
 
-	-- Startup
+	-- Process
 	-- NOTE: defaultPriority works only on Windows and niceLevel on *nix
 	-- coresUsed are seperated by comma cores ids used by server process,
 	-- default is -1, so it stays untouched (automaticaly assigned by OS).
 	defaultPriority = "high"
 	niceLevel = 5
 	coresUsed = "-1"
+
+	-- Startup
 	optimizeDatabaseAtStartup = true
 	removePremiumOnInit = true
 	confirmOutdatedVersion = false
 
-	-- Muted buffer
-	maxMessageBuffer = 4
+	-- Spells
+	formulaLevel = 5.0
+	formulaMagic = 1.0
 	bufferMutedOnSpellFailure = false
+	spellNameInsteadOfWords = false
+	emoteSpells = false
 
-	-- Miscellaneous
-	-- NOTE: promptExceptionTracerErrorBox works only with precompiled support feature,
-	-- called "exception tracer" (__EXCEPTION_TRACER__ flag).
-	-- monsterLootMessage 0 to disable, 1 - only party, 2 - only player, 3 - party or player (like Tibia's)
-	dataDirectory = "data/"
+	-- Outfits
 	allowChangeOutfit = true
 	allowChangeColors = true
 	allowChangeAddons = true
 	disableOutfitsForPrivilegedPlayers = false
+	addonsOnlyPremium = true
+
+	-- Miscellaneous
+	-- NOTE: promptExceptionTracerErrorBox works only with precompiled support feature,
+	-- called "exception tracer" (__EXCEPTION_TRACER__ flag).
+	dataDirectory = "data/"
 	bankSystem = true
-	saveGlobalStorage = true
 	displaySkillLevelOnAdvance = false
-	spellNameInsteadOfWords = false
-	emoteSpells = false
 	promptExceptionTracerErrorBox = true
+	separateViplistPerCharacter = false
+	maximumDoorLevel = 500
+	maxMessageBuffer = 4
+
+	-- Saving-related
+	-- useHouseDataStorage usage may be found at README.
+	saveGlobalStorage = true
+	useHouseDataStorage = false
 	storePlayerDirection = false
+
+	-- Loot
+	-- monsterLootMessage 0 to disable, 1 - only party, 2 - only player, 3 - party or player (like Tibia's)
+	checkCorpseOwner = true
 	monsterLootMessage = 3
 	monsterLootMessageType = 25
-	separateViplistPerCharacter = false
 
 	-- Ghost mode
 	ghostModeInvisibleEffect = false
