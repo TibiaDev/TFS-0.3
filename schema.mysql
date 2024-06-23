@@ -26,6 +26,15 @@ DROP TABLE IF EXISTS `groups`;
 DROP TABLE IF EXISTS `server_record`;
 DROP TABLE IF EXISTS `server_motd`;
 DROP TABLE IF EXISTS `server_reports`;
+DROP TABLE IF EXISTS `server_config`;
+
+CREATE TABLE `server_config`
+(
+	`config` VARCHAR(35) NOT NULL DEFAULT '',
+	`value` INT NOT NULL
+) ENGINE = InnoDB;
+
+INSERT INTO `server_config` VALUES ('db_version', 1);
 
 CREATE TABLE `server_motd`
 (
@@ -155,7 +164,7 @@ CREATE TABLE `players`
 ) ENGINE = InnoDB;
 
 INSERT INTO `players` VALUES (1, 'Account Manager', 1, 1, 1, 0, 150, 150, 0, 0, 0, 0, 0, 110, 0, 0, 0, 0, 0, 0, 0, 50, 50, 7, '', 400, 0, 0, 0, 0, 0, 0, 0, '', 0, 0, 0, 201660000, 0, 10, 10, 10, 10, 0, 0, 0);
-	
+
 CREATE TABLE `bans`
 (
 	`id` INT UNSIGNED NOT NULL auto_increment,

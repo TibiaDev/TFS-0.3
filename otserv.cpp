@@ -68,6 +68,7 @@
 #include "resources.h"
 #endif
 
+#include "databasemanager.h"
 #include "admin.h"
 
 #ifdef __OTSERV_ALLOCATOR__
@@ -273,6 +274,23 @@ void mainLoader()
   		SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
   	#endif
 
+	std::string passwordType = asLowerCaseString(g_config.getString(ConfigManager::PASSWORD_TYPE));
+	if(passwordType == "md5")
+	{
+		g_config.setNumber(ConfigManager::PASSWORDTYPE, PASSWORD_TYPE_MD5);
+		std::cout << "> Using MD5 passwords" << std::endl;
+	}
+	else if(passwordType == "sha1")
+	{
+		g_config.setNumber(ConfigManager::PASSWORDTYPE, PASSWORD_TYPE_SHA1);
+		std::cout << "> Using SHA1 passwords" << std::endl;
+	}
+	else
+	{
+		g_config.setNumber(ConfigManager::PASSWORDTYPE, PASSWORD_TYPE_PLAIN);
+		std::cout << "> Using plaintext passwords" << std::endl;
+	}
+
 	//load RSA key
 	std::cout << ">> Loading RSA key" << std::endl;
 	#ifndef __CONSOLE__
@@ -284,13 +302,28 @@ void mainLoader()
 	g_otservRSA = new RSA();
 	g_otservRSA->setKey(p, q, d);
 
-	std::cout << ">> Testing SQL connection..." << std::endl;
+	std::cout << ">> Starting SQL connection" << std::endl;
 	#ifndef __CONSOLE__
-	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Testing SQL connection");
+	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Starting SQL connection");
 	#endif
 	Database* db = Database::getInstance();
 	if(db == NULL || !db->isConnected())
 		startupErrorMessage("Couldn't estabilish connection to SQL database!");
+	else
+	{
+		std::cout << ">> Running Database Manager" << std::endl;
+		int32_t version = DatabaseManager::getInstance()->updateDatabase();
+		if(version == -2)
+			startupErrorMessage("The database you specified in config.lua is empty, please import schema.<dbengine> to the database (if you are using MySQL, please read doc/MYSQL_HELP for more information).");
+		else if(version != -1)
+			std::cout << "> Database has been updated to version: " << version << "." << std::endl;
+
+		DatabaseManager::getInstance()->checkTriggers();
+		DatabaseManager::getInstance()->checkPasswordType();
+
+		if(!DatabaseManager::getInstance()->optimizeTables())
+			std::cout << "> No tables were optimized." << std::endl;
+	}
 
 	//load vocations
 	std::cout << ">> Loading vocations" << std::endl;
@@ -365,23 +398,6 @@ void mainLoader()
 	#endif
 	if(!g_game.loadExperienceStages())
 		startupErrorMessage("Unable to load experience stages!");
-
-	std::string passwordType = asLowerCaseString(g_config.getString(ConfigManager::PASSWORD_TYPE));
-	if(passwordType == "md5")
-	{
-		g_config.setNumber(ConfigManager::PASSWORDTYPE, PASSWORD_TYPE_MD5);
-		std::cout << ">> Using MD5 passwords" << std::endl;
-	}
-	else if(passwordType == "sha1")
-	{
-		g_config.setNumber(ConfigManager::PASSWORDTYPE, PASSWORD_TYPE_SHA1);
-		std::cout << ">> Using SHA1 passwords" << std::endl;
-	}
-	else
-	{
-		g_config.setNumber(ConfigManager::PASSWORDTYPE, PASSWORD_TYPE_PLAIN);
-		std::cout << ">> Using plaintext passwords" << std::endl;
-	}
 
 	std::cout << ">> Checking world type... ";
 	std::string worldType = asLowerCaseString(g_config.getString(ConfigManager::WORLD_TYPE));

@@ -173,11 +173,24 @@ bool MoveEvents::registerEvent(Event* event, xmlNodePtr p)
 			it.minReqLevel = moveEvent->getReqLevel();
 			it.minReqMagicLevel = moveEvent->getReqMagLv();
 			it.vocationString = moveEvent->getVocationString();
-		}
 
-		addEvent(moveEvent, id, m_itemIdMap);
-		while(id < endId)
-			addEvent(new MoveEvent(moveEvent), ++id, m_itemIdMap);
+			addEvent(moveEvent, id, m_itemIdMap);
+			while(id < endId)
+			{
+				addEvent(new MoveEvent(moveEvent), ++id, m_itemIdMap);
+				it = Item::items.getItemType(id);
+				it.wieldInfo = moveEvent->getWieldInfo();
+				it.minReqLevel = moveEvent->getReqLevel();
+				it.minReqMagicLevel = moveEvent->getReqMagLv();
+				it.vocationString = moveEvent->getVocationString();
+			}
+		}
+		else
+		{
+			addEvent(moveEvent, id, m_itemIdMap);
+			while(id < endId)
+				addEvent(new MoveEvent(moveEvent), ++id, m_itemIdMap);
+		}
 	}
 	else if(readXMLInteger(p, "uniqueid", id))
 		addEvent(moveEvent, id, m_uniqueIdMap);
@@ -420,9 +433,12 @@ MoveEvent::MoveEvent(const MoveEvent* copy) :
 	slot = copy->slot;
 	if(copy->m_eventType == MOVE_EVENT_EQUIP)
 	{
+		wieldInfo = copy->wieldInfo;
 		reqLevel = copy->reqLevel;
 		reqMagLevel = copy->reqMagLevel;
+		vocationString = copy->vocationString;
 		premium = copy->premium;
+		vocEquipMap = copy->vocEquipMap;
 	}
 }
 
