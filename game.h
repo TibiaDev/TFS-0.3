@@ -21,21 +21,20 @@
 #ifndef __OTSERV_GAME_H__
 #define __OTSERV_GAME_H__
 #include "otsystem.h"
-
-#include <queue>
-#include <set>
+#include "templates.h"
+#include "scheduler.h"
 
 #include "map.h"
-#include "position.h"
-#include "item.h"
-#include "player.h"
-#include "templates.h"
-#include "npc.h"
-#include "monster.h"
-#include "scheduler.h"
 #include "spawn.h"
 
+#include "item.h"
+#include "player.h"
+#include "npc.h"
+#include "monster.h"
+
+class ServiceManager;
 class Creature;
+class Player;
 class Monster;
 class Npc;
 class CombatInfo;
@@ -87,22 +86,23 @@ enum ReloadInfo_t
 	RELOAD_CREATUREEVENTS = 3,
 	RELOAD_GAMESERVERS = 4,
 	RELOAD_GLOBALEVENTS = 5,
-	RELOAD_HIGHSCORES = 6,
-	RELOAD_HOUSEPRICES = 7,
-	RELOAD_ITEMS = 8,
-	RELOAD_MONSTERS = 9,
-	RELOAD_MOVEEVENTS = 10,
-	RELOAD_NPCS = 11,
-	RELOAD_OUTFITS = 12,
-	RELOAD_QUESTS = 13,
-	RELOAD_RAIDS = 14,
-	RELOAD_SPELLS = 15,
-	RELOAD_STAGES = 16,
-	RELOAD_TALKACTIONS = 17,
-	RELOAD_VOCATIONS = 18,
-	RELOAD_WEAPONS = 19,
-	RELOAD_LAST = RELOAD_WEAPONS,
-	RELOAD_ALL = 20
+	RELOAD_GROUPS = 6,
+	RELOAD_HIGHSCORES = 7,
+	RELOAD_HOUSEPRICES = 8,
+	RELOAD_ITEMS = 9,
+	RELOAD_MONSTERS = 10,
+	RELOAD_MOVEEVENTS = 11,
+	RELOAD_NPCS = 12,
+	RELOAD_OUTFITS = 13,
+	RELOAD_QUESTS = 14,
+	RELOAD_RAIDS = 15,
+	RELOAD_SPELLS = 16,
+	RELOAD_STAGES = 17,
+	RELOAD_TALKACTIONS = 18,
+	RELOAD_VOCATIONS = 19,
+	RELOAD_WEAPONS = 20,
+	RELOAD_ALL = 21,
+	RELOAD_LAST = RELOAD_WEAPONS
 };
 
 struct RuleViolation
@@ -146,6 +146,7 @@ class Game
 	public:
 		Game();
 		virtual ~Game();
+		void start(ServiceManager* servicer);
 
 		Highscore getHighscore(uint16_t skill);
 		std::string getHighscoreString(uint16_t skill);
@@ -610,6 +611,8 @@ class Game
 		uint32_t maxPlayers, inFightTicks;
 		GameState_t gameState;
 		WorldType_t worldType;
+
+		ServiceManager* services;
 		Map* map;
 
 		std::string lastMotdText;

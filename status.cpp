@@ -42,37 +42,20 @@ extern Game g_game;
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 uint32_t ProtocolStatus::protocolStatusCount = 0;
 #endif
-
-enum RequestedInfo_t
-{
-	REQUEST_BASIC_SERVER_INFO = 0x01,
-	REQUEST_OWNER_SERVER_INFO = 0x02,
-	REQUEST_MISC_SERVER_INFO = 0x04,
-	REQUEST_PLAYERS_INFO = 0x08,
-	REQUEST_MAP_INFO = 0x10,
-	REQUEST_EXT_PLAYERS_INFO = 0x20,
-	REQUEST_PLAYER_STATUS_INFO = 0x40,
-	REQUEST_SERVER_SOFTWARE_INFO = 0x80
-};
-
-std::map<uint32_t, int64_t> ProtocolStatus::ipConnectMap;
+IpConnectMap ProtocolStatus::ipConnectMap;
 
 void ProtocolStatus::onRecvFirstMessage(NetworkMessage& msg)
 {
-	std::map<uint32_t, int64_t>::const_iterator it = ipConnectMap.find(getIP());
-	if(it != ipConnectMap.end())
+	IpConnectMap::const_iterator it = ipConnectMap.find(getIP());
+	if(it != ipConnectMap.end() && OTSYS_TIME() < it->second + g_config.getNumber(ConfigManager::STATUSQUERY_TIMEOUT))
 	{
-		if(OTSYS_TIME() < it->second + g_config.getNumber(ConfigManager::STATUSQUERY_TIMEOUT))
-		{
-			getConnection()->closeConnection();
-			return;
-		}
+		getConnection()->close();
+		return;
 	}
 
 	ipConnectMap[getIP()] = OTSYS_TIME();
 	switch(msg.GetByte())
 	{
-		//XML info protocol
 		case 0xFF:
 		{
 			if(msg.GetRaw() == "info")
@@ -90,10 +73,10 @@ void ProtocolStatus::onRecvFirstMessage(NetworkMessage& msg)
 					OutputMessagePool::getInstance()->send(output);
 				}
 			}
+
 			break;
 		}
 
-		//Another ServerInfo protocol
 		case 0x01:
 		{
 			uint32_t requestedInfo = msg.GetU16(); //Only a Byte is necessary, though we could add new infos here
@@ -105,6 +88,7 @@ void ProtocolStatus::onRecvFirstMessage(NetworkMessage& msg)
 
 				OutputMessagePool::getInstance()->send(output);
 			}
+
 			break;
 		}
 
@@ -112,21 +96,15 @@ void ProtocolStatus::onRecvFirstMessage(NetworkMessage& msg)
 			break;
 	}
 
-	getConnection()->closeConnection();
+	getConnection()->close();
 }
 
-#ifdef __DEBUG_NET_DETAIL__
 void ProtocolStatus::deleteProtocolTask()
 {
+#ifdef __DEBUG_NET_DETAIL__
 	std::cout << "Deleting ProtocolStatus" << std::endl;
-	Protocol::deleteProtocolTask();
-}
 #endif
-
-Status::Status()
-{
-	m_start = OTSYS_TIME();
-	m_playersOnline = m_playersMax = 0;
+	Protocol::deleteProtocolTask();
 }
 
 std::string Status::getStatusString() const
@@ -148,7 +126,7 @@ std::string Status::getStatusString() const
 	xmlSetProp(p, (const xmlChar*)"uptime", (const xmlChar*)buffer);
 	xmlSetProp(p, (const xmlChar*)"ip", (const xmlChar*)g_config.getString(ConfigManager::IP).c_str());
 	xmlSetProp(p, (const xmlChar*)"servername", (const xmlChar*)g_config.getString(ConfigManager::SERVER_NAME).c_str());
-	sprintf(buffer, "%d", g_config.getNumber(ConfigManager::PORT));
+	sprintf(buffer, "%d", g_config.getNumber(ConfigManager::LOGIN_PORT));
 	xmlSetProp(p, (const xmlChar*)"port", (const xmlChar*)buffer);
 	xmlSetProp(p, (const xmlChar*)"location", (const xmlChar*)g_config.getString(ConfigManager::LOCATION).c_str());
 	xmlSetProp(p, (const xmlChar*)"url", (const xmlChar*)g_config.getString(ConfigManager::URL).c_str());
@@ -214,17 +192,18 @@ void Status::getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMe
 		output->AddByte(0x10);
 		output->AddString(g_config.getString(ConfigManager::SERVER_NAME).c_str());
 		output->AddString(g_config.getString(ConfigManager::IP).c_str());
-		char buffer[10];
-		sprintf(buffer, "%d", g_config.getNumber(ConfigManager::PORT));
-		output->AddString(buffer);
-  	}
 
-	if(requestedInfo & REQUEST_OWNER_SERVER_INFO)
+		char buffer[10];
+		sprintf(buffer, "%d", g_config.getNumber(ConfigManager::LOGIN_PORT));
+		output->AddString(buffer);
+	}
+
+	if(requestedInfo & REQUEST_SERVER_OWNER_INFO)
 	{
 		output->AddByte(0x11);
 		output->AddString(g_config.getString(ConfigManager::OWNER_NAME).c_str());
 		output->AddString(g_config.getString(ConfigManager::OWNER_EMAIL).c_str());
-  	}
+	}
 
 	if(requestedInfo & REQUEST_MISC_SERVER_INFO)
 	{
@@ -232,11 +211,11 @@ void Status::getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMe
 		output->AddString(g_config.getString(ConfigManager::MOTD).c_str());
 		output->AddString(g_config.getString(ConfigManager::LOCATION).c_str());
 		output->AddString(g_config.getString(ConfigManager::URL).c_str());
+
 		uint64_t uptime = getUptime();
 		output->AddU32((uint32_t)(uptime >> 32));
 		output->AddU32((uint32_t)(uptime));
-		output->AddString(STATUS_SERVER_VERSION);
-  	}
+	}
 
 	if(requestedInfo & REQUEST_PLAYERS_INFO)
 	{
@@ -244,26 +223,26 @@ void Status::getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMe
 		output->AddU32(m_playersOnline);
 		output->AddU32(m_playersMax);
 		output->AddU32(g_game.getLastPlayersRecord());
-  	}
+	}
 
-  	if(requestedInfo & REQUEST_MAP_INFO)
+  	if(requestedInfo & REQUEST_SERVER_MAP_INFO)
 	{
 		output->AddByte(0x30);
 		output->AddString(m_mapName.c_str());
 		output->AddString(m_mapAuthor.c_str());
+
 		uint32_t mapWidth, mapHeight;
 		g_game.getMapDimensions(mapWidth, mapHeight);
 		output->AddU16(mapWidth);
 		output->AddU16(mapHeight);
-  	}
+	}
 
 	if(requestedInfo & REQUEST_EXT_PLAYERS_INFO)
 	{
-		output->AddByte(0x21); // players info - online players list
+		output->AddByte(0x21);
 		output->AddU32(m_playersOnline);
 		for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 		{
-			//Send the most common info
 			output->AddString(it->second->getName());
 			output->AddU32(it->second->getLevel());
 		}
@@ -271,7 +250,7 @@ void Status::getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMe
 
 	if(requestedInfo & REQUEST_PLAYER_STATUS_INFO)
 	{
-		output->AddByte(0x22); // players info - online status info of a player
+		output->AddByte(0x22);
 		const std::string name = msg.GetString();
 		if(g_game.getPlayerByName(name) != NULL)
 			output->AddByte(0x01);
@@ -281,11 +260,11 @@ void Status::getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMe
 
 	if(requestedInfo & REQUEST_SERVER_SOFTWARE_INFO)
 	{
-		output->AddByte(0x23); // server software info
+		output->AddByte(0x23);
 		output->AddString(STATUS_SERVER_NAME);
 		output->AddString(STATUS_SERVER_VERSION);
 		output->AddString(STATUS_SERVER_PROTOCOL);
 	}
-		
+
 	return;
 }

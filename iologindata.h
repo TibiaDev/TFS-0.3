@@ -20,11 +20,11 @@
 
 #ifndef __IOLOGINDATA_H
 #define __IOLOGINDATA_H
-
-#include <string>
-#include "account.h"
-#include "player.h"
+#include "otsystem.h"
 #include "database.h"
+
+#include "player.h"
+#include "account.h"
 
 enum DeleteCharacter_t
 {
@@ -116,6 +116,7 @@ class IOLoginData
 		bool updatePremiumDays();
 		bool resetOnlineStatus();
 		bool resetGuildInformation(uint32_t guid);
+		void resetGroups() {playerGroupMap.clear();}
 
 	protected:
 		struct StringCompareCase
@@ -126,10 +127,8 @@ class IOLoginData
 			}
 		};
 
+		bool storeNameByGuid(uint32_t guid);
 		typedef std::map<int32_t, std::pair<Item*, int32_t> > ItemMap;
-		typedef std::map<uint32_t, std::string> NameCacheMap;
-		typedef std::map<std::string, uint32_t, StringCompareCase> GuidCacheMap;
-		typedef std::map<uint32_t, PlayerGroup*> PlayerGroupMap;
 
 		void loadItems(ItemMap& itemMap, DBResult *result);
 		bool saveItems(const Player* player, const ItemBlockList& itemList, DBInsert& query_insert);
@@ -137,10 +136,13 @@ class IOLoginData
 		bool internalHasFlag(uint32_t groupId, PlayerFlags value);
 		bool internalHasCustomFlag(uint32_t groupId, PlayerCustomFlags value);
 
-		bool storeNameByGuid(uint32_t guid);
-
+		typedef std::map<uint32_t, PlayerGroup*> PlayerGroupMap;
 		PlayerGroupMap playerGroupMap;
+
+		typedef std::map<uint32_t, std::string> NameCacheMap;
 		NameCacheMap nameCacheMap;
+
+		typedef std::map<std::string, uint32_t, StringCompareCase> GuidCacheMap;
 		GuidCacheMap guidCacheMap;
 };
 

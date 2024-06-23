@@ -20,8 +20,7 @@
 
 #ifndef __OTSERV_CYLINDER_H__
 #define __OTSERV_CYLINDER_H__
-
-#include "definitions.h"
+#include "otsystem.h"
 #include "thing.h"
 
 class Item;

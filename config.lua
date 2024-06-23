@@ -22,6 +22,7 @@
 	broadcastBanishments = "yes"
 	killsToBan = 5
 	maxViolationCommentSize = 200
+	autoBanishUnknownBytes = "no"
 
 	-- Battle
 	-- NOTE: loginProtectionPeriod is the famous Tibia anti-magebomb system.
@@ -33,6 +34,7 @@
 	killsToRedSkull = 3
 	pzLocked = 60 * 1000
 	criticalHitChance = 7
+	criticalHitMultiplier = 1
 	displayCriticalHitNotify = "no"
 	removeWeaponAmmunition = "yes"
 	removeWeaponCharges = "yes"
@@ -47,11 +49,15 @@
 	oldConditionAccuracy = "no"
 	loginProtectionPeriod = 10 * 1000
 	deathLostPercent = 10
+	stairhopDelay = 2 * 1000
 
 	-- Connection config
 	worldId = 0
 	ip = "127.0.0.1"
-	port = 7171
+	loginPort = 7171
+	gamePort = 7172
+	adminPort = 7171
+	statusPort = 7171
 	loginTries = 10
 	retryTimeout = 5 * 1000
 	loginTimeout = 60 * 1000
@@ -78,9 +84,8 @@
 	sqlPass = ""
 	sqlDatabase = "theforgottenserver"
 	sqlFile = "forgottenserver.s3db"
-	sqlKeepAlive = 60
+	sqlKeepAlive = 0
 	mysqlReadTimeout = 10
-	optimizeDatabaseAtStartup = "yes"
 	passwordType = "plain"
 
 	-- Deathlist
@@ -99,11 +104,13 @@
 
 	-- Houses
 	buyableAndSellableHouses = "yes"
-	housesPerAccount = 0
+	houseNeedPremium = "yes"
+	bedsRequirePremium = "yes"
 	levelToBuyHouse = 1
+	housesPerAccount = 0
 	houseRentAsPrice = "no"
 	housePriceAsRent = "no"
-	housePriceEachSQM = 1000
+	housePriceEachSquare = 1000
 	houseRentPeriod = "never"
 
 	-- Item usage
@@ -120,17 +127,22 @@
 	storeTrash = "yes"
 	cleanProtectedZones = "yes"
 
-	-- Miscellaneous
+	-- Startup
 	-- NOTE: defaultPriority works only on Windows
-	-- promptExceptionTracerErrorBox works only with precompiled support feature,
-	-- called "exception tracer" (__EXCEPTION_TRACER__ flag).
 	defaultPriority = "high"
+	optimizeDatabaseAtStartup = "yes"
+	removePremiumOnInit = "yes"
+	abortOnSocketFailure = "yes"
+
+	-- Miscellaneous
+	-- NOTE: promptExceptionTracerErrorBox works only with precompiled support feature,
+	-- called "exception tracer" (__EXCEPTION_TRACER__ flag).
 	maxMessageBuffer = 4
 	kickIdlePlayerAfterMinutes = 15
 	allowChangeOutfit = "yes"
 	allowChangeColors = "yes"
+	allowChangeAddons = "yes"
 	disableOutfitsForPrivilegedPlayers = "no"
-	displayGamemastersWithOnlineCommand = "no"
 	bankSystem = "yes"
 	saveGlobalStorage = "yes"
 	displaySkillLevelOnAdvance = "no"
@@ -139,28 +151,47 @@
 	expireReportsAfterReads = 1
 	promptExceptionTracerErrorBox = "yes"
 	storePlayerDirection = "no"
-	playerQueryDeepness = 1
+	playerQueryDeepness = 2
 
-	-- Premium account
+	-- Premium-related
 	freePremium = "no"
-	removePremiumOnInit = "yes"
 	premiumForPromotion = "yes"
+
+	-- Blessings
 	blessingsOnlyPremium = "yes"
-	houseNeedPremium = "yes"
-	bedsRequirePremium = "yes"
+	blessingReductionBase = 30
+	blessingReductionDecreament = 5
 
 	-- Rates
 	-- NOTE: experienceStages configuration is located in data/XML/stages.xml.
+	experienceStages = "no"
 	rateExperience = 5.0
 	rateSkill = 3.0
 	rateMagic = 3.0
-	rateStaminaHits = 3
 	rateLoot = 2
 	rateSpawn = 1
-	experienceStages = "no"
+
+	-- Stamina
+	-- NOTE: Stamina is stored in miliseconds, so seconds are multiplied by 1000.
+	-- rateStaminaHits multiplies every hit done a creature, which are later
+	-- multiplied by player attack speed.
+	-- rateStaminaGain is multiplying every second of logged out time, eg:
+	-- 60 * 1000 / 3 = 20 seconds, what gives 1 stamina minute for 3 being logged off.
+	-- rateStaminaThresholdGain is dividing in case the normal gain (that is
+	-- multiplied by rateStaminaGain, btw.) passed above threshold, eg:
+	-- 60 * 1000 / 3 = 20 / 4 = 5 seconds (3 * 4 = 12 minutes for 1 stamina minute).
+	-- staminaRatingLimit* is in minutes.
+	rateStaminaLoss = 1
+	rateStaminaGain = 1000 / 3
+	rateStaminaThresholdGain = 4
+	staminaRatingLimitTop = 41 * 60
+	staminaRatingLimitBottom = 14 * 60
+	rateStaminaAboveNormal = 1.5
+	rateStaminaUnderNormal = 0.5
+	staminaThresholdOnlyPremium = "yes"
 
 	-- Party
-	-- NOTE experienceShareLevelDifference is float number.
+	-- NOTE: experienceShareLevelDifference is float number.
 	-- experienceShareLevelDifference is highestLevel * value
 	experienceShareRadiusX = 30
 	experienceShareRadiusY = 30
@@ -191,10 +222,12 @@
 	ownerEmail = "@otland.net"
 	url = "http://otland.net/"
 	location = "Europe"
+	displayGamemastersWithOnlineCommand = "no"
 
 	-- Logs
 	-- NOTE: This kind of logging does not work in GUI version.
 	-- For such, please compile the software with __GUI_LOGS__ flag.
+	displayPlayersLogging = "yes"
 	runeFile = ""
 	outLogName = ""
 	errorLogName = ""

@@ -19,10 +19,8 @@
 // Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //////////////////////////////////////////////////////////////////////
 
-
 #ifndef __OTSERV_TILE_H__
 #define __OTSERV_TILE_H__
-
 #include "cylinder.h"
 #include "item.h"
 
@@ -79,7 +77,6 @@ class Tile : public Cylinder
 
 		virtual ~Tile()
 		{
-			#ifdef _DEBUG
 			delete ground;
 
 			ItemVector::iterator it;
@@ -91,7 +88,6 @@ class Tile : public Cylinder
 				delete *it;
 
 			downItems.clear();
-			#endif // _DEBUG
 		}
 
 		virtual int32_t getThrowRange() const {return 0;}

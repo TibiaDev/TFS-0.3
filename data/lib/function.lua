@@ -258,18 +258,6 @@ function doWriteLogFile(file, text)
 	file:close()
 end
 
-function isInArea(pos, fromPos, toPos)
-	if(pos.x >= fromPos.x and pos.x <= toPos.x) then
-		if(pos.y >= fromPos.y and pos.y <= toPos.y) then
-			if(pos.z >= fromPos.z and pos.z <= toPos.z) then
-				return TRUE
-			end
-		end
-	end
-
-	return FALSE
-end
-
 function getExperienceForLevel(lv)
 	lv = lv - 1
 	return ((50 * lv * lv * lv) - (150 * lv * lv) + (400 * lv)) / 3
@@ -385,6 +373,14 @@ end
 
 function isPlayerGhost(cid)
 	return isPlayer(cid) == TRUE and getCreatureCondition(cid, CONDITION_GAMEMASTER, GAMEMASTER_INVISIBLE) or FALSE
+end
+
+function doPlayerSetExperienceRate(cid, value)
+	return doPlayerSetRate(cid, SKILL__LEVEL, value)
+end
+
+function doPlayerSetMagicRate(cid, value)
+	return doPlayerSetRate(cid, SKILL__MAGLEVEL, value)
 end
 
 function getPlayerFrags(cid)

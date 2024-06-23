@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
 //////////////////////////////////////////////////////////////////////
-// SQL map serialization
+//
 //////////////////////////////////////////////////////////////////////
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU General Public License
@@ -18,43 +18,44 @@
 // Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //////////////////////////////////////////////////////////////////////
 
-#ifndef __IOMAPSERIALIZE_H__
-#define __IOMAPSERIALIZE_H__
-#include "otsystem.h"
-#include "database.h"
-#include "map.h"
+#ifndef __OTSERV_PROTOCOL_HTTP_H__
+#define __OTSERV_PROTOCOL_HTTP_H__
+#include "protocol.h"
 
-typedef std::map<int32_t, std::pair<Item*, int32_t> > ItemMap;
-typedef std::list<std::pair<Container*, int32_t> > ContainerStackList;
+class NetworkMessage;
+class OutputMessage;
 
-class IOMapSerialize
+class ProtocolHTTP : public Protocol
 {
 	public:
-		IOMapSerialize() {}
-		virtual ~IOMapSerialize() {}
+#ifdef __ENABLE_SERVER_DIAGNOSTIC__
+		static uint32_t protocolHTTPCount;
+#endif
+		ProtocolHTTP(Connection* connection) : Protocol(connection)
+		{
+#ifdef __ENABLE_SERVER_DIAGNOSTIC__
+			protocolHTTPCount++;
+#endif
+			disableXTEAEncryption();
+			disableChecksum();
+		}
+		virtual ~ProtocolHTTP()
+		{
+#ifdef __ENABLE_SERVER_DIAGNOSTIC__
+			protocolHTTPCount--;
+#endif
+		}
 
-		bool loadMap(Map* map);
-		bool saveMap(Map* map);
+		enum {protocolId = 0x00};
+		enum {isSingleSocket = true};
+		enum {hasChecksum = false};
 
-		bool loadHouseInfo(Map* map);
-		bool saveHouseInfo(Map* map);
+		virtual void onRecvFirstMessage(NetworkMessage& msg) {parseFirstPacket(msg);}
 
 	protected:
-		// Relational storage uses a row for each item/tile
-		bool loadMapRelational(Map* map);
-		bool saveMapRelational(Map* map);
-	
-		// Binary storage uses a giant BLOB field for storing everything
-		bool loadMapBinary(Map* map);
-		bool saveMapBinary(Map* map);
-
-		bool loadTile(Database& db, Tile* tile);
-		bool saveTile(Database* db, uint32_t tileId, const Tile* tile);
-
-		bool saveTile(PropWriteStream& stream, const Tile* tile);
-
-		bool loadItem(PropStream& propStream, Cylinder* parent);
-		bool saveItem(PropWriteStream& stream, const Item* item);
+		void disconnectClient();
+		bool parseFirstPacket(NetworkMessage& msg);
+		virtual void deleteProtocolTask();
 };
 
 #endif

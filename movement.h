@@ -20,24 +20,21 @@
 
 #ifndef __MOVEMENT_H__
 #define __MOVEMENT_H__
-
-
-#include "luascript.h"
 #include "baseevents.h"
-#include <map>
 
 enum MoveEvent_t
 {
-	MOVE_EVENT_STEP_IN = 0,
-	MOVE_EVENT_STEP_OUT,
-	MOVE_EVENT_EQUIP,
-	MOVE_EVENT_DEEQUIP,
-	MOVE_EVENT_ADD_ITEM,
-	MOVE_EVENT_REMOVE_ITEM,
-	MOVE_EVENT_ADD_ITEM_ITEMTILE,
-	MOVE_EVENT_REMOVE_ITEM_ITEMTILE,
-	MOVE_EVENT_LAST,
-	MOVE_EVENT_NONE,
+	MOVE_EVENT_FIRST = 0,
+	MOVE_EVENT_STEP_IN = MOVE_EVENT_FIRST,
+	MOVE_EVENT_STEP_OUT = 1,
+	MOVE_EVENT_EQUIP = 2,
+	MOVE_EVENT_DEEQUIP = 3,
+	MOVE_EVENT_ADD_ITEM = 4,
+	MOVE_EVENT_REMOVE_ITEM = 5,
+	MOVE_EVENT_ADD_ITEM_ITEMTILE = 6,
+	MOVE_EVENT_REMOVE_ITEM_ITEMTILE = 7,
+	MOVE_EVENT_NONE = 8,
+	MOVE_EVENT_LAST = MOVE_EVENT_REMOVE_ITEM_ITEMTILE
 };
 
 class MoveEvent;
@@ -46,7 +43,7 @@ typedef std::list<MoveEvent*> EventList;
 typedef std::map<int32_t, bool> VocEquipMap;
 struct MoveEventList
 {
-	EventList moveEvent[MOVE_EVENT_LAST];
+	EventList moveEvent[MOVE_EVENT_NONE];
 };
 
 class MoveEvents : public BaseEvents
