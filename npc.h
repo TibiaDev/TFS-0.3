@@ -128,21 +128,30 @@ class NpcScript : public NpcEventsHandler
 		int32_t m_onPlayerCloseChannel, m_onPlayerEndTrade, m_onThink;
 };
 
-enum RespondParam_t
+enum InteractType_t
 {
-	RESPOND_DEFAULT = 0,
-	RESPOND_MALE = 1,
-	RESPOND_FEMALE = 2,
-	RESPOND_PZBLOCK = 4,
-	RESPOND_LOWMONEY = 8,
-	RESPOND_NOAMOUNT = 16,
-	RESPOND_LOWAMOUNT = 32,
-	RESPOND_PREMIUM = 64,
-	RESPOND_DRUID = 128,
-	RESPOND_KNIGHT = 256,
-	RESPOND_PALADIN = 512,
-	RESPOND_SORCERER = 1024,
-	RESPOND_LOWLEVEL = 2048
+	INTERACT_TEXT,
+	INTERACT_EVENT
+};
+
+enum NpcEvent_t
+{
+	EVENT_NONE,
+	EVENT_BUSY,
+	EVENT_THINK,
+	EVENT_IDLE,
+	EVENT_PLAYER_ENTER,
+	EVENT_PLAYER_MOVE,
+	EVENT_PLAYER_LEAVE,
+	EVENT_PLAYER_SHOPSELL,
+	EVENT_PLAYER_SHOPBUY,
+	EVENT_PLAYER_SHOPCLOSE
+
+	/*
+	EVENT_CREATURE_ENTER,
+	EVENT_CREATURE_MOVE,
+	EVENT_CREATURE_LEAVE,
+	*/
 };
 
 enum ResponseType_t
@@ -151,10 +160,21 @@ enum ResponseType_t
 	RESPONSE_SCRIPT,
 };
 
-enum InteractType_t
+enum RespondParam_t
 {
-	INTERACT_TEXT,
-	INTERACT_EVENT
+	RESPOND_DEFAULT = 0,
+	RESPOND_MALE = 1 << 0,
+	RESPOND_FEMALE = 1 << 1,
+	RESPOND_PZBLOCK = 1 << 2,
+	RESPOND_LOWMONEY = 1 << 3,
+	RESPOND_NOAMOUNT = 1 << 4,
+	RESPOND_LOWAMOUNT = 1 << 5,
+	RESPOND_PREMIUM = 1 << 6,
+	RESPOND_DRUID = 1 << 7,
+	RESPOND_KNIGHT = 1 << 8,
+	RESPOND_PALADIN = 1 << 9,
+	RESPOND_SORCERER = 1 << 10,
+	RESPOND_LOWLEVEL = 1 << 11
 };
 
 enum ReponseActionParam_t
@@ -188,6 +208,13 @@ enum ReponseActionParam_t
 	ACTION_SETIDLE
 };
 
+enum ShopEvent_t
+{
+	SHOPEVENT_SELL,
+	SHOPEVENT_BUY,
+	SHOPEVENT_CLOSE
+};
+
 enum StorageComparision_t
 {
 	STORAGE_LESS,
@@ -195,33 +222,6 @@ enum StorageComparision_t
 	STORAGE_EQUAL,
 	STORAGE_GREATEROREQUAL,
 	STORAGE_GREATER
-};
-
-enum NpcEvent_t
-{
-	EVENT_NONE,
-	EVENT_BUSY,
-	EVENT_THINK,
-	EVENT_IDLE,
-	EVENT_PLAYER_ENTER,
-	EVENT_PLAYER_MOVE,
-	EVENT_PLAYER_LEAVE,
-	EVENT_PLAYER_SHOPSELL,
-	EVENT_PLAYER_SHOPBUY,
-	EVENT_PLAYER_SHOPCLOSE
-
-	/*
-	EVENT_CREATURE_ENTER,
-	EVENT_CREATURE_MOVE,
-	EVENT_CREATURE_LEAVE,
-	*/
-};
-
-enum ShopEvent_t
-{
-	SHOPEVENT_SELL,
-	SHOPEVENT_BUY,
-	SHOPEVENT_CLOSE
 };
 
 struct ResponseAction
@@ -241,20 +241,6 @@ struct ResponseAction
 		Position pos;
 };
 
-struct ScriptVars
-{
-	ScriptVars()
-	{
-		n1 = n2 = n3 = -1;
-		b1 = b2 = b3 = false;
-		s1 = s2 = s3 = "";
-	}
-
-	int32_t n1, n2, n3;
-	bool b1, b2, b3;
-	std::string s1, s2, s3;
-};
-
 struct ListItem
 {
 	ListItem()
@@ -267,6 +253,20 @@ struct ListItem
 
 	int32_t sellPrice, buyPrice, itemId, subType;
 	std::string keywords, name, pluralName;
+};
+
+struct ScriptVars
+{
+	ScriptVars()
+	{
+		n1 = n2 = n3 = -1;
+		b1 = b2 = b3 = false;
+		s1 = s2 = s3 = "";
+	}
+
+	int32_t n1, n2, n3;
+	bool b1, b2, b3;
+	std::string s1, s2, s3;
 };
 
 typedef std::list<ResponseAction> ActionList;
@@ -383,6 +383,15 @@ struct NpcState
 	//Do not forget to update pushState/popState if you add more variables
 };
 
+struct Voice
+{
+	std::string text;
+	uint32_t interval, margin;
+	bool yell;
+};
+
+#define MAX_RAND_RANGE 10000000
+
 class Npc : public Creature
 {
 	public:
@@ -411,7 +420,7 @@ class Npc : public Creature
 		virtual const std::string& getName() const {return name;}
 		virtual const std::string& getNameDescription() const {return nameDescription;}
 
-		void doSay(std::string msg, Player* focus = NULL, bool publicize = false);
+		void doSay(std::string msg, Player* focus = NULL, bool publicize = false, bool yell = false);
 		void doMove(Direction dir);
 		void doTurn(Direction dir);
 		void doMoveTo(Position pos);
@@ -494,6 +503,7 @@ class Npc : public Creature
 		std::string name, nameDescription, m_filename;
 		int32_t talkRadius, idleTime, idleInterval, focusCreature;
 		bool floorChange, attackable, isIdle, hasBusyReply, hasScriptedFocus, defaultPublic;
+		int64_t lastVoice;
 
 		typedef std::list<Player*> ShopPlayerList;
 		ShopPlayerList shopPlayerList;
@@ -509,6 +519,9 @@ class Npc : public Creature
 
 		typedef std::list<uint32_t> QueueList;
 		QueueList queueList;
+
+		typedef std::list<Voice> VoiceList;
+		VoiceList voiceList;
 
 		NpcEventsHandler* m_npcEventHandler;
 		static NpcScriptInterface* m_scriptInterface;

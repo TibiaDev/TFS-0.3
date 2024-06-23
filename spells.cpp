@@ -661,16 +661,13 @@ bool Spell::playerSpellCheck(Player* player) const
 				return false;
 			}
 		}
-	}			
+	}
 
 	return true;
 }
 
 bool Spell::playerInstantSpellCheck(Player* player, const Position& toPos)
 {
-	if(!playerSpellCheck(player))
-		return false;
-
 	if(toPos.x != 0xFFFF)
 	{
 		const Position& playerPos = player->getPosition();
@@ -1576,9 +1573,6 @@ bool ConjureSpell::ConjureItem(const ConjureSpell* spell, Creature* creature, co
 			true, spell->getReagentId(), SLOT_LEFT, true);
 		if(resLeft == RET_NOERROR)
 		{
-			if(!spell->playerSpellCheck(player))
-				return false;
-
 			resLeft = internalConjureItem(player, spell->getConjureId(), spell->getConjureCount(),
 				true, spell->getReagentId(), SLOT_LEFT);
 			if(resLeft == RET_NOERROR)
@@ -1900,15 +1894,10 @@ bool RuneSpell::executeUse(Player* player, Item* item, const PositionEx& posFrom
 	if(result)
 	{
 		Spell::postCastSpell(player);
-		if(hasCharges && item)
-		{
-			if(g_config.getBool(ConfigManager::REMOVE_RUNE_CHARGES))
-			{
-				int32_t newCharge = std::max((int32_t)0, ((int32_t)item->getCharges()) - 1);
-				g_game.transformItem(item, item->getID(), newCharge);
-			}
-		}
+		if(hasCharges && item && g_config.getBool(ConfigManager::REMOVE_RUNE_CHARGES))
+			g_game.transformItem(item, item->getID(), std::max((int32_t)0, ((int32_t)item->getCharges()) - 1));
 	}
+
 	return result;
 }
 

@@ -19,32 +19,29 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "otpch.h"
+#include "otsystem.h"
 
 #ifdef __EXCEPTION_TRACER__
 
+#include <stdlib.h>
 #include <iostream>
 #include <fstream>
 #include <iomanip>
 #include <ctime>
-#include <stdlib.h>
 #include <map>
-
-#include "otsystem.h"
-#include "exception.h"
-
-#include "game.h"
-
-typedef std::map<uint32_t, char*> FunctionMap;
-
 #ifdef WIN32
 #include <excpt.h>
 #include <tlhelp32.h>
 #endif
 
-extern Game g_game;
+#include "exception.h"
+#include "configmanager.h"
+
+extern ConfigManager g_config;
+typedef std::map<uint32_t, char*> FunctionMap;
+FunctionMap functionMap;
 
 uint32_t max_off, min_off;
-FunctionMap functionMap;
 bool maploaded = false;
 OTSYS_THREAD_LOCKVAR maploadlock;
 
@@ -153,9 +150,6 @@ EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRec
 	uint32_t nparameters = 0;
 	uint32_t file,foundRetAddress = 0;
 	_MEMORY_BASIC_INFORMATION mbi;
-
-	//We SHOULD NOT save at crash, as it may cause data loss
-	//g_game.saveGameState(true);
 
 	std::ostream *outdriver;
 	std::cout << ">> CRASH: Generating report file..." << std::endl;
@@ -318,16 +312,18 @@ EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRec
 	if(file)
 		((std::ofstream*)outdriver)->close();
 
-	MessageBoxA(NULL, "If you want developers review this crash log, please open a tracker ticket for the software at OtLand.net and attach the report.txt file.", "Error", MB_OK | MB_ICONERROR);
+	if(g_config.getBool(ConfigManager::TRACER_BOX))
+		MessageBoxA(NULL, "If you want developers review this crash log, please open a tracker ticket for the software at OtLand.net and attach the report.txt file.", "Error", MB_OK | MB_ICONERROR);
+
 	std::cout << "> Crash report generated, killing server." << std::endl;
-	exit(-1);
+	exit(1);
 	return ExceptionContinueSearch;
 }
 
 void printPointer(std::ostream* output,uint32_t p)
 {
 	*output << p;
-	if(IsBadReadPtr((void*)p,4) == 0)
+	if(IsBadReadPtr((void*)p, 4) == 0)
 		*output << " -> " << *(uint32_t*)p;
 }
 
@@ -351,7 +347,7 @@ bool ExceptionHandler::LoadMap()
 	{
 		MessageBoxA(NULL, "Failed loading symbols, forgottenserver.map file not found.", "Error", MB_OK | MB_ICONERROR);
 		std::cout << "Failed loading symbols, forgottenserver.map file not found. " << std::endl;
-		exit(-1);
+		exit(1);
 		return false;
 	}
 

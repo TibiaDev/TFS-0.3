@@ -24,6 +24,7 @@
 	maxViolationCommentSize = 200
 
 	-- Battle
+	-- NOTE: loginProtectionPeriod is the famous Tibia anti-magebomb system.
 	worldType = "pvp"
 	hotkeyAimbotEnabled = "yes"
 	protectionLevel = 1
@@ -32,8 +33,9 @@
 	pzLocked = 60 * 1000
 	criticalHitChance = 7
 	displayCriticalHitNotify = "no"
-	removeAmmoWhenUsingDistanceWeapon = "yes"
-	removeChargesFromRunes = "yes"
+	removeWeaponAmmunition = "yes"
+	removeWeaponCharges = "yes"
+	removeRuneCharges = "yes"
 	timeToDecreaseFrags = 24 * 60 * 60 * 1000
 	whiteSkullTime = 15 * 60 * 1000
 	noDamageToSameLookfeet = "no"
@@ -42,6 +44,7 @@
 	fieldOwnershipDuration = 5 * 1000
 	stopAttackingAtExit = "no"
 	oldConditionAccuracy = "no"
+	loginProtectionPeriod = 10
 
 	-- Connection config
 	worldId = 0
@@ -65,7 +68,7 @@
 
 	-- Database
 	-- NOTE: sqlFile is used only by sqlite database, and sqlKeepAlive by mysql database.
-	-- To disable sqlKeepAlive use 0 value.
+	-- To disable sqlKeepAlive such as mysqlReadTimeout use 0 value.
 	sqlType = "sqlite"
 	sqlHost = "localhost"
 	sqlPort = 3306
@@ -74,6 +77,7 @@
 	sqlDatabase = "theforgottenserver"
 	sqlFile = "forgottenserver.s3db"
 	sqlKeepAlive = 60
+	mysqlReadTimeout = 3
 	optimizeDatabaseAtStartup = "yes"
 	passwordType = "plain"
 
@@ -105,13 +109,19 @@
 	timeBetweenExActions = 1000
 
 	-- Map
+	-- NOTE: storeTrash costs more memory, but will perform alot faster cleaning.
+	-- useHouseDataStorage usage may be found at README.
 	mapName = "forgotten"
 	mapAuthor = "Komic"
 	randomizeTiles = "yes"
+	useHouseDataStorage = "no"
+	storeTrash = "yes"
 	cleanProtectedZones = "yes"
 
 	-- Miscellaneous
 	-- NOTE: defaultPriority works only on Windows
+	-- promptExceptionTracerErrorBox works only with precompiled support feature,
+	-- called "exception tracer" (__EXCEPTION_TRACER__ flag).
 	defaultPriority = "high"
 	maxMessageBuffer = 4
 	kickIdlePlayerAfterMinutes = 15
@@ -125,6 +135,7 @@
 	spellNameInsteadOfWords = "no"
 	emoteSpells = "no"
 	expireReportsAfterReads = 1
+	promptExceptionTracerErrorBox = "yes"
 
 	-- Premium account
 	freePremium = "no"
@@ -136,14 +147,22 @@
 
 	-- Rates
 	-- NOTE: experienceStages configuration is located in data/XML/stages.xml.
-	rateExp = 5
-	rateSkill = 3
+	rateExperience = 5.0
+	rateSkill = 3.0
+	rateMagic = 3.0
 	rateLoot = 2
-	rateMagic = 3
 	rateSpawn = 1
-	extraPartyExpLimit = 20
-	extraPartyExpPercent = 5
 	experienceStages = "no"
+
+	-- Party
+	-- NOTE experienceShareLevelDifference is float number.
+	-- 0.66666666666667 is highestLevel * 2 / 3
+	experienceShareRadiusX = 30
+	experienceShareRadiusY = 30
+	experienceShareRadiusZ = 1
+	experienceShareLevelDifference = 0.66666666666667
+	extraPartyExperienceLimit = 20
+	extraPartyExperiencePercent = 5
 
 	-- Global save
 	-- NOTE: globalSaveHour means like 03:00, not that it will save every 3 hours,
@@ -159,11 +178,18 @@
 
 	-- Summons
 	maxPlayerSummons = 2
-	teleportAllSummons = "no" --FIXME: Doesn't work
-	teleportPlayerSummons = "no" --FIXME: Doesn't work
+	teleportAllSummons = "no"
+	teleportPlayerSummons = "no"
 
 	-- Status
 	ownerName = ""
 	ownerEmail = "@otland.net"
 	url = "http://otland.net/"
 	location = "Europe"
+
+	-- Logs
+	-- NOTE: This kind of logging does not work in GUI version.
+	-- For such, please compile the software with __GUI_LOGS__ flag.
+	outLogName = "server/out.log"
+	errorLogName = "server/error.log"
+	truncateLogsOnStartup = "yes"

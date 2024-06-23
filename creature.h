@@ -35,6 +35,7 @@
 #include <list>
 
 typedef std::list<Condition*> ConditionList;
+typedef std::list<CreatureEvent*> CreatureEventList;
 
 enum slots_t
 {
@@ -280,7 +281,7 @@ class Creature : public AutoID, virtual public Thing
 		virtual bool convinceCreature(Creature* creature) {return false;}
 
 		virtual bool onDeath();
-		virtual uint64_t getGainedExperience(Creature* attacker) const;
+		virtual uint64_t getGainedExperience(Creature* attacker, bool useMultiplier = true);
 		void addDamagePoints(Creature* attacker, int32_t damagePoints);
 		void addHealPoints(Creature* caster, int32_t healthPoints);
 		bool hasBeenAttacked(uint32_t attackerId);
@@ -289,7 +290,7 @@ class Creature : public AutoID, virtual public Thing
 		virtual void onAddCondition(ConditionType_t type);
 		virtual void onAddCombatCondition(ConditionType_t type);
 		virtual void onEndCondition(ConditionType_t type);
-		virtual void onTickCondition(ConditionType_t type, bool& bRemove);
+		virtual void onTickCondition(ConditionType_t type, bool& _remove);
 		virtual void onCombatRemoveCondition(const Creature* attacker, Condition* condition);
 		virtual void onAttackedCreature(Creature* target);
 		virtual void onAttacked();
@@ -355,6 +356,8 @@ class Creature : public AutoID, virtual public Thing
 		bool getDropLoot() const {return lootDrop;}
 		void setLossSkill(bool _skillLoss) {skillLoss = _skillLoss;}
 		bool getLossSkill() const {return skillLoss;}
+		void setNoMove(bool _cannotMove) {cannotMove = _cannotMove;}
+		bool getNoMove() const {return cannotMove;}
 
 		//creature script events
 		bool registerCreatureEvent(const std::string& name);
@@ -404,6 +407,7 @@ class Creature : public AutoID, virtual public Thing
 		int32_t varSpeed;
 		bool skillLoss;
 		bool lootDrop;
+		bool cannotMove;
 		Skulls_t skull;
 		PartyShields_t partyShield;
 		Direction direction;
@@ -437,21 +441,17 @@ class Creature : public AutoID, virtual public Thing
 
 		CountMap damageMap;
 		CountMap healMap;
-		uint32_t lastHitCreatureId;
-		uint32_t blockCount;
-		uint32_t blockTicks;
+		uint32_t lastHitCreatureId, blockCount, blockTicks;
 
 		//creature script events
+		CreatureEventList eventsList;
 		uint32_t scriptEventsBitField;
+
+		CreatureEventList getCreatureEvents(CreatureEventType_t type);
 		bool hasEventRegistered(CreatureEventType_t event)
 		{
 			return (0 != (scriptEventsBitField & ((uint32_t)1 << event)));
 		}
-
-		typedef std::list<CreatureEvent*> CreatureEventList;
-		CreatureEventList eventsList;
-		CreatureEventList::iterator findEvent(CreatureEventType_t type);
-		CreatureEvent* getCreatureEvent(CreatureEventType_t type);
 
 		void updateMapCache();
 		#ifdef __DEBUG__

@@ -13,6 +13,7 @@
 	<action itemid="2554" script="tools/shovel.lua"/>
 	<action itemid="5710" script="tools/shovel.lua"/>
 	<action itemid="2120" script="tools/rope.lua"/>
+	<action itemid="7731" script="tools/rope.lua"/>
 	<action itemid="2553" script="tools/pick.lua"/>
 	<action itemid="5908" script="tools/obsidian_knife.lua"/>
 	<action itemid="5942" script="tools/blessed_wooden_stake.lua"/>
@@ -78,6 +79,8 @@
 	<action fromid="7372" toid="7377" script="other/food.lua"/>
 
 	<!-- Increase/Decrease ItemId -->
+	<action itemid="461" function="increaseItemId"/>
+	<action itemid="462" function="decreaseItemId"/>
 	<action itemid="1873" function="increaseItemId"/>
 	<action itemid="1874" function="decreaseItemId"/>
 	<action itemid="1875" function="increaseItemId"/>
@@ -143,10 +146,18 @@
 	<action itemid="9580" function="decreaseItemId"/>
 	<action itemid="9581" function="increaseItemId"/>
 	<action itemid="9582" function="decreaseItemId"/>
+	<action itemid="9624" function="increaseItemId"/>
+	<action itemid="9625" function="decreaseItemId"/>
 	<action itemid="9747" function="increaseItemId"/>
 	<action itemid="9748" function="decreaseItemId"/>
 	<action itemid="9749" function="increaseItemId"/>
 	<action itemid="9750" function="decreaseItemId"/>
+	<action itemid="9825" function="increaseItemId"/>
+	<action itemid="9826" function="decreaseItemId"/>
+	<action itemid="9827" function="increaseItemId"/>
+	<action itemid="9828" function="decreaseItemId"/>
+	<action itemid="9973" function="increaseItemId"/>
+	<action itemid="9974" function="decreaseItemId"/>
 
 	<!-- Spellbooks -->
 	<action itemid="2175" script="other/spellbook.lua"/>

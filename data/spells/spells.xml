@@ -24,7 +24,7 @@
 	<rune name="Stalagmite" id="2292" allowfaruse="1" charges="10" lvl="24" maglv="3" exhaustion="2000" needtarget="1" script="attack/stalagmite.lua"/>
 	<rune name="Holy Missile" id="2295" allowfaruse="1" charges="5" lvl="27" maglv="4" exhaustion="2000" needtarget="1" blocktype="solid" script="attack/holy missile.lua">
 		<vocation name="Paladin"/>
-		<vocation name="Royal Paladin"/>
+		<vocation name="Royal Paladin" showInDescription="0"/>
 	</rune>
 
 	<!-- Healing Runes -->
@@ -42,11 +42,11 @@
 	<rune name="Chameleon" id="2291" allowfaruse="1" charges="1" lvl="27" maglv="4" exhaustion="1000" aggressive="0" selftarget="1" blocktype="solid" function="chameleon"/>
 	<rune name="Magic Wall" id="2293" allowfaruse="1" charges="3" lvl="32" maglv="9" exhaustion="2000" blocktype="all" script="support/magic wall rune.lua"/>
 	<rune name="Wild Growth" id="2269" allowfaruse="1" charges="2" lvl="27" maglv="8" exhaustion="2000" blocktype="all" script="support/wild growth rune.lua">
-		<vocation name="Druid" showInDescription="0"/>
+		<vocation name="Druid"/>
 		<vocation name="Elder Druid" showInDescription="0"/>
 	</rune>
 	<rune name="Paralyze" id="2278" allowfaruse="1" charges="1" lvl="54" maglv="18" exhaustion="2000" mana="1400" needtarget="1" blocktype="solid" script="support/paralyze rune.lua">
-		<vocation name="Druid" showInDescription="0"/>
+		<vocation name="Druid"/>
 		<vocation name="Elder Druid" showInDescription="0"/>
 	</rune>
 
@@ -336,16 +336,16 @@
 	</instant>
 
 	<!-- Party Spells -->
-	<instant name="Train Party" words="utito mas sio" lvl="32" mana="0" prem="1" aggressive="0" selftarget="1" exhaustion="1000" needlearn="0" script="party/train.lua">
+	<instant name="Train Party" words="utito mas sio" lvl="32" mana="60" prem="1" aggressive="0" selftarget="1" exhaustion="1000" needlearn="0" script="party/train.lua">
 		<vocation name="Elite Knight"/>
 	</instant>
-	<instant name="Protect Party" words="utamo mas sio" lvl="32" mana="0" prem="1" aggressive="0" selftarget="1" exhaustion="1000" needlearn="0" script="party/protect.lua">
+	<instant name="Protect Party" words="utamo mas sio" lvl="32" mana="90" prem="1" aggressive="0" selftarget="1" exhaustion="1000" needlearn="0" script="party/protect.lua">
 		<vocation name="Royal Paladin"/>
 	</instant>
-	<instant name="Heal Party" words="utura mas sio" lvl="32" mana="0" prem="1" aggressive="0" selftarget="1" exhaustion="1000" needlearn="0" script="party/heal.lua">
+	<instant name="Heal Party" words="utura mas sio" lvl="32" mana="120" prem="1" aggressive="0" selftarget="1" exhaustion="1000" needlearn="0" script="party/heal.lua">
 		<vocation name="Elder Druid"/>
 	</instant>
-	<instant name="Enchant Party" words="utori mas sio" lvl="32" mana="0" prem="1" aggressive="0" selftarget="1" exhaustion="1000" needlearn="0" script="party/enchant.lua">
+	<instant name="Enchant Party" words="utori mas sio" lvl="32" mana="120" prem="1" aggressive="0" selftarget="1" exhaustion="1000" needlearn="0" script="party/enchant.lua">
 		<vocation name="Master Sorcerer"/>
 	</instant>
 
