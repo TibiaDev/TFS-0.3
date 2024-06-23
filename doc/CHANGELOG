@@ -1,0 +1,418 @@
+[ CHANGELOG
+	Project Name
+		The Forgotten Server
+
+	Version
+		0.3 Alpha 1
+
+	Codenamed
+		\
+
+	License
+		GNU GPLv3
+
+	Forum
+		http://otland.net/
+]
+
+[ File changes:
+	D = Deleted,
+	M = Modified,
+	A = Added.
+
+	A...
+		data/
+			compat.lua
+				* Added for compatibility with other engines - will contain deprecated functions
+
+			functions.lua
+				* Contains all lua-made functions from global.lua
+
+			actions/
+				scripts/
+					liquids/
+						*.lua
+							* Added liquids files
+							* Added potions of 8.2 protocol
+					tools/
+						blessed_wooden_stake.lua
+						obsidian_knife.lua
+							* Added
+
+			classes/
+				*.*
+					* Added all _needed_ class files
+
+			creaturescripts/
+				scripts/
+					firstitems.lua
+						* Moved first items script to creature events instead of move events
+
+			globalevents/
+				globalevents.xml
+				lib/
+				scripts/
+					* Introduced global events
+				scripts/
+					*.lua
+						* Added basic scripts
+
+			logs/
+				server/
+					* Created directory for GUI logs
+
+			monsters/
+				*/*.xml
+					* Added most of 8.1 protocol monsters
+					* Added missing monsters and bosses
+					* Added few monsters of procotol 8.2
+
+			npc/
+				*.xml
+				lib/
+					*.xml
+						* Lightweight npc examples
+				scripts/
+					*.lua
+						* Added more NPC's examples
+
+			talkactions/
+				scripts/
+					shutdown.lua
+					pvp.lua
+						* Talkaction based on new LUA function
+					position.lua
+					money.lua
+						* Talkaction deprecated from commands
+					online.lua
+					clean.lua
+					broadcast.lua
+						* Talkaction based on new LUA function, deprecated from commands
+					broadcastclass.lua
+					mode.lua
+						* Added (...)
+
+			weapons/
+				scripts/
+					burst_arrow.lua
+						* Moved explosive_arrow.lua
+
+			XML/
+				servers.xml
+					* GameServers class usage example
+
+	M...
+		data/
+			actions/
+				scripts/
+					tools/
+						fishing.lua
+							* Fixed worms usage
+						rope.lua
+							* Protocol 8.2 rope spots
+					other/
+						constructionkits.lua
+							* Fixed construction kits
+						doors.lua
+							* Fixed special doors
+
+			creaturescripts/
+				creaturescripts.xml
+					* Moved first items script to creature events instead of move events
+				scripts/
+					playerdeath.lua
+						* Updated due to changed escapeString return
+
+			items/
+				items.xml
+					* Fixed formatting
+					* Corrected alot of attribute values
+					* Corrected alot of item names
+					* Compatibility with protocol 8.22
+					* Compatibility with OTBv3
+					* Fixed construction kits
+				items.otb
+					* Compatibility with protocol 8.22
+					* Compatibility with OTBv3
+
+			monster/
+				monsters.xml
+					* Added most 8.1 monsters
+					* Added some 8.2 monsters
+				*/*.xml
+					* Fixed loots, voices, formating and introduced elemental weakness
+
+			movements/
+				movements.xml
+					* Added swimming system
+					* Moved first items script to creature events instead of move events
+					* Added protocol 8.1 elemental armory with limitations
+					* Added protocol 8.2 elemental armory with limitations
+					* Fixed protocol 8.2 elemental armory due to OTBv3 update
+				scripts/
+					swimming/
+						*.lua
+							* Added swimming system
+
+			npc/
+				*.xml
+					* Lightweight npc compatibility
+				lib/
+					npc.lua
+						* Protocol 8.22 npcsystem compatibility
+					npcsystem/
+						* Full protocol 8.22 npcsystem
+				scripts/
+					*.lua
+						* 8.22 npcsystem compatibility
+
+			spells/
+				lib/
+					spells.lua
+						* Added all new corpses to the CORPSES array
+						* Fixed some spell areas
+				scripts/
+					*.lua
+						* Fixes
+					support/
+						magic rope.lua
+							* Protocol 8.2 rope spots
+				spells.xml
+					* Added "exhaustion=" back to spells.xml
+					* Charges and names fixed
+					* Fixed spell range
+
+			talkactions/
+				talkactions.xml
+					* Added all the new talkactions
+					* Added new access system tags (access="")
+					* Added log="" tags responsible for talkaction logging
+				scripts/
+					*.lua
+						* Removed permission checking from access needing talkactions
+					changesex.lua
+						* Updated due to deprecated LUA function
+						* Added a check for gratis premium account
+					deathlist.lua
+						* Updated due to changed escapeString return
+
+			world/
+				*.xml
+				forgotten.otbm
+					* Placed some NPC's on the map
+					* Updated to OTBv3
+
+			XML/
+				commands.xml
+					* Replaced old tags of acctype="" and group="" to new access system access=""
+					* Added log="" tags responsible for commands logging
+					* Re-grouped for new groups
+
+			global.lua
+				* Added getConfigInfo(info), doWriteLogFile(file, text), getPosByDir(basePos, dir) and hasCondition(cid, condition) functions
+				* Fixed conditions values
+				* Split to functions.lua and compat.lua
+				* Added guild levels
+				* Re-grouped global.lua
+				* Updated to protocol 8.2
+
+	D...
+		data/
+			actions/
+				scripts/
+					fluids.lua
+					potions.lua
+
+			movements/
+				scripts/
+					firstitems.lua
+						* Moved first items script to creature events instead of move events
+
+			weapons/
+				scripts/
+					explosive_arrow.lua
+]
+
+[ Milestone
+	[ Note
+		Some of the features were added to Mystic Spirit (0.2) due popularity of them.
+	]
+
+	White skull time configurable on config.lua (Talaturen)
+	Time to decrease frags on config.lua (Talaturen)
+	Added most of monsters of protocol 8.1 and some of 8.2 (OpenTibia SVN, Lithium)
+	Attackspeed for items in items.xml (Talaturen)
+	Basespeed in vocations.xml (Talaturen)
+	onLook(cid, pos) creaturescript event (Talaturen)
+	/pvp command to change worldtype (Talaturen)
+	/goto command (/goto x y z) (Talaturen)
+	Configurable level to form guild (Talaturen)
+	Replaced party system with the party system from OpenTibias avesta branch (Talaturen)
+	Added more NPC's and placed in the map (Lithium, Elf)
+	Swimming system (Lithium, OpenTibia SVN)
+	Global Storage values saving in database (Elf, OpenTibia SVN)
+	Configurable level to buy and sell house (Elf)
+	Configurable amount (0 to disable) of houses per each account (Elf)
+	/send command (/send player, x y z) (Elf)
+	Configurable permission for talkactions in talkactions.xml (Elf)
+	Ingame guild management 'switch' on config.lua (Elf)
+	House buying and selling disabling on config.lua (Elf)
+	Namelock Manager while Account Manager is disabled configurable in config.lua (Elf)
+	Dropped LuaSQL and replaced with LuaDatabase (Elf, OpenLua-Distro)
+	onKill(cid, target) creaturescript event (Elf)
+	onAdvance(cid, skill, oldlevel, newlevel) creaturescript event (Elf)
+	onThink creaturescript event for creatures (Elf)
+	onThink and onLook events aren't fired global anymore (Elf)
+	/squelch command to disable private messages receiving (Elf)
+	Dropped account types and replaced it with access levels (Elf, Talaturen)
+	Custom flags system (Elf, Talaturen)
+	Possibility to move items from far, push not pushable items and throw items anywhere (nfries88, Elf)
+	Configurable commands and talkactions logging (Elf)
+	Ghost Mode [with disabled effects] (Pedro B, Elf)
+	Cascading actions (Elf, OpenTibia SVN)
+	Rewritten ban class (Elf, Talaturen, OpenTibia SVN)
+	/baninfo command (Elf)
+	Bank system (OpenTibia SVN, Elf)
+	Stamina system (Elf)
+	Moved players record and motd to database (Elf)
+	Moved CTRL + Z bug reports to database, written /reports command (Elf)
+	OTBv3 (OpenTibia SVN, Talaturen, Elf)
+	Monsters with elemental weaknesses (Marcinek Paladinek, Lithium)
+	Marriage 'system' (Elf)
+	Construction kits (Elf)
+	Global events (Elf)
+	Thing attribute changing (Kiper)
+	onAttack creaturescript (Elf)
+]
+
+[ Deprecated
+	[ Note
+		All deprecated Lua functions are stored in compat.lua and use their equivalents, nevertheless please use proper ones for new scripts.
+	]
+
+	Command: !kills, use !frags.
+	Command: /clean, use /clean from talkactions
+	Command: /pos, use /pos from talkactions
+	Command: /q, use /q from talkactions
+	Command: /B, use #b or /b from talkactions
+	Command: /b, use violation window for banning
+	Command: /pvp, use /pvp from talkactions
+	LuaFunction: savePlayers(), use saveData().
+	LuaFunction: doPlayerAddMana(cid, mana), use doCreatureAddMana(cid, mana)
+	LuaFunction: broadcastMessage(cid, type), use doBroadcastMessage(cid, type)
+	LuaFunction: getPlayerPosition(cid), use getCreaturePosition(cid)
+	LuaFunction: getPlayerName(cid), use getCreatureName(cid)
+	LuaFunction: getCreaturePos(cid) [fake], use getCreaturePosition(cid)
+	LuaFunction: saveData(), use saveServer()
+	LuaFunction: doPlayerRemovePremiumDays(cid, days), use: doPlayerAddPremiumDays(cid, -days) [negative values]
+	LuaFunction: doPlayerRemOutfit(cid, looktype, addons), use: doPlayerRemoveOutfit(cid, looktype, addons)
+	LuaFunction: doSetCreatureDropLoot(cid, doDrop), use: doCreatureSetDropLoot(cid, doDrop)
+]
+
+[ MySQL Update Queries
+	CREATE TABLE `server_motd`
+	(
+		`id` INT NOT NULL AUTO_INCREMENT,
+		`text` TEXT NOT NULL,
+		PRIMARY KEY (`id`)
+	) ENGINE = InnoDB;
+
+	CREATE TABLE `server_record`
+	(
+		`record` INT NOT NULL,
+		`timestamp` BIGINT NOT NULL,
+		PRIMARY KEY (`timestamp`)
+	) ENGINE = InnoDB;
+
+	CREATE TABLE `global_storage`
+	(
+		`key` INT UNSIGNED NOT NULL,
+		`value` INT NOT NULL,
+		PRIMARY KEY  (`key`)
+	) ENGINE = InnoDB;
+
+	INSERT INTO `server_record` VALUES (0, 0);
+	INSERT INTO `server_motd` VALUES (1, 'Welcome to The Forgotten Server!');
+
+	DROP TABLE `bans`;
+	CREATE TABLE `bans`
+	(
+		`id` INT UNSIGNED NOT NULL auto_increment,
+		`type` TINYINT(1) NOT NULL COMMENT 'this field defines if its ip, account, player, or any else ban',
+		`value` INT UNSIGNED NOT NULL COMMENT 'ip, player guid, account number',
+		`param` INT UNSIGNED NOT NULL DEFAULT 4294967295 COMMENT 'mask',
+		`active` TINYINT(1) NOT NULL DEFAULT TRUE,
+		`expires` INT UNSIGNED NOT NULL,
+		`added` INT UNSIGNED NOT NULL,
+		`admin_id` INT UNSIGNED NOT NULL DEFAULT 0,
+		`comment` TEXT NOT NULL DEFAULT '',
+		`reason` INT UNSIGNED NOT NULL DEFAULT 0,
+		`action` INT UNSIGNED NOT NULL DEFAULT 0,
+		PRIMARY KEY  (`id`),
+		KEY `type` (`type`, `value`)
+	) ENGINE = InnoDB;
+
+	TRUNCATE TABLE `groups`;
+	ALTER TABLE `groups` ADD `customflags` BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `flags`;
+	ALTER TABLE `groups` ADD `violationaccess` INT NOT NULL AFTER `access`;
+	INSERT INTO `groups` VALUES (1, 'Player', 0, 0, 0, 0, 0, 0);
+	INSERT INTO `groups` VALUES (2, 'Tutor', 16809984, 1, 1, 0, 0, 0);
+	INSERT INTO `groups` VALUES (3, 'Senior Tutor', 68736352256, 3, 2, 1, 0, 0);
+	INSERT INTO `groups` VALUES (4, 'Game Master', 492842123151, 63, 3, 2, 4000, 200);
+	INSERT INTO `groups` VALUES (5, 'Community Manager', 542239465466, 1279, 4, 3, 6000, 300);
+	INSERT INTO `groups` VALUES (6, 'God', 546534563834, 2047, 5, 3, 8000, 400);
+
+	ALTER TABLE `players` ADD `balance` BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `blessings`;
+	ALTER TABLE `players` ADD `stamina` BIGINT UNSIGNED NOT NULL DEFAULT 201660000 AFTER `balance`;
+	ALTER TABLE `players` CHANGE `loss_experience` `loss_experience` INT NOT NULL DEFAULT 10;
+	ALTER TABLE `players` CHANGE `loss_mana` `loss_mana` INT NOT NULL DEFAULT 10;
+	ALTER TABLE `players` CHANGE `loss_skills` `loss_skills` INT NOT NULL DEFAULT 10;
+	ALTER TABLE `players` ADD `loss_items` INT NOT NULL DEFAULT 10 AFTER `loss_skills`;
+	ALTER TABLE `players` ADD `marriage` INT UNSIGNED NOT NULL DEFAULT 0;
+	UPDATE `players` SET `loss_experience` = 10, `loss_mana` = 10, `loss_skills` = 10, `loss_items` = 10;
+
+	ALTER TABLE `accounts` DROP `type`;
+	ALTER TABLE `player_deaths` DROP `is_player`;
+
+	ALTER TABLE `houses` CHANGE `warnings` `warnings` INT NOT NULL DEFAULT 0;
+	ALTER TABLE `houses` ADD `lastwarning` INT UNSIGNED NOT NULL DEFAULT 0;
+]
+
+[ MySQL Update Triggers
+	DROP TRIGGER IF EXISTS `ondelete_accounts`;
+	DROP TRIGGER IF EXISTS `ondelete_players`;
+
+	DELIMITER |
+	CREATE TRIGGER `ondelete_accounts`
+	BEFORE DELETE
+	ON `accounts`
+	FOR EACH ROW
+	BEGIN
+	    DELETE FROM `bans` WHERE `type` != 1 AND `type` != 2 AND `value` = OLD.`id`;
+	END|
+
+	CREATE TRIGGER `ondelete_players`
+	BEFORE DELETE
+	ON `players`
+	FOR EACH ROW
+	BEGIN
+	    DELETE FROM `bans` WHERE `type` = 2 AND `value` = OLD.`id`;
+	    UPDATE `houses` SET `owner` = 0 WHERE `owner` = OLD.`id`;
+	END|
+	DELIMITER ;
+]
+
+[ SqLite Update Queries and Triggers
+	Please use newest forgottenserver.s3b file.
+]
+
+[ Fixed issues with...
+	Last house warnings (OpenTibia SVN, Elf)
+	High CPU usage (Everyone, OpenTibia SVN)
+	Zones skill loss and item drop (Talaturen, Elf, OpenTibia SVN)
+	Not unserialized bed sleepers (Elf)
+	Items with 0 charges not being removed (Elf, Kiper)
+	Blessings (Talaturen)
+	Crash on VIP List saving (Elf)
+	Huge writables (Elf)
+]
