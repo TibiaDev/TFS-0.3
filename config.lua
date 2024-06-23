@@ -25,6 +25,7 @@
 
 	-- Battle
 	-- NOTE: loginProtectionPeriod is the famous Tibia anti-magebomb system.
+	-- deathLostPercent set to nil enables manual mode.
 	worldType = "pvp"
 	hotkeyAimbotEnabled = "yes"
 	protectionLevel = 1
@@ -45,6 +46,7 @@
 	stopAttackingAtExit = "no"
 	oldConditionAccuracy = "no"
 	loginProtectionPeriod = 10
+	deathLostPercent = 10
 
 	-- Connection config
 	worldId = 0
@@ -77,7 +79,7 @@
 	sqlDatabase = "theforgottenserver"
 	sqlFile = "forgottenserver.s3db"
 	sqlKeepAlive = 60
-	mysqlReadTimeout = 3
+	mysqlReadTimeout = 10
 	optimizeDatabaseAtStartup = "yes"
 	passwordType = "plain"
 
@@ -156,11 +158,11 @@
 
 	-- Party
 	-- NOTE experienceShareLevelDifference is float number.
-	-- 0.66666666666667 is highestLevel * 2 / 3
+	-- experienceShareLevelDifference is highestLevel * value
 	experienceShareRadiusX = 30
 	experienceShareRadiusY = 30
 	experienceShareRadiusZ = 1
-	experienceShareLevelDifference = 0.66666666666667
+	experienceShareLevelDifference = 2 / 3
 	extraPartyExperienceLimit = 20
 	extraPartyExperiencePercent = 5
 
@@ -190,6 +192,6 @@
 	-- Logs
 	-- NOTE: This kind of logging does not work in GUI version.
 	-- For such, please compile the software with __GUI_LOGS__ flag.
-	outLogName = "server/out.log"
-	errorLogName = "server/error.log"
-	truncateLogsOnStartup = "yes"
+	outLogName = ""
+	errorLogName = ""
+	truncateLogsOnStartup = "no"
