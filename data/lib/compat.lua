@@ -53,3 +53,5 @@ doPlayerSetNoMove = doCreatureSetNoMove
 getPlayerNoMove = getCreatureNoMove
 getConfigInfo = getConfigValue
 doPlayerAddExp = doPlayerAddExperience
+isInArea = isInRange
+doPlayerSetSkillRate = doPlayerSetRate

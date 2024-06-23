@@ -256,7 +256,7 @@ int32_t TalkAction::executeSay(Player* player, const std::string& words, const s
 		{
 			#ifdef __DEBUG_LUASCRIPTS__
 			char desc[125];
-			sprintf(desc, "%s - %s- %s", creature->getName().c_str(), words.c_str(), param.c_str());
+			sprintf(desc, "%s - %s- %s", player->getName().c_str(), words.c_str(), param.c_str());
 			env->setEventDesc(desc);
 			#endif
 
@@ -816,12 +816,8 @@ bool TalkAction::changeThingProporties(Player* player, const std::string& cmd, c
 							_player->balance = atoi(parseParams(cmdit, cmdtokens.end()).c_str());
 						else if(strcasecmp(tmp.c_str(), "marriage") == 0)
 							_player->marriage = atoi(parseParams(cmdit, cmdtokens.end()).c_str());
-						else if(strcasecmp(tmp.c_str(), "experiencerate") == 0)
-							_player->experienceRate = atof(parseParams(cmdit, cmdtokens.end()).c_str());
-						else if(strcasecmp(tmp.c_str(), "magicrate") == 0)
-							_player->magicRate = atof(parseParams(cmdit, cmdtokens.end()).c_str());
-						else if(strcasecmp(tmp.c_str(), "skillrate") == 0)
-							_player->skillRate[atoi(parseParams(cmdit, cmdtokens.end()).c_str())] = atof(
+						else if(strcasecmp(tmp.c_str(), "rates") == 0)
+							_player->rates[atoi(parseParams(cmdit, cmdtokens.end()).c_str())] = atof(
 								parseParams(cmdit, cmdtokens.end()).c_str());
 						else if(strcasecmp(tmp.c_str(), "resetidle") == 0)
 							_player->resetIdleTime();

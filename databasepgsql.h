@@ -69,10 +69,10 @@ class PgSQLResult : public _DBResult
 
 	protected:
 		PgSQLResult(PGresult* results);
-		DATABASE_VIRTUAL ~PgSQLResult();
+		DATABASE_VIRTUAL ~PgSQLResult() {PQclear(m_handle);}
 
-		int32_t m_rows, m_cursor;
 		PGresult* m_handle;
+		int32_t m_rows, m_cursor;
 };
 
 #endif

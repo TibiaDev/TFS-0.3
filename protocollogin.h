@@ -20,7 +20,6 @@
 
 #ifndef __OTSERV_PROTOCOL_LOGIN_H__
 #define __OTSERV_PROTOCOL_LOGIN_H__
-
 #include "protocol.h"
 
 class NetworkMessage;
@@ -45,18 +44,16 @@ class ProtocolLogin : public Protocol
 #endif
 		}
 
-		virtual int32_t getProtocolId() {return 0x01;}
+		enum {protocolId = 0x01};
+		enum {isSingleSocket = false};
+		enum {hasChecksum = true};
 
-		virtual void onRecvFirstMessage(NetworkMessage& msg);
+		virtual void onRecvFirstMessage(NetworkMessage& msg) {parseFirstPacket(msg);}
 
 	protected:
 		void disconnectClient(uint8_t error, const char* message);
-
 		bool parseFirstPacket(NetworkMessage& msg);
-
-		#ifdef __DEBUG_NET_DETAIL__
 		virtual void deleteProtocolTask();
-		#endif
 };
 
 #endif

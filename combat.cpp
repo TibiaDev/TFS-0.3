@@ -76,8 +76,8 @@ bool Combat::getMinMaxValues(Creature* creature, Creature* target, int32_t& min,
 		{
 			case FORMULA_LEVELMAGIC:
 			{
-				min = (int32_t)((player->getLevel() * 2 + player->getMagicLevel() * 3) * 1. * mina + minb);
-				max = (int32_t)((player->getLevel() * 2 + player->getMagicLevel() * 3) * 1. * maxa + maxb);
+				min = (int32_t)((player->getLevel() + player->getMagicLevel() * 4) * 1. * mina + minb);
+				max = (int32_t)((player->getLevel() + player->getMagicLevel() * 4) * 1. * maxa + maxb);
 				return true;
 			}
 
@@ -214,30 +214,50 @@ ReturnValue Combat::canDoCombat(const Creature* caster, const Tile* tile, bool i
 
 	if(caster)
 	{
+		bool success = true;
+		CreatureEventList combatAreaEvents = const_cast<Creature*>(caster)->getCreatureEvents(CREATURE_EVENT_COMBAT_AREA);
+		for(CreatureEventList::iterator it = combatAreaEvents.begin(); it != combatAreaEvents.end(); ++it)
+		{
+			if(!(*it)->executeCombatArea(const_cast<Creature*>(caster), const_cast<Tile*>(tile), isAggressive) && success)
+				success = false;
+		}
+
+		if(!success)
+			return RET_NOTPOSSIBLE;
+
 		if(caster->getPosition().z < tile->getPosition().z)
 			return RET_FIRSTGODOWNSTAIRS;
 
 		if(caster->getPosition().z > tile->getPosition().z)
 			return RET_FIRSTGOUPSTAIRS;
 
-		if(const Player* player = caster->getPlayer())
-		{
-			if(player->hasFlag(PlayerFlag_IgnoreProtectionZone))
-				return RET_NOERROR;
-		}
+		if(!isAggressive)
+			return RET_NOERROR;
+
+		const Player* player = caster->getPlayer();
+		if(player && player->hasFlag(PlayerFlag_IgnoreProtectionZone))
+			return RET_NOERROR;
 	}
 
-	//pz-zone
-	if(isAggressive && tile->hasFlag(TILESTATE_PROTECTIONZONE))
-		return RET_ACTIONNOTPERMITTEDINPROTECTIONZONE;
-
-	return RET_NOERROR;
+	return isAggressive && tile->hasFlag(TILESTATE_PROTECTIONZONE) ?
+		RET_ACTIONNOTPERMITTEDINPROTECTIONZONE : RET_NOERROR;
 }
 
 ReturnValue Combat::canDoCombat(const Creature* attacker, const Creature* target)
 {
 	if(!attacker)
 		return RET_NOERROR;
+
+	bool success = true;
+	CreatureEventList combatEvents = const_cast<Creature*>(attacker)->getCreatureEvents(CREATURE_EVENT_COMBAT);
+	for(CreatureEventList::iterator it = combatEvents.begin(); it != combatEvents.end(); ++it)
+	{
+		if(!(*it)->executeCombat(const_cast<Creature*>(attacker), const_cast<Creature*>(target)) && success)
+			success = false;
+	}
+
+	if(!success)
+		return RET_NOTPOSSIBLE;
 
 	bool checkZones = false;
 	if(const Player* targetPlayer = target->getPlayer())
@@ -251,7 +271,9 @@ ReturnValue Combat::canDoCombat(const Creature* attacker, const Creature* target
 		{
 			checkZones = true;
 			if((g_game.getWorldType() == WORLD_TYPE_NO_PVP && !Combat::isInPvpZone(attacker, target)) ||
-				isProtected(const_cast<Player*>(attackerPlayer), const_cast<Player*>(targetPlayer)))
+				isProtected(const_cast<Player*>(attackerPlayer), const_cast<Player*>(targetPlayer))
+				|| (g_config.getBool(ConfigManager::CANNOT_ATTACK_SAME_LOOKFEET) &&
+				attackerPlayer->getDefaultOutfit().lookFeet == targetPlayer->getDefaultOutfit().lookFeet))
 				return RET_YOUMAYNOTATTACKTHISPLAYER;
 		}
 	}
@@ -794,8 +816,8 @@ void Combat::doCombatMana(Creature* caster, Creature* target, int32_t minChange,
 	}
 }
 
-void Combat::doCombatMana(Creature* caster, const Position& pos,
-	const AreaCombat* area, int32_t minChange, int32_t maxChange, const CombatParams& params)
+void Combat::doCombatMana(Creature* caster, const Position& pos, const AreaCombat* area,
+	int32_t minChange, int32_t maxChange, const CombatParams& params)
 {
 	Combat2Var var;
 	var.minChange = minChange;

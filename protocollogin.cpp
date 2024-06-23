@@ -45,13 +45,13 @@ extern Game g_game;
 uint32_t ProtocolLogin::protocolLoginCount = 0;
 #endif
 
-#ifdef __DEBUG_NET_DETAIL__
 void ProtocolLogin::deleteProtocolTask()
 {
+#ifdef __DEBUG_NET_DETAIL__
 	std::cout << "Deleting ProtocolLogin" << std::endl;
+#endif
 	Protocol::deleteProtocolTask();
 }
-#endif
 
 void ProtocolLogin::disconnectClient(uint8_t error, const char* message)
 {
@@ -64,7 +64,7 @@ void ProtocolLogin::disconnectClient(uint8_t error, const char* message)
 		OutputMessagePool::getInstance()->send(output);
 	}
 
-	getConnection()->closeConnection();
+	getConnection()->close();
 }
 
 bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
@@ -75,7 +75,7 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 #endif
 		g_game.getGameState() == GAME_STATE_SHUTDOWN)
 	{
-		getConnection()->closeConnection();
+		getConnection()->close();
 		return false;
 	}
 
@@ -86,21 +86,13 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 
 	if(!RSA_decrypt(g_otservRSA, msg))
 	{
-		getConnection()->closeConnection();
+		getConnection()->close();
 		return false;
 	}
 
 	uint32_t key[4] = {msg.GetU32(), msg.GetU32(), msg.GetU32(), msg.GetU32()};
 	enableXTEAEncryption();
 	setXTEAKey(key);
-
-	#ifndef __LOGIN_SERVER__
-	if(g_config.getBool(ConfigManager::LOGIN_ONLY_LOGINSERVER))
-	{
-		disconnectClient(0x0A, "Please re-connect using port 7171.");
-		return false;
-	}
-	#endif
 
 	std::string name = msg.GetString();
 	toLowerCaseString(name);
@@ -136,7 +128,7 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 		return false;
 	}
 
-	if(ConnectionManager::getInstance()->isDisabled(clientIP))
+	if(ConnectionManager::getInstance()->isDisabled(clientIP, protocolId))
 	{
 		disconnectClient(0x0A, "Too many connections attempts from this IP. Please try again later.");
 		return false;
@@ -168,7 +160,7 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 
 	if(!account.number)
 	{
-		ConnectionManager::getInstance()->addAttempt(clientIP, false);
+		ConnectionManager::getInstance()->addAttempt(clientIP, protocolId, false);
 		disconnectClient(0x0A, "Account name or password is not correct.");
 		return false;
 	}
@@ -181,7 +173,7 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 		return false;
 	}
 
-	ConnectionManager::getInstance()->addAttempt(clientIP, true);
+	ConnectionManager::getInstance()->addAttempt(clientIP, protocolId, true);
 	if(OutputMessage_ptr output = OutputMessagePool::getInstance()->getOutputMessage(this, false))
 	{
 		TRACK_MESSAGE(output);
@@ -200,7 +192,7 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 			output->AddString("Account Manager");
 			output->AddString(g_config.getString(ConfigManager::SERVER_NAME));
 			output->AddU32(serverIP);
-			output->AddU16(g_config.getNumber(ConfigManager::PORT));
+			output->AddU16(g_config.getNumber(ConfigManager::GAME_PORT));
 		}
 		else
 			output->AddByte((uint8_t)account.charList.size());
@@ -220,7 +212,7 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 				output->AddString(g_config.getString(ConfigManager::SERVER_NAME));
 
 			output->AddU32(serverIP);
-			output->AddU16(g_config.getNumber(ConfigManager::PORT));
+			output->AddU16(g_config.getNumber(ConfigManager::GAME_PORT));
 			#else
 			output->AddString(it->first);
 			output->AddString(it->second->getName());
@@ -238,11 +230,6 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 		OutputMessagePool::getInstance()->send(output);
 	}
 
-	getConnection()->closeConnection();
+	getConnection()->close();
 	return true;
-}
-
-void ProtocolLogin::onRecvFirstMessage(NetworkMessage& msg)
-{
-	parseFirstPacket(msg);
 }

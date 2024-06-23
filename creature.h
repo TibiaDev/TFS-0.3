@@ -20,19 +20,14 @@
 
 #ifndef __OTSERV_CREATURE_H__
 #define __OTSERV_CREATURE_H__
-
-#include "definitions.h"
-
+#include "otsystem.h"
 #include "templates.h"
-#include "map.h"
-#include "position.h"
-#include "condition.h"
 #include "const.h"
-#include "tile.h"
 #include "enums.h"
-#include "creatureevent.h"
 
-#include <list>
+#include "map.h"
+#include "condition.h"
+#include "creatureevent.h"
 
 typedef std::list<Condition*> ConditionList;
 typedef std::list<CreatureEvent*> CreatureEventList;
@@ -59,7 +54,7 @@ enum slots_t
 
 enum lootDrop_t
 {
-	LOOT_DROP_FULL,
+	LOOT_DROP_FULL = 0,
 	LOOT_DROP_PREVENT,
 	LOOT_DROP_NONE
 };
@@ -96,7 +91,7 @@ class Item;
 class Tile;
 
 #define EVENT_CREATURECOUNT 10
-#define EVENT_CREATURE_THINK_INTERVAL 1000
+#define EVENT_CREATURE_THINK_INTERVAL 500
 #define EVENT_CHECK_CREATURE_INTERVAL (EVENT_CREATURE_THINK_INTERVAL / EVENT_CREATURECOUNT)
 
 class FrozenPathingConditionCall
@@ -114,10 +109,6 @@ class FrozenPathingConditionCall
 	protected:
 		Position targetPos;
 };
-
-//////////////////////////////////////////////////////////////////////
-// Defines the Base class for all creatures and base functions which
-// every creature has
 
 class Creature : public AutoID, virtual public Thing
 {
@@ -442,40 +433,39 @@ class Creature : public AutoID, virtual public Thing
 
 		struct CountBlock_t
 		{
-			int32_t total;
-			int64_t ticks;
-			uint32_t hits;
+			uint32_t total;
+			int64_t ticks, start;
 		};
 		typedef std::map<uint32_t, CountBlock_t> CountMap;
 
 		CountMap damageMap;
 		CountMap healMap;
-		uint32_t lastHitCreatureId, blockCount, blockTicks;
-
-		//creature script events
 		CreatureEventList eventsList;
-		uint32_t scriptEventsBitField;
-		bool hasEventRegistered(CreatureEventType_t event) const {return (0 != (scriptEventsBitField & ((uint32_t)1 << event)));}
+		uint32_t lastHitCreatureId, blockCount, blockTicks, scriptEventsBitField;
 
-		void updateMapCache();
 		#ifdef __DEBUG__
 		void validateMapCache();
 		#endif
+		void updateMapCache();
+
 		void updateTileCache(const Tile* tile, int32_t dx, int32_t dy);
 		void updateTileCache(const Tile* tile, const Position& pos);
-		void onCreatureDisappear(const Creature* creature, bool isLogout);
-		virtual void doAttacking(uint32_t interval) {}
+
+		bool hasEventRegistered(CreatureEventType_t event) const {return (0 != (scriptEventsBitField & ((uint32_t)1 << event)));}
 		virtual bool hasExtraSwing() {return false;}
 
+		void onCreatureDisappear(const Creature* creature, bool isLogout);
+		virtual void dropCorpse();
+		virtual void dropLoot(Container* corpse) {}
+		virtual void doAttacking(uint32_t interval) {}
+
+		virtual uint16_t getLookCorpse() const {return 0;}
 		virtual uint64_t getLostExperience() const {return 0;}
 		virtual double getDamageRatio(Creature* attacker) const;
-		uint32_t getStaminaRatio(Creature* attacker) const;
+
 		bool getKillers(Creature** lastHitCreature, Creature** mostDamageCreature);
-		virtual void dropLoot(Container* corpse) {}
-		virtual uint16_t getLookCorpse() const {return 0;}
-		virtual void getPathSearchParams(const Creature* creature, FindPathParams& fpp) const;
-		virtual void dropCorpse();
 		virtual Item* getCorpse();
+		virtual void getPathSearchParams(const Creature* creature, FindPathParams& fpp) const;
 
 		friend class Game;
 		friend class Map;

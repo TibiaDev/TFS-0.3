@@ -79,7 +79,7 @@ class MySQLResult : public _DBResult
 
 	protected:
 		MySQLResult(MYSQL_RES* res);
-		DATABASE_VIRTUAL ~MySQLResult();
+		DATABASE_VIRTUAL ~MySQLResult() {mysql_free_result(m_handle);}
 
 		typedef std::map<const std::string, uint32_t> listNames_t;
 		listNames_t m_listNames;

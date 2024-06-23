@@ -75,7 +75,7 @@ Event* Actions::getEvent(const std::string& nodeName)
 {
 	if(asLowerCaseString(nodeName) == "action")
 		return new Action(&m_scriptInterface);
-	
+
 	return NULL;
 }
 
@@ -515,10 +515,11 @@ ReturnValue Actions::internalUseItem(Player* player, const Position& pos, uint8_
 		Container* tmpContainer = NULL;
 		if(Depot* depot = container->getDepot())
 		{
-			if(Depot* tmpDepot = player->getDepot(depot->getDepotId(), true))
+			if(Depot* playerDepot = player->getDepot(depot->getDepotId(), true))
 			{
-				tmpDepot->setParent(depot->getParent());
-				tmpContainer = tmpDepot;
+				player->useDepot(depot->getDepotId(), true);
+				playerDepot->setParent(depot->getParent());
+				tmpContainer = playerDepot;
 			}
 		}
 

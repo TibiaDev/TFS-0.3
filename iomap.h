@@ -20,9 +20,8 @@
 
 #ifndef __OTSERV_IOMAP_H__
 #define __OTSERV_IOMAP_H__
-
-#include "item.h"
 #include "map.h"
+#include "item.h"
 #include "house.h"
 #include "spawn.h"
 #include "status.h"

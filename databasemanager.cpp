@@ -53,7 +53,7 @@ bool DatabaseManager::optimizeTables()
 				query.str("");
 			}
 			while(result->next());
-			db->freeResult(result);
+			result->free();
 			return true;
 		}
 
@@ -111,7 +111,7 @@ bool DatabaseManager::triggerExists(std::string trigger)
 	if(!(result = db->storeQuery(query.str())))
 		return false;
 
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -142,7 +142,7 @@ bool DatabaseManager::tableExists(std::string table)
 	if(!(result = db->storeQuery(query.str())))
 		return false;
 
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -160,7 +160,7 @@ bool DatabaseManager::isDatabaseSetup()
 			if(!(result = db->storeQuery(query.str())))
 				return false;
 
-			db->freeResult(result);
+			result->free();
 			return true;
 		}
 
@@ -323,7 +323,7 @@ uint32_t DatabaseManager::updateDatabase()
 						db->executeQuery(query.str());
 					}
 					while(result->next());
-					db->freeResult(result);
+					result->free();
 				}
 
 				if(!imported[1])
@@ -454,7 +454,7 @@ uint32_t DatabaseManager::updateDatabase()
 								db->executeQuery(query.str());
 						}
 						while(result->next());
-						db->freeResult(result);
+						result->free();
 					}
 					query.str("");
 					query << "DROP TABLE `bans`;";
@@ -509,7 +509,7 @@ uint32_t DatabaseManager::updateDatabase()
 					db->executeQuery(query.str());
 				}
 				while(result->next());
-				db->freeResult(result);
+				result->free();
 			}
 
 			query.str("");
@@ -531,7 +531,7 @@ uint32_t DatabaseManager::updateDatabase()
 					db->executeQuery(query.str());
 				}
 				while(result->next());
-				db->freeResult(result);
+				result->free();
 			}
 
 			query.str("");
@@ -551,9 +551,10 @@ uint32_t DatabaseManager::updateDatabase()
 				query.str("");
 				query << "ALTER TABLE `players` ADD `deleted` TINYINT(1) NOT NULL DEFAULT 0;";
 			}
-			db->executeQuery(query.str());
 
+			db->executeQuery(query.str());
 			query.str("");
+
 			query << "SELECT `id` FROM `groups`;";
 			if((result = db->storeQuery(query.str())))
 			{
@@ -590,7 +591,7 @@ uint32_t DatabaseManager::updateDatabase()
 						db->executeQuery(query.str());
 				}
 				while(result->next());
-				db->freeResult(result);
+				result->free();
 			}
 
 			query.str("");
@@ -619,7 +620,7 @@ uint32_t DatabaseManager::updateDatabase()
 			if((result = db->storeQuery(query.str())) && result->getDataInt("count"))
 			{
 				std::cout << "[Warning] There are still " << result->getDataInt("count") << " players with vocation above 4, please mind to update them manually." << std::endl;
-				db->freeResult(result);
+				result->free();
 			}
 
 			query.str("");
@@ -668,9 +669,10 @@ uint32_t DatabaseManager::updateDatabase()
 				query.str("");
 				query << "ALTER TABLE `houses` ADD `rent` INT UNSIGNED NOT NULL DEFAULT 0;";
 			}
-			db->executeQuery(query.str());
 
+			db->executeQuery(query.str());
 			query.str("");
+
 			registerDatabaseConfig("db_version", 4);
 			return 4;
 		}
@@ -747,8 +749,13 @@ uint32_t DatabaseManager::updateDatabase()
 					break;
 			}
 
-			db->executeQuery(query.str());
-			query.str("");
+			std::string tmp = query.str();
+			if(tmp.length() > 0)
+			{
+				db->executeQuery(tmp);
+				query.str("");
+			}
+
 			registerDatabaseConfig("db_version", 6);
 			return 6;
 		}
@@ -771,7 +778,7 @@ uint32_t DatabaseManager::updateDatabase()
 						db->executeQuery(query.str());
 					}
 					while(result->next());
-					db->freeResult(result);
+					result->free();
 				}
 
 				query.str("");
@@ -894,7 +901,7 @@ uint32_t DatabaseManager::updateDatabase()
 			std::cout << "> Updating database to version: 11..." << std::endl;
 
 			DBQuery query;
-			query << "ALTER TABLE `players` ADD `description` VARCHAR(255) NOT NULL;";
+			query << "ALTER TABLE `players` ADD `description` VARCHAR(255) NOT NULL DEFAULT '';";
 			db->executeQuery(query.str());
 
 			query.str("");
@@ -904,6 +911,69 @@ uint32_t DatabaseManager::updateDatabase()
 			query.str("");
 			registerDatabaseConfig("db_version", 11);
 			return 11;
+		}
+
+		case 11:
+		{
+			//DBResult* result;
+			std::cout << "> Updating database to version: 12..." << std::endl;
+
+			DBQuery query;
+			query << "UPDATE `players` SET `stamina` = 151200000 WHERE `stamina` > 151200000;";
+			db->executeQuery(query.str());
+
+			query.str("");
+			query << "UPDATE `players` SET `loss_experience` = `loss_experience` * 10, `loss_mana` = `loss_mana` * 10,";
+			query << "`loss_skills` = `loss_skills` * 10, `loss_items` = `loss_items` * 10;";
+			db->executeQuery(query.str());
+
+			query.str("");
+			switch(db->getDatabaseEngine())
+			{
+				case DATABASE_ENGINE_MYSQL:
+				{
+					query << "ALTER TABLE `players` CHANGE `stamina` `stamina` INT NOT NULL DEFAULT 151200000;";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "ALTER TABLE `players` CHANGE `loss_experience` `loss_experience` INT NOT NULL DEFAULT 100;";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "ALTER TABLE `players` CHANGE `loss_mana` `loss_mana` INT NOT NULL DEFAULT 100;";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "ALTER TABLE `players` CHANGE `loss_skills` `loss_skills` INT NOT NULL DEFAULT 100;";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "ALTER TABLE `players` CHANGE `loss_items` `loss_items` INT NOT NULL DEFAULT 100;";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "ALTER TABLE `players` ADD `loss_containers` INT NOT NULL DEFAULT 100 AFTER `loss_skills`;";
+					break;
+				}
+
+				case DATABASE_ENGINE_SQLITE:
+				case DATABASE_ENGINE_POSTGRESQL:
+				default:
+				{
+					//TODO
+					break;
+				}
+			}
+
+			std::string tmp = query.str();
+			if(tmp.length() > 0)
+			{
+				db->executeQuery(tmp);
+				query.str("");
+			}
+
+			registerDatabaseConfig("db_version", 12);
+			return 12;
 		}
 
 		default:
@@ -925,7 +995,7 @@ bool DatabaseManager::getDatabaseConfig(std::string config, int32_t &value)
 		return false;
 
 	value = result->getDataInt("value");
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -983,7 +1053,7 @@ void DatabaseManager::checkPasswordType()
 								db->executeQuery(query.str());
 							}
 							while(result->next());
-							db->freeResult(result);
+							result->free();
 						}
 					}
 
@@ -1021,7 +1091,7 @@ void DatabaseManager::checkPasswordType()
 								db->executeQuery(query.str());
 							}
 							while(result->next());
-							db->freeResult(result);
+							result->free();
 						}
 					}
 
@@ -1082,7 +1152,7 @@ void DatabaseManager::checkTriggers()
 				"oncreate_guilds",
 				"ondelete_guilds",
 				"oncreate_players",
-				"ondelete_players"
+				"ondelete_players",
 			};
 
 			std::string triggerStatement[5] =

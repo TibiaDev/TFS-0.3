@@ -39,7 +39,6 @@
 #else
 #include <sqltypes.h>
 #endif
-
 #include <sql.h>
 #include <sqlext.h>
 
@@ -89,7 +88,7 @@ class ODBCResult : public _DBResult
 
 	protected:
 		ODBCResult(SQLHSTMT stmt);
-		DATABASE_VIRTUAL ~ODBCResult();
+		DATABASE_VIRTUAL ~ODBCResult() {SQLFreeHandle(SQL_HANDLE_STMT, m_handle);}
 
 		typedef std::map<const std::string, uint32_t> listNames_t;
 		listNames_t m_listNames;

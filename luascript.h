@@ -21,9 +21,7 @@
 #ifndef __OTSERV_LUASCRIPT_H__
 #define __OTSERV_LUASCRIPT_H__
 
-#include <string>
-#include <map>
-#include <list>
+#include "otsystem.h"
 
 extern "C"
 {
@@ -33,7 +31,6 @@ extern "C"
 }
 
 #include "position.h"
-#include "definitions.h"
 #include "database.h"
 
 class Thing;
@@ -469,9 +466,7 @@ class LuaScriptInterface
 
 		//custom modifiers
 		static int32_t luaGetPlayerRates(lua_State* L);
-		static int32_t luaDoPlayerSetExperienceRate(lua_State* L);
-		static int32_t luaDoPlayerSetMagicRate(lua_State* L);
-		static int32_t luaDoPlayerSetSkillRate(lua_State* L);
+		static int32_t luaDoPlayerSetRate(lua_State* L);
 		static int32_t luaDoCreatureSetDropLoot(lua_State* L);
 		static int32_t luaGetPlayerLossPercent(lua_State* L);
 		static int32_t luaDoPlayerSetLossPercent(lua_State* L);
@@ -481,6 +476,7 @@ class LuaScriptInterface
 		//get item info
 		static int32_t luaGetItemWeaponType(lua_State* L);
 		static int32_t luaGetItemRWInfo(lua_State* L);
+		static int32_t luaGetItemProtection(lua_State* L);
 		static int32_t luaGetThingFromPos(lua_State* L);
 		static int32_t luaGetThing(lua_State* L);
 		static int32_t luaGetThingPos(lua_State* L);
@@ -494,6 +490,7 @@ class LuaScriptInterface
 		static int32_t luaDoSetItemActionId(lua_State* L);
 		static int32_t luaDoSetItemText(lua_State* L);
 		static int32_t luaDoSetItemSpecialDescription(lua_State* L);
+		static int32_t luaDoSetItemProtection(lua_State* L);
 
 		//get tile info
 		static int32_t luaGetTileInfo(lua_State* L);

@@ -237,8 +237,7 @@ Item* Tile::getTopTopItem()
 
 Thing* Tile::getTopThing()
 {
-	Thing* thing = NULL;
-	thing = getTopCreature();
+	Thing* thing = getTopCreature();
 	if(thing != NULL)
 		return thing;
 
@@ -278,8 +277,8 @@ void Tile::onAddTileItem(Item* item)
 		(*it)->onAddTileItem(this, cylinderMapPos, item);
 }
 
-void Tile::onUpdateTileItem(uint32_t index, Item* oldItem,
-	const ItemType& oldType, Item* newItem, const ItemType& newType)
+void Tile::onUpdateTileItem(uint32_t index, Item* oldItem, const ItemType& oldType,
+	Item* newItem, const ItemType& newType)
 {
 	updateTileFlags(oldItem, true);
 	updateTileFlags(newItem, false);
@@ -289,31 +288,12 @@ void Tile::onUpdateTileItem(uint32_t index, Item* oldItem,
 	const SpectatorVec& list = g_game.getSpectators(cylinderMapPos);
 	SpectatorVec::const_iterator it;
 
-	CreatureVector::iterator vit;
-	CreatureVector v;
-	for(vit = creatures.begin(); vit != creatures.end(); ++vit)
-	{
-		if((*vit)->isInGhostMode())
-			v.push_back((*vit));
-	}
-
 	//send to client
 	Player* tmpPlayer = NULL;
-	int32_t i = 0;
 	for(it = list.begin(); it != list.end(); ++it)
 	{
 		if((tmpPlayer = (*it)->getPlayer()))
-		{
-			//get the correct index
-			i = index;
-			for(vit = v.begin(); vit != v.end(); ++vit)
-			{
-				if((*vit)->isInGhostMode() && !tmpPlayer->canSeeGhost((*vit)))
-					i--;
-			}
-
 			tmpPlayer->sendUpdateTileItem(this, cylinderMapPos, index, oldItem, newItem);
-		}
 	}
 
 	//event methods
@@ -346,7 +326,7 @@ void Tile::onRemoveTileItem(uint32_t index, Item* item)
 	{
 		if((tmpPlayer = (*it)->getPlayer()))
 		{
-			//Get the correct index
+			//get the correct index
 			i = index;
 			for(vit = v.begin(); vit != v.end(); ++vit)
 			{

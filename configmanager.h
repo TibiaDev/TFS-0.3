@@ -34,7 +34,7 @@ class ConfigManager
 {
 	public:
 		ConfigManager();
-		virtual ~ConfigManager();
+		virtual ~ConfigManager() {}
 
 		enum string_config_t
 		{
@@ -74,7 +74,10 @@ class ConfigManager
 			LOGIN_TRIES = 0,
 			RETRY_TIMEOUT,
 			LOGIN_TIMEOUT,
-			PORT,
+			LOGIN_PORT,
+			GAME_PORT,
+			ADMIN_PORT,
+			STATUS_PORT,
 			SQL_PORT,
 			SQL_KEEPALIVE,
 			MAX_PLAYERS,
@@ -128,8 +131,13 @@ class ConfigManager
 			PARTY_RADIUS_Y,
 			PARTY_RADIUS_Z,
 			LOGIN_PROTECTION,
-			RATE_STAMINA,
 			PLAYER_DEEPNESS,
+			STAIRHOP_DELAY,
+			RATE_STAMINA_LOSS,
+			STAMINA_LIMIT_TOP,
+			STAMINA_LIMIT_BOTTOM,
+			BLESS_REDUCTION_BASE,
+			BLESS_REDUCTION_DECREAMENT,
 			LAST_NUMBER_CONFIG /* this must be the last one */
 		};
 
@@ -139,6 +147,11 @@ class ConfigManager
 			RATE_SKILL,
 			RATE_MAGIC,
 			PARTY_DIFFERENCE,
+			CRITICAL_HIT_MUL,
+			RATE_STAMINA_GAIN,
+			RATE_STAMINA_THRESHOLD,
+			RATE_STAMINA_ABOVE,
+			RATE_STAMINA_UNDER,
 			LAST_DOUBLE_CONFIG /* this must be the last one */
 		};
 
@@ -198,6 +211,11 @@ class ConfigManager
 			TRUNCATE_LOGS,
 			TRACER_BOX,
 			STORE_DIRECTION,
+			DISPLAY_LOGGING,
+			STAMINA_BONUS_PREMIUM,
+			BAN_UNKNOWN_BYTES,
+			ABORT_SOCKET_FAIL,
+			ALLOW_CHANGEADDONS,
 			LAST_BOOL_CONFIG /* this must be the last one */
 		};
 

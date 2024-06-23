@@ -20,13 +20,15 @@
 
 #ifndef __OTSERV_SPELLS_H__
 #define __OTSERV_SPELLS_H__
+#include "otsystem.h"
+#include "enums.h"
 
+#include "baseevents.h"
 #include "luascript.h"
 #include "player.h"
+
 #include "actions.h"
 #include "talkaction.h"
-#include "enums.h"
-#include "baseevents.h"
 
 class InstantSpell;
 class ConjureSpell;
@@ -79,10 +81,10 @@ class BaseSpell
 {
 	public:
 		BaseSpell() {}
-		virtual ~BaseSpell(){}
+		virtual ~BaseSpell() {}
 
-		virtual bool castSpell(Creature* creature) = 0;
-		virtual bool castSpell(Creature* creature, Creature* target) = 0;
+		virtual bool castSpell(Creature* creature);
+		virtual bool castSpell(Creature* creature, Creature* target);
 };
 
 class CombatSpell : public Event, public BaseSpell

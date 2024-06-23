@@ -66,7 +66,7 @@ Account IOLoginData::loadAccount(uint32_t accId, bool preLoad/* = false*/)
 	acc.warnings = result->getDataInt("warnings");
 
 	query.str("");
-	db->freeResult(result);
+	result->free();
 	if(preLoad)
 		return acc;
 
@@ -91,7 +91,7 @@ Account IOLoginData::loadAccount(uint32_t accId, bool preLoad/* = false*/)
 #endif
 	}
 	while(result->next());
-	db->freeResult(result);
+	result->free();
 
 #ifndef __LOGIN_SERVER__
 	acc.charList.sort();
@@ -121,7 +121,7 @@ bool IOLoginData::getAccountId(const std::string& name, uint32_t& number)
 		return false;
 
 	number = result->getDataInt("id");
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -142,7 +142,7 @@ bool IOLoginData::getAccountName(uint32_t number, std::string& name)
 		return false;
 
 	name = result->getDataString("name");
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -157,7 +157,7 @@ bool IOLoginData::hasFlag(uint32_t accId, PlayerFlags value)
 		return false;
 
 	const uint32_t group = result->getDataInt("group_id");
-	db->freeResult(result);
+	result->free();
 	return internalHasFlag(group, value);
 }
 
@@ -172,7 +172,7 @@ bool IOLoginData::hasCustomFlag(uint32_t accId, PlayerCustomFlags value)
 		return false;
 
 	const uint32_t group = result->getDataInt("group_id");
-	db->freeResult(result);
+	result->free();
 	return internalHasCustomFlag(group, value);
 }
 
@@ -186,7 +186,7 @@ bool IOLoginData::accountExists(uint32_t accId)
 	if(!(result = db->storeQuery(query.str())))
 		return false;
 
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -200,7 +200,7 @@ bool IOLoginData::accountNameExists(const std::string& name)
 	if(!(result = db->storeQuery(query.str())))
 		return false;
 
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -215,7 +215,7 @@ bool IOLoginData::getPassword(uint32_t accId, const std::string& name, std::stri
 		return false;
 
 	std::string accountPassword = result->getDataString("password");
-	db->freeResult(result);
+	result->free();
 
 	query.str("");
 	query << "SELECT `name` FROM `players` WHERE `account_id` = " << accId;
@@ -227,12 +227,12 @@ bool IOLoginData::getPassword(uint32_t accId, const std::string& name, std::stri
 		if(result->getDataString("name") == name)
 		{
 			password = accountPassword;
-			db->freeResult(result);
+			result->free();
 			return true;
 		}
 	}
 	while(result->next());
-	db->freeResult(result);
+	result->free();
 	return false;
 }
 
@@ -266,7 +266,7 @@ bool IOLoginData::validRecoveryKey(uint32_t accountId, const std::string recover
 	if(!(result = db->storeQuery(query.str())))
 		return false;
 
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -346,7 +346,7 @@ const PlayerGroup* IOLoginData::getPlayerGroup(uint32_t groupId)
 	group->m_outfit = result->getDataInt("outfit");
 
 	playerGroupMap[groupId] = group;
-	db->freeResult(result);
+	result->free();
 	return group;
 }
 
@@ -360,7 +360,7 @@ const PlayerGroup* IOLoginData::getPlayerGroupByAccount(uint32_t accId)
 	if((result = db->storeQuery(query.str())))
 	{
 		const uint32_t groupId = result->getDataInt("group_id");
-		db->freeResult(result);
+		result->free();
 		return getPlayerGroup(groupId);
 	}
 
@@ -382,7 +382,7 @@ bool IOLoginData::internalHasFlag(uint32_t groupId, PlayerFlags value)
 		return false;
 
 	uint64_t flags = result->getDataLong("flags");
-	db->freeResult(result);
+	result->free();
 	return (0 != (flags & ((uint64_t)1 << value)));
 }
 
@@ -401,7 +401,7 @@ bool IOLoginData::internalHasCustomFlag(uint32_t groupId, PlayerCustomFlags valu
 		return false;
 
 	uint64_t flags = result->getDataLong("customflags");
-	db->freeResult(result);
+	result->free();
 	return (0 != (flags & ((uint64_t)1 << value)));
 }
 
@@ -411,14 +411,14 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 	DBResult* result;
 
 	DBQuery query;
-	query << "SELECT `id`, `account_id`, `group_id`, `sex`, `vocation`, `experience`, `level`, `maglevel`, `health`, `healthmax`, `blessings`, `mana`, `manamax`, `manaspent`, `soul`, `lookbody`, `lookfeet`, `lookhead`, `looklegs`, `looktype`, `lookaddons`, `posx`, `posy`, `posz`, `cap`, `lastlogin`, `lastlogout`, `lastip`, `conditions`, `redskulltime`, `redskull`, `guildnick`, `rank_id`, `town_id`, `balance`, `stamina`, `direction`, `loss_experience`, `loss_mana`, `loss_skills`, `loss_items`, `marriage`, `promotion`, `description` FROM `players` WHERE `name` " << db->getStringComparisonOperator() << " " << db->escapeString(name) << " AND `deleted` = 0;";
+	query << "SELECT `id`, `account_id`, `group_id`, `sex`, `vocation`, `experience`, `level`, `maglevel`, `health`, `healthmax`, `blessings`, `mana`, `manamax`, `manaspent`, `soul`, `lookbody`, `lookfeet`, `lookhead`, `looklegs`, `looktype`, `lookaddons`, `posx`, `posy`, `posz`, `cap`, `lastlogin`, `lastlogout`, `lastip`, `conditions`, `redskulltime`, `redskull`, `guildnick`, `rank_id`, `town_id`, `balance`, `stamina`, `direction`, `loss_experience`, `loss_mana`, `loss_skills`, `loss_containers`, `loss_items`, `marriage`, `promotion`, `description` FROM `players` WHERE `name` " << db->getStringComparisonOperator() << " " << db->escapeString(name) << " AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID) << " AND `deleted` = 0;";
 	if(!(result = db->storeQuery(query.str())))
 		return false;
 
 	uint32_t accId = result->getDataInt("account_id");
 	if(accId < 1)
 	{
-		db->freeResult(result);
+		result->free();
 		return false;
 	}
 
@@ -435,7 +435,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 	if(preLoad)
 	{
 		//only loading basic info
-		db->freeResult(result);
+		result->free();
 		return true;
 	}
 
@@ -521,8 +521,9 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 	}
 
 	player->setLossPercent(LOSS_EXPERIENCE, result->getDataInt("loss_experience"));
-	player->setLossPercent(LOSS_MANASPENT, result->getDataInt("loss_mana"));
-	player->setLossPercent(LOSS_SKILLTRIES, result->getDataInt("loss_skills"));
+	player->setLossPercent(LOSS_MANA, result->getDataInt("loss_mana"));
+	player->setLossPercent(LOSS_SKILLS, result->getDataInt("loss_skills"));
+	player->setLossPercent(LOSS_CONTAINERS, result->getDataInt("loss_containers"));
 	player->setLossPercent(LOSS_ITEMS, result->getDataInt("loss_items"));
 
 	player->loginPosition = Position(result->getDataInt("posx"), result->getDataInt("posy"), result->getDataInt("posz"));
@@ -540,7 +541,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 	const uint32_t rankId = result->getDataInt("rank_id");
 	const std::string nick = result->getDataString("guildnick");
 
-	db->freeResult(result);
+	result->free();
 	if(rankId > 0)
 	{
 		query.str("");
@@ -555,7 +556,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 			player->guildNick = nick;
 		}
 
-		db->freeResult(result);
+		result->free();
 	}
 	else if(g_config.getBool(ConfigManager::INGAME_GUILD_MANAGEMENT))
 	{
@@ -566,7 +567,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 			do
 				player->invitedToGuildsList.push_back((uint32_t)result->getDataInt("guild_id"));
 			while(result->next());
-			db->freeResult(result);
+			result->free();
 		}
 	}
 
@@ -576,7 +577,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 		return false;
 
 	player->password = result->getDataString("password");
-	db->freeResult(result);
+	result->free();
 
 	// we need to find out our skills
 	// so we query the skill table
@@ -602,7 +603,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 			}
 		}
 		while(result->next());
-		db->freeResult(result);
+		result->free();
 	}
 
 	query.str("");
@@ -612,7 +613,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 		do
 			player->learnedInstantSpellList.push_back(result->getDataString("name"));
 		while(result->next());
-		db->freeResult(result);
+		result->free();
 	}
 
 	ItemMap itemMap;
@@ -641,7 +642,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 			}
 		}
 
-		db->freeResult(result);
+		result->free();
 		itemMap.clear();
 	}
 
@@ -678,7 +679,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 			}
 		}
 
-		db->freeResult(result);
+		result->free();
 		itemMap.clear();
 	}
 
@@ -690,7 +691,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 		do
 			player->addStorageValue((uint32_t)result->getDataInt("key"), result->getDataString("value"));
 		while(result->next());
-		db->freeResult(result);
+		result->free();
 	}
 
 	//load vip
@@ -706,7 +707,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 				player->addVIP(vid, vname, false, true);
 		}
 		while(result->next());
-		db->freeResult(result);
+		result->free();
 	}
 
 	player->updateBaseSpeed();
@@ -752,7 +753,7 @@ bool IOLoginData::savePlayer(Player* player, bool preSave/* = true*/)
 		return false;
 
 	const bool save = result->getDataInt("save");
-	db->freeResult(result);
+	result->free();
 
 	DBTransaction trans(db);
 	if(!trans.begin())
@@ -822,8 +823,9 @@ bool IOLoginData::savePlayer(Player* player, bool preSave/* = true*/)
 	const char* conditions = propWriteStream.getStream(conditionsSize);
 	query << "`conditions` = " << db->escapeBlob(conditions, conditionsSize) << ", ";
 	query << "`loss_experience` = " << (uint32_t)player->getLossPercent(LOSS_EXPERIENCE) << ", ";
-	query << "`loss_mana` = " << (uint32_t)player->getLossPercent(LOSS_MANASPENT) << ", ";
-	query << "`loss_skills` = " << (uint32_t)player->getLossPercent(LOSS_SKILLTRIES) << ", ";
+	query << "`loss_mana` = " << (uint32_t)player->getLossPercent(LOSS_MANA) << ", ";
+	query << "`loss_skills` = " << (uint32_t)player->getLossPercent(LOSS_SKILLS) << ", ";
+	query << "`loss_containers` = " << (uint32_t)player->getLossPercent(LOSS_CONTAINERS) << ", ";
 	query << "`loss_items` = " << (uint32_t)player->getLossPercent(LOSS_ITEMS) << ", ";
 	if(g_game.getWorldType() != WORLD_TYPE_PVP_ENFORCED)
 	{
@@ -900,19 +902,34 @@ bool IOLoginData::savePlayer(Player* player, bool preSave/* = true*/)
 	if(!saveItems(player, itemList, query_insert))
 		return false;
 
-	//save depot items
-	query.str("");
-	query << "DELETE FROM `player_depotitems` WHERE `player_id` = " << player->getGUID();
-	if(!db->executeQuery(query.str()))
-		return false;
-
 	itemList.clear();
+	//save depot items
+	//std::stringstream ss;
 	for(DepotMap::iterator it = player->depots.begin(); it != player->depots.end(); ++it)
-		itemList.push_back(itemBlock(it->first, it->second));
+	{
+		/*if(it->second.second)
+		{
+			it->second.second = false;
+			ss << it->first << ",";*/
+			itemList.push_back(itemBlock(it->first, it->second.first));
+		//}
+	}
 
-	query_insert.setQuery("INSERT INTO `player_depotitems` (`player_id`, `pid`, `sid`, `itemtype`, `count`, `attributes`) VALUES ");
-	if(!saveItems(player, itemList, query_insert))
-		return false;
+	/*std::string s = ss.str();
+	size_t size = s.length();
+	if(size > 0)
+	{*/
+		query.str("");
+		query << "DELETE FROM `player_depotitems` WHERE `player_id` = " << player->getGUID();// << " AND `pid` IN (" << s.substr(0, --size) << ")";
+		if(!db->executeQuery(query.str()))
+			return false;
+
+		query_insert.setQuery("INSERT INTO `player_depotitems` (`player_id`, `pid`, `sid`, `itemtype`, `count`, `attributes`) VALUES ");
+		if(!saveItems(player, itemList, query_insert))
+			return false;
+
+		itemList.clear();
+	//}
 
 	query.str("");
 	query << "DELETE FROM `player_storage` WHERE `player_id` = " << player->getGUID();
@@ -1041,7 +1058,7 @@ bool IOLoginData::updateOnlineStatus(uint32_t guid, bool login)
 		return false;
 
 	uint16_t onlineValue = result->getDataInt("online");
-	db->freeResult(result);
+	result->free();
 	if(login)
 		onlineValue++;
 	else if(!g_config.getNumber(ConfigManager::ALLOW_CLONES))
@@ -1065,7 +1082,7 @@ bool IOLoginData::hasFlag(std::string name, PlayerFlags value)
 		return false;
 
 	const uint32_t group = result->getDataInt("group_id");
-	db->freeResult(result);
+	result->free();
 	return internalHasFlag(group, value);
 }
 
@@ -1080,7 +1097,7 @@ bool IOLoginData::hasCustomFlag(std::string name, PlayerCustomFlags value)
 		return false;
 
 	const uint32_t group = result->getDataInt("group_id");
-	db->freeResult(result);
+	result->free();
 	return internalHasCustomFlag(group, value);
 }
 
@@ -1098,7 +1115,7 @@ bool IOLoginData::isPremium(uint32_t guid)
 		return false;
 
 	const uint32_t account = result->getDataInt("account_id"), group = result->getDataInt("group_id");
-	db->freeResult(result);
+	result->free();
 	if(internalHasFlag(group, PlayerFlag_IsAlwaysPremium))
 		return true;
 
@@ -1108,7 +1125,7 @@ bool IOLoginData::isPremium(uint32_t guid)
 		return false;
 
 	const uint32_t premium = result->getDataInt("premdays");
-	db->freeResult(result);
+	result->free();
 	return premium;
 }
 
@@ -1133,7 +1150,7 @@ bool IOLoginData::playerExists(uint32_t guid, bool multiworld /*= false*/, bool 
 		return false;
 
 	const std::string name = result->getDataString("name");
-	db->freeResult(result);
+	result->free();
 
 	nameCacheMap[guid] = name;
 	return true;
@@ -1165,7 +1182,7 @@ bool IOLoginData::playerExists(std::string& name, bool multiworld /*= false*/, b
 	name = result->getDataString("name");
 	guidCacheMap[name] = result->getDataInt("id");
 
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -1190,7 +1207,7 @@ bool IOLoginData::getNameByGuid(uint32_t guid, std::string& name, bool multiworl
 		return false;
 
 	name = result->getDataString("name");
-	db->freeResult(result);
+	result->free();
 
 	nameCacheMap[guid] = name;
 	return true;
@@ -1211,7 +1228,7 @@ bool IOLoginData::storeNameByGuid(uint32_t guid)
 		return false;
 
 	nameCacheMap[guid] = result->getDataString("name");
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -1240,7 +1257,7 @@ bool IOLoginData::getGuidByName(uint32_t& guid, std::string& name, bool multiwor
 	guid = result->getDataInt("id");
 
 	guidCacheMap[name] = guid;
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -1258,7 +1275,7 @@ bool IOLoginData::getGuidByNameEx(uint32_t& guid, bool &specialVip, std::string&
 	specialVip = internalHasFlag(result->getDataInt("group_id"), PlayerFlag_SpecialVIP);
 	name = result->getDataString("name");
 
-	db->freeResult(result);
+	result->free();
 	return true;
 }
 
@@ -1273,7 +1290,7 @@ uint32_t IOLoginData::getAccountIdByName(std::string name)
 		return 0;
 
 	const uint32_t accountId = result->getDataInt("account_id");
-	db->freeResult(result);
+	result->free();
 	return accountId;
 }
 
@@ -1355,7 +1372,7 @@ DeleteCharacter_t IOLoginData::deleteCharacter(uint32_t accountId, const std::st
 		return DELETE_INTERNAL;
 
 	uint32_t id = result->getDataInt("id");
-	db->freeResult(result);
+	result->free();
 
 	House* house = Houses::getInstance().getHouseByPlayerId(id);
 	if(house)
@@ -1398,7 +1415,7 @@ uint32_t IOLoginData::getLevel(uint32_t guid) const
 		return 0;
 
 	uint32_t level = result->getDataInt("level");
-	db->freeResult(result);
+	result->free();
 	return level;
 }
 
@@ -1413,7 +1430,7 @@ uint32_t IOLoginData::getLastIP(uint32_t guid) const
 		return 0;
 
 	uint32_t lastip = result->getDataInt("lastip");
-	db->freeResult(result);
+	result->free();
 	return lastip;
 }
 
@@ -1428,7 +1445,7 @@ uint32_t IOLoginData::getLastIPByName(std::string name)
 		return 0;
 
 	uint32_t lastip = result->getDataInt("lastip");
-	db->freeResult(result);
+	result->free();
 	return lastip;
 }
 
@@ -1447,10 +1464,10 @@ bool IOLoginData::updatePremiumDays()
 		do
 			removePremium(loadAccount(result->getDataInt("id"), true));
 		while(result->next());
-		db->freeResult(result);
-		query.str("");
+		result->free();
 	}
 
+	query.str("");
 	return trans.commit();
 }
 

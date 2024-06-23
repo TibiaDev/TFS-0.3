@@ -103,9 +103,8 @@ void ScriptEnviroment::resetEnv()
 	m_tempItems.clear();
 	if(m_loaded)
 	{
-		Database* db = Database::getInstance();
 		for(DBResMap::iterator it = m_tempResults.begin(); it != m_tempResults.end(); ++it)
-			db->freeResult(it->second);
+			it->second->free();
 
 		m_tempResults.clear();
 	}
@@ -153,7 +152,7 @@ bool ScriptEnviroment::loadGameState()
 		do
 			m_globalStorageMap[result->getDataInt("key")] = result->getDataString("value");
 		while(result->next());
-		db->freeResult(result);
+		result->free();
 	}
 
 	query.str("");
@@ -1817,6 +1816,12 @@ void LuaScriptInterface::registerFunctions()
 	//doSetItemOutfit(cid, item, time)
 	lua_register(m_luaState, "doSetItemOutfit", LuaScriptInterface::luaSetItemOutfit);
 
+	//getItemProtection(uid)
+	lua_register(m_luaState, "getItemProtection", LuaScriptInterface::luaGetItemProtection);
+
+	//doSetItemProtection(uid, value)
+	lua_register(m_luaState, "doSetItemProtection", LuaScriptInterface::luaDoSetItemProtection);
+
 	//doSetCreatureOutfit(cid, outfit, time)
 	lua_register(m_luaState, "doSetCreatureOutfit", LuaScriptInterface::luaSetCreatureOutfit);
 
@@ -2039,14 +2044,8 @@ void LuaScriptInterface::registerFunctions()
 	//getPlayerRates(cid)
 	lua_register(m_luaState, "getPlayerRates", LuaScriptInterface::luaGetPlayerRates);
 
-	//doPlayerSetExperienceRate(cid, value)
-	lua_register(m_luaState, "doPlayerSetExperienceRate", LuaScriptInterface::luaDoPlayerSetExperienceRate);
-
-	//doPlayerSetMagicRate(cid, value)
-	lua_register(m_luaState, "doPlayerSetMagicRate", LuaScriptInterface::luaDoPlayerSetMagicRate);
-
-	//doPlayerSetSkillRate(cid, skill, value)
-	lua_register(m_luaState, "doPlayerSetSkillRate", LuaScriptInterface::luaDoPlayerSetSkillRate);
+	//doPlayerSetRate(cid, type, value)
+	lua_register(m_luaState, "doPlayerSetRate", LuaScriptInterface::luaDoPlayerSetRate);
 
 	//getPlayerPartner(cid)
 	lua_register(m_luaState, "getPlayerPartner", LuaScriptInterface::luaGetPlayerPartner);
@@ -2087,7 +2086,7 @@ void LuaScriptInterface::registerFunctions()
 	//getVocationInfo(id)
 	lua_register(m_luaState, "getVocationInfo", LuaScriptInterface::luaGetVocationInfo);
 
-	//isIpBanished(ip)
+	//isIpBanished(ip[, mask])
 	lua_register(m_luaState, "isIpBanished", LuaScriptInterface::luaIsIpBanished);
 
 	//isPlayerNamelocked(name)
@@ -2099,22 +2098,22 @@ void LuaScriptInterface::registerFunctions()
 	//isAccountDeleted(accId)
 	lua_register(m_luaState, "isAccountDeleted", LuaScriptInterface::luaIsAccountDeleted);
 
-	//doAddIpBanishment(ip)
+	//doAddIpBanishment(...)
 	lua_register(m_luaState, "doAddIpBanishment", LuaScriptInterface::luaDoAddIpBanishment);
 
-	//doAddNamelock(name)
+	//doAddNamelock(...)
 	lua_register(m_luaState, "doAddNamelock", LuaScriptInterface::luaDoAddNamelock);
 
-	//doAddBanishment(accId)
+	//doAddBanishment(...)
 	lua_register(m_luaState, "doAddBanishment", LuaScriptInterface::luaDoAddBanishment);
 
-	//doAddDeletion(accId)
+	//doAddDeletion(...)
 	lua_register(m_luaState, "doAddDeletion", LuaScriptInterface::luaDoAddDeletion);
 
-	//doAddNotation(accId)
+	//doAddNotation(...)
 	lua_register(m_luaState, "doAddNotation", LuaScriptInterface::luaDoAddNotation);
 
-	//doRemoveIpBanishment(ip)
+	//doRemoveIpBanishment(ip[, mask])
 	lua_register(m_luaState, "doRemoveIpBanishment", LuaScriptInterface::luaDoRemoveIpBanishment);
 
 	//doRemoveNamelock(name)
@@ -6994,15 +6993,11 @@ int32_t LuaScriptInterface::luaSetItemOutfit(lua_State* L)
 	//doSetItemOutfit(cid, item, time)
 	int32_t time = (int32_t)popNumber(L);
 	uint32_t item = (uint32_t)popNumber(L);
-	uint32_t cid = popNumber(L);
 
 	ScriptEnviroment* env = getScriptEnv();
-
-	Creature* creature = env->getCreatureByUID(cid);
-	if(creature)
+	if(Creature* creature = env->getCreatureByUID(popNumber(L)))
 	{
-		ReturnValue ret = Spell::CreateIllusion(creature, item, time);
-		if(ret == RET_NOERROR)
+		if(Spell::CreateIllusion(creature, item, time) == RET_NOERROR)
 			lua_pushnumber(L, LUA_NO_ERROR);
 		else
 			lua_pushnumber(L, LUA_ERROR);
@@ -7012,6 +7007,44 @@ int32_t LuaScriptInterface::luaSetItemOutfit(lua_State* L)
 		reportErrorFunc(getErrorDesc(LUA_ERROR_CREATURE_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 	}
+
+	return 1;
+}
+
+int32_t LuaScriptInterface::luaGetItemProtection(lua_State* L)
+{
+	//getItemProtection(uid)
+	ScriptEnviroment* env = getScriptEnv();
+
+	Item* item = env->getItemByUID(popNumber(L));
+	if(!item)
+	{
+		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
+		lua_pushnumber(L, LUA_ERROR);
+		return 1;
+	}
+
+	lua_pushnumber(L, (item->isScriptProtected() ? LUA_TRUE : LUA_FALSE));
+	return 1;
+}
+
+int32_t LuaScriptInterface::luaDoSetItemProtection(lua_State* L)
+{
+	//doSetItemProtection(uid, value)
+	bool value = popNumber(L) == LUA_TRUE;
+
+	ScriptEnviroment* env = getScriptEnv();
+	if(Item* item = env->getItemByUID(popNumber(L)))
+	{
+		item->setScriptProtected(value);
+		lua_pushnumber(L, LUA_NO_ERROR);
+	}
+	else
+	{
+		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
+		lua_pushnumber(L, LUA_ERROR);
+	}
+
 	return 1;
 }
 
@@ -7285,12 +7318,8 @@ int32_t LuaScriptInterface::luaIsContainer(lua_State* L)
 int32_t LuaScriptInterface::luaIsCorpse(lua_State* L)
 {
 	//isCorpse(uid)
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-
-	Item* item = env->getItemByUID(uid);
-	if(item)
+	if(Item* item = env->getItemByUID(popNumber(L)))
 	{
 		const ItemType& it = Item::items[item->getID()];
 		lua_pushnumber(L, (it.corpseType != RACE_NONE ? LUA_TRUE : LUA_FALSE));
@@ -7577,14 +7606,11 @@ int32_t LuaScriptInterface::luaGetContainerItem(lua_State* L)
 {
 	//getContainerItem(uid, slot)
 	uint32_t slot = popNumber(L);
-	uint32_t uid = popNumber(L);
 
 	ScriptEnviroment* env = getScriptEnv();
-
-	if(Container* container = env->getContainerByUID(uid))
+	if(Container* container = env->getContainerByUID(popNumber(L)))
 	{
-		Item* item = container->getItem(slot);
-		if(item)
+		if(Item* item = container->getItem(slot))
 		{
 			uint32_t uid = env->addThing(item);
 			pushThing(L, item, uid);
@@ -8967,78 +8993,33 @@ int32_t LuaScriptInterface::luaGetPlayerRates(lua_State* L)
 	}
 
 	lua_newtable(L);
-	setFieldDouble(L, "experience", player->experienceRate);
-	setFieldDouble(L, "magic", player->magicRate);
-
-	lua_newtable(L);
-	for(uint32_t i = SKILL_FIRST; i <= SKILL_LAST; ++i)
+	for(uint32_t i = SKILL_FIRST; i <= SKILL__LAST; ++i)
 	{
 		lua_pushnumber(L, i);
-		lua_pushnumber(L, player->skillRate[(skills_t)i]);
+		lua_pushnumber(L, player->rates[(skills_t)i]);
 		lua_settable(L, -3);
 	}
 
-	lua_settable(L, -4);
 	return 1;
 }
 
-int32_t LuaScriptInterface::luaDoPlayerSetExperienceRate(lua_State* L)
+int32_t LuaScriptInterface::luaDoPlayerSetRate(lua_State* L)
 {
-	//doPlayerSetExperienceRate(cid, value)
+	//doPlayerSetRate(cid, type, value)
 	float value = popFloatNumber(L);
+	uint32_t type = popNumber(L);
 
 	ScriptEnviroment* env = getScriptEnv();
 	if(Player* player = env->getPlayerByUID(popNumber(L)))
 	{
-		player->experienceRate = value;
-		lua_pushnumber(L, LUA_NO_ERROR);
-	}
-	else
-	{
-		reportErrorFunc(getErrorDesc(LUA_ERROR_PLAYER_NOT_FOUND));
-		lua_pushnumber(L, LUA_ERROR);
-	}
-
-	return 1;
-}
-
-int32_t LuaScriptInterface::luaDoPlayerSetMagicRate(lua_State* L)
-{
-	//doPlayerSetMagicRate(cid, value)
-	float value = popFloatNumber(L);
-
-	ScriptEnviroment* env = getScriptEnv();
-	if(Player* player = env->getPlayerByUID(popNumber(L)))
-	{
-		player->magicRate = value;
-		lua_pushnumber(L, LUA_NO_ERROR);
-	}
-	else
-	{
-		reportErrorFunc(getErrorDesc(LUA_ERROR_PLAYER_NOT_FOUND));
-		lua_pushnumber(L, LUA_ERROR);
-	}
-
-	return 1;
-}
-
-int32_t LuaScriptInterface::luaDoPlayerSetSkillRate(lua_State* L)
-{
-	//doPlayerSetSkillRate(cid, skill, value)
-	float value = popFloatNumber(L);
-	uint32_t skill = popNumber(L);
-
-	ScriptEnviroment* env = getScriptEnv();
-	if(Player* player = env->getPlayerByUID(popNumber(L)))
-	{
-		if(skill > SKILL_LAST)
+		if(type > SKILL__LAST)
 		{
-			reportErrorFunc("Invalid skill");
+			reportErrorFunc("Invalid type");
 			lua_pushnumber(L, LUA_ERROR);
 		}
 		else
 		{
-			player->skillRate[(skills_t)skill] = value;
+			player->rates[(skills_t)type] = value;
 			lua_pushnumber(L, LUA_NO_ERROR);
 		}
 	}
@@ -9159,9 +9140,7 @@ int32_t LuaScriptInterface::luaGetSpectators(lua_State *L)
 	if(lua_gettop(L) >= 4)
 		multifloor = popNumber(L) == LUA_TRUE;
 
-	uint32_t rangey = popNumber(L);
-	uint32_t rangex = popNumber(L);
-
+	uint32_t rangey = popNumber(L), rangex = popNumber(L);
 	PositionEx centerPos;
 	popPosition(L, centerPos);
 
@@ -9346,10 +9325,8 @@ int32_t LuaScriptInterface::luaDoRefreshMap(lua_State* L)
 
 int32_t LuaScriptInterface::luaGetItemDescriptions(lua_State* L)
 {
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
@@ -9374,10 +9351,8 @@ int32_t LuaScriptInterface::luaGetItemWeight(lua_State* L)
 	if(lua_gettop(L) > 2)
 		precise = popNumber(L) == LUA_TRUE;
 
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
@@ -9400,16 +9375,16 @@ int32_t LuaScriptInterface::luaGetItemWeight(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemName(lua_State* L)
 {
 	std::string name = popString(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setName(name);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9418,16 +9393,16 @@ int32_t LuaScriptInterface::luaSetItemName(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemPluralName(lua_State* L)
 {
 	std::string pluralName = popString(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setPluralName(pluralName);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9436,16 +9411,16 @@ int32_t LuaScriptInterface::luaSetItemPluralName(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemArticle(lua_State* L)
 {
 	std::string article = popString(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setArticle(article);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9453,16 +9428,16 @@ int32_t LuaScriptInterface::luaSetItemArticle(lua_State* L)
 
 int32_t LuaScriptInterface::luaGetItemAttack(lua_State* L)
 {
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	lua_pushnumber(L, item->getAttack());
 	return 1;
 }
@@ -9470,16 +9445,16 @@ int32_t LuaScriptInterface::luaGetItemAttack(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemAttack(lua_State* L)
 {
 	int32_t value = (int32_t)popNumber(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setAttack(value);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9487,16 +9462,16 @@ int32_t LuaScriptInterface::luaSetItemAttack(lua_State* L)
 
 int32_t LuaScriptInterface::luaGetItemExtraAttack(lua_State* L)
 {
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	lua_pushnumber(L, item->getExtraAttack());
 	return 1;
 }
@@ -9504,16 +9479,16 @@ int32_t LuaScriptInterface::luaGetItemExtraAttack(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemExtraAttack(lua_State* L)
 {
 	int32_t value = (int32_t)popNumber(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setExtraAttack(value);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9521,16 +9496,16 @@ int32_t LuaScriptInterface::luaSetItemExtraAttack(lua_State* L)
 
 int32_t LuaScriptInterface::luaGetItemDefense(lua_State* L)
 {
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	lua_pushnumber(L, item->getDefense());
 	return 1;
 }
@@ -9538,16 +9513,16 @@ int32_t LuaScriptInterface::luaGetItemDefense(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemDefense(lua_State* L)
 {
 	int32_t value = (int32_t)popNumber(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setDefense(value);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9555,16 +9530,16 @@ int32_t LuaScriptInterface::luaSetItemDefense(lua_State* L)
 
 int32_t LuaScriptInterface::luaGetItemExtraDefense(lua_State* L)
 {
-	int32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	lua_pushnumber(L, item->getExtraDefense());
 	return 1;
 
@@ -9573,16 +9548,16 @@ int32_t LuaScriptInterface::luaGetItemExtraDefense(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemExtraDefense(lua_State* L)
 {
 	int32_t value = (int32_t)popNumber(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setExtraDefense(value);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9590,16 +9565,16 @@ int32_t LuaScriptInterface::luaSetItemExtraDefense(lua_State* L)
 
 int32_t LuaScriptInterface::luaGetItemArmor(lua_State* L)
 {
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	lua_pushnumber(L, item->getArmor());
 	return 1;
 }
@@ -9607,16 +9582,16 @@ int32_t LuaScriptInterface::luaGetItemArmor(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemArmor(lua_State* L)
 {
 	int32_t value = (int32_t)popNumber(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setArmor(value);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9624,16 +9599,16 @@ int32_t LuaScriptInterface::luaSetItemArmor(lua_State* L)
 
 int32_t LuaScriptInterface::luaGetItemAttackSpeed(lua_State* L)
 {
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	lua_pushnumber(L, item->getAttackSpeed());
 	return 1;
 }
@@ -9641,16 +9616,16 @@ int32_t LuaScriptInterface::luaGetItemAttackSpeed(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemAttackSpeed(lua_State* L)
 {
 	int32_t value = (int32_t)popNumber(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setAttackSpeed(value);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9658,16 +9633,16 @@ int32_t LuaScriptInterface::luaSetItemAttackSpeed(lua_State* L)
 
 int32_t LuaScriptInterface::luaGetItemHitChance(lua_State* L)
 {
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	lua_pushnumber(L, item->getHitChance());
 	return 1;
 }
@@ -9675,16 +9650,16 @@ int32_t LuaScriptInterface::luaGetItemHitChance(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemHitChance(lua_State* L)
 {
 	int32_t value = (int32_t)popNumber(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setHitChance(value);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9692,16 +9667,16 @@ int32_t LuaScriptInterface::luaSetItemHitChance(lua_State* L)
 
 int32_t LuaScriptInterface::luaGetItemShootRange(lua_State* L)
 {
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	lua_pushnumber(L, item->getShootRange());
 	return 1;
 }
@@ -9709,16 +9684,16 @@ int32_t LuaScriptInterface::luaGetItemShootRange(lua_State* L)
 int32_t LuaScriptInterface::luaSetItemShootRange(lua_State* L)
 {
 	int32_t value = (int32_t)popNumber(L);
-	uint32_t uid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	Item* item = env->getItemByUID(uid);
+
+	Item* item = env->getItemByUID(popNumber(L));
 	if(!item)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_ITEM_NOT_FOUND));
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
+
 	item->setShootRange(value);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -9727,168 +9702,164 @@ int32_t LuaScriptInterface::luaSetItemShootRange(lua_State* L)
 int32_t LuaScriptInterface::luaIsIpBanished(lua_State *L)
 {
 	//isIpBanished(ip[, mask])
-	lua_pushnumber(L, IOBan::getInstance()->isIpBanished((uint32_t)popNumber(L)) ? LUA_TRUE : LUA_FALSE);
+	uint32_t mask = 0xFFFFFFFF;
+	if(lua_gettop(L) > 1)
+		mask = popNumber(L);
+
+	lua_pushnumber(L, IOBan::getInstance()->isIpBanished(
+		(uint32_t)popNumber(L), mask) ? LUA_TRUE : LUA_FALSE);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaIsPlayerNamelocked(lua_State *L)
 {
 	//isPlayerNamelocked(name)
-	lua_pushnumber(L, IOBan::getInstance()->isNamelocked(popString(L)) ? LUA_TRUE : LUA_FALSE);
+	lua_pushnumber(L, IOBan::getInstance()->isNamelocked(
+		popString(L)) ? LUA_TRUE : LUA_FALSE);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaIsAccountBanished(lua_State *L)
 {
 	//isAccountBanished(accId)
-	lua_pushnumber(L, IOBan::getInstance()->isBanished((uint32_t)popNumber(L)) ? LUA_TRUE : LUA_FALSE);
+	lua_pushnumber(L, IOBan::getInstance()->isBanished(
+		(uint32_t)popNumber(L)) ? LUA_TRUE : LUA_FALSE);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaIsAccountDeleted(lua_State *L)
 {
 	//isAccountDeleted(accId)
-	lua_pushnumber(L, IOBan::getInstance()->isDeleted((uint32_t)popNumber(L)) ? LUA_TRUE : LUA_FALSE);
+	lua_pushnumber(L, IOBan::getInstance()->isDeleted(
+		(uint32_t)popNumber(L)) ? LUA_TRUE : LUA_FALSE);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaDoAddIpBanishment(lua_State *L)
 {
-	//doAddIpBanishment(ip[, length[, comment[, admin[, statement]]]])
-	int32_t parameters = lua_gettop(L);
-
-	uint32_t admin = 0, length = g_config.getNumber(ConfigManager::IPBANISHMENT_LENGTH);
+	//doAddIpBanishment(ip[, mask[, length[, comment[, admin[, statement]]]]])
+	uint32_t admin = 0, mask = 0xFFFFFFFF, params = lua_gettop(L), length = g_config.getNumber(ConfigManager::IPBANISHMENT_LENGTH);
 	std::string statement, comment = "No comment.";
-
-	if(parameters > 4)
+	if(params > 5)
 		statement = popString(L);
 
-	if(parameters > 3)
+	if(params > 4)
 		admin = popNumber(L);
 
-	if(parameters > 2)
+	if(params > 3)
 		comment = popString(L);
 
-	if(parameters > 1)
+	if(params > 2)
 		length = popNumber(L);
 
-	uint32_t ip = popNumber(L);
-	lua_pushnumber(L, IOBan::getInstance()->addIpBanishment(ip, (time(NULL) + length), comment, admin, statement) ? LUA_NO_ERROR : LUA_ERROR);
+	if(params > 1)
+		mask = popNumber(L);
+
+	lua_pushnumber(L, IOBan::getInstance()->addIpBanishment(
+		(uint32_t)popNumber(L), (time(NULL) + length), comment, admin, statement, mask) ? LUA_NO_ERROR : LUA_ERROR);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaDoAddNamelock(lua_State *L)
 {
 	//doAddNamelock(name[, reason[, action[, comment[, admin[, statement]]]]])
-	int32_t parameters = lua_gettop(L);
-
-	uint32_t admin = 0, action = 0, reason = 0;
+	uint32_t admin = 0, action = 0, reason = 0, params = lua_gettop(L);
 	std::string statement, comment = "No comment.";
-
-	if(parameters > 5)
+	if(params > 5)
 		statement = popString(L);
 
-	if(parameters > 4)
+	if(params > 4)
 		admin = popNumber(L);
 
-	if(parameters > 3)
+	if(params > 3)
 		comment = popString(L);
 
-	if(parameters > 2)
+	if(params > 2)
 		action = popNumber(L);
 
-	if(parameters > 1)
+	if(params > 1)
 		reason = popNumber(L);
 
-	std::string name = popString(L);
-	lua_pushnumber(L, IOBan::getInstance()->addNamelock(name, reason, action, comment, admin, statement) ? LUA_NO_ERROR : LUA_ERROR);
+	lua_pushnumber(L, IOBan::getInstance()->addNamelock(
+		popString(L), reason, action, comment, admin, statement) ? LUA_NO_ERROR : LUA_ERROR);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaDoAddBanishment(lua_State *L)
 {
 	//doAddBanishment(accId[, length[, reason[, action[, comment[, admin[, statement]]]]]])
-	int32_t parameters = lua_gettop(L);
-
-	uint32_t admin = 0, action = 0, reason = 0, length = g_config.getNumber(ConfigManager::BAN_LENGTH);
+	uint32_t admin = 0, action = 0, reason = 0, params = lua_gettop(L), length = g_config.getNumber(ConfigManager::BAN_LENGTH);
 	std::string statement, comment = "No comment.";
-
-	if(parameters > 6)
+	if(params > 6)
 		statement = popString(L);
 
-	if(parameters > 5)
+	if(params > 5)
 		admin = popNumber(L);
 
-	if(parameters > 4)
+	if(params > 4)
 		comment = popString(L);
 
-	if(parameters > 3)
+	if(params > 3)
 		action = popNumber(L);
 
-	if(parameters > 2)
+	if(params > 2)
 		reason = popNumber(L);
 
-	if(parameters > 1)
+	if(params > 1)
 		length = popNumber(L);
 
-	uint32_t id = popNumber(L);
-	lua_pushnumber(L, IOBan::getInstance()->addBanishment(id, (time(NULL) + length), reason, action, comment, admin, statement) ? LUA_NO_ERROR : LUA_ERROR);
+	lua_pushnumber(L, IOBan::getInstance()->addBanishment(
+		(uint32_t)popNumber(L), (time(NULL) + length), reason, action, comment, admin, statement) ? LUA_NO_ERROR : LUA_ERROR);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaDoAddDeletion(lua_State *L)
 {
 	//doAddDeletion(accId[, reason[, action[, comment[, admin[, statement]]]]]])
-	int32_t parameters = lua_gettop(L);
-
-	uint32_t admin = 0, action = 0, reason = 0;
+	uint32_t admin = 0, action = 0, reason = 0, params = lua_gettop(L);
 	std::string statement, comment = "No comment.";
-
-	if(parameters > 5)
+	if(params > 5)
 		statement = popString(L);
 
-	if(parameters > 4)
+	if(params > 4)
 		admin = popNumber(L);
 
-	if(parameters > 3)
+	if(params > 3)
 		comment = popString(L);
 
-	if(parameters > 2)
+	if(params > 2)
 		action = popNumber(L);
 
-	if(parameters > 1)
+	if(params > 1)
 		reason = popNumber(L);
 
-	uint32_t id = popNumber(L);
-	lua_pushnumber(L, IOBan::getInstance()->addDeletion(id, reason, action, comment, admin, statement) ? LUA_NO_ERROR : LUA_ERROR);
+	lua_pushnumber(L, IOBan::getInstance()->addDeletion(
+		(uint32_t)popNumber(L), reason, action, comment, admin, statement) ? LUA_NO_ERROR : LUA_ERROR);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaDoAddNotation(lua_State *L)
 {
 	//doAddNotation(accId[, reason[, action[, comment[, admin[, statement]]]]]])
-	int32_t parameters = lua_gettop(L);
-
-	uint32_t admin = 0, action = 0, reason = 0;
+	uint32_t admin = 0, action = 0, reason = 0, params = lua_gettop(L);
 	std::string statement, comment = "No comment.";
-
-	if(parameters > 5)
+	if(params > 5)
 		statement = popString(L);
 
-	if(parameters > 4)
+	if(params > 4)
 		admin = popNumber(L);
 
-	if(parameters > 3)
+	if(params > 3)
 		comment = popString(L);
 
-	if(parameters > 2)
+	if(params > 2)
 		action = popNumber(L);
 
-	if(parameters > 1)
+	if(params > 1)
 		reason = popNumber(L);
 
-	uint32_t id = popNumber(L);
-	IOBan::getInstance()->addNotation(id, reason, action, comment, admin, statement);
+	IOBan::getInstance()->addNotation(
+		(uint32_t)popNumber(L), reason, action, comment, admin, statement);
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
 }
@@ -9896,28 +9867,36 @@ int32_t LuaScriptInterface::luaDoAddNotation(lua_State *L)
 int32_t LuaScriptInterface::luaDoRemoveIpBanishment(lua_State *L)
 {
 	//doRemoveIpBanishment(ip[, mask])
-	lua_pushnumber(L, IOBan::getInstance()->removeIpBanishment((uint32_t)popNumber(L)) ? LUA_TRUE : LUA_FALSE);
+	uint32_t mask = 0xFFFFFFFF;
+	if(lua_gettop(L) > 1)
+		mask = popNumber(L);
+
+	lua_pushnumber(L, IOBan::getInstance()->removeIpBanishment(
+		(uint32_t)popNumber(L), mask) ? LUA_TRUE : LUA_FALSE);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaDoRemoveNamelock(lua_State *L)
 {
 	//doRemoveNamelock(name)
-	lua_pushnumber(L, IOBan::getInstance()->removeNamelock(popString(L)) ? LUA_TRUE : LUA_FALSE);
+	lua_pushnumber(L, IOBan::getInstance()->removeNamelock(
+		popString(L)) ? LUA_TRUE : LUA_FALSE);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaDoRemoveBanishment(lua_State *L)
 {
 	//doRemoveBanisment(accId)
-	lua_pushnumber(L, IOBan::getInstance()->removeBanishment((uint32_t)popNumber(L)) ? LUA_TRUE : LUA_FALSE);
+	lua_pushnumber(L, IOBan::getInstance()->removeBanishment(
+		(uint32_t)popNumber(L)) ? LUA_TRUE : LUA_FALSE);
 	return 1;
 }
 
 int32_t LuaScriptInterface::luaDoRemoveDeletion(lua_State *L)
 {
 	//doRemoveDeletion(accId)
-	lua_pushnumber(L, IOBan::getInstance()->removeDeletion((uint32_t)popNumber(L)) ? LUA_TRUE : LUA_FALSE);
+	lua_pushnumber(L, IOBan::getInstance()->removeDeletion(
+		(uint32_t)popNumber(L)) ? LUA_TRUE : LUA_FALSE);
 	return 1;
 }
 
@@ -9932,7 +9911,8 @@ int32_t LuaScriptInterface::luaDoRemoveNotations(lua_State *L)
 int32_t LuaScriptInterface::luaGetNotationsCount(lua_State *L)
 {
 	//getNotationsCount(accId)
-	lua_pushnumber(L, IOBan::getInstance()->getNotationsCount((uint32_t)popNumber(L)));
+	lua_pushnumber(L, IOBan::getInstance()->getNotationsCount(
+		(uint32_t)popNumber(L)));
 	return 1;
 }
 
@@ -10188,9 +10168,8 @@ int32_t LuaScriptInterface::luaResultFree(lua_State *L)
 	DBResult* res = env->getResult(rid);
 	CHECK_RESULT()
 
-	Database* db = Database::getInstance();
 	bool ret = env->removeResult(rid);
-	db->freeResult(res);
+	res->free();
 
 	lua_pushboolean(L, ret);
 	return 1;
