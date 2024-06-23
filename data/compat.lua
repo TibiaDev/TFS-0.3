@@ -10,91 +10,62 @@ CONDITION_PARAM_STAT_MAXMANAPOINTSPERCENT = CONDITION_PARAM_STAT_MAXMANAPERCENT
 CONDITION_PARAM_STAT_SOULPOINTSPERCENT = CONDITION_PARAM_STAT_SOULPERCENT
 CONDITION_PARAM_STAT_MAGICPOINTSPERCENT = CONDITION_PARAM_STAT_MAGICLEVELPERCENT
 
-function doSetCreatureDropLoot(cid, doDrop)
-	return doCreatureSetDropLoot(cid, doDrop)
+table.getPos = table.find
+doSetCreatureDropLoot = doCreatureSetDropLoot
+doPlayerSay = doCreatureSay
+doPlayerAddMana = doCreatureAddMana
+playerLearnInstantSpell = doPlayerLearnInstantSpell
+doPlayerRemOutfit = doPlayerRemoveOutfit
+pay = doPlayerRemoveMoney
+broadcastMessage = doBroadcastMessage
+getPlayerName = getCreatureName
+getPlayerPosition = getCreaturePosition
+getCreaturePos = getCreaturePosition
+creatureGetPosition = getCreaturePosition
+getPlayerMana = getCreatureMana
+getPlayerMaxMana = getCreatureMaxMana
+hasCondition = getCreatureCondition
+isMoveable = isMovable
+isItemMoveable = isItemMovable
+saveData = saveServer
+savePlayers = saveServer
+getPlayerSkill = getPlayerSkillLevel
+getPlayerSkullType = getCreatureSkullType
+getAccountNumberByName = getAccountIdByName
+getIPByName = getIpByName
+getPlayersByIP = getPlayersByIp
+getThingfromPos = getThingFromPos
+getPlayersByAccountNumber = getPlayersByAccountId
+getIPByPlayerName = getIpByName
+getPlayersByIPNumber = getPlayersByIp
+getAccountNumberByPlayerName = getAccountIdByName
+
+function getPlayerVocationName(cid)
+	return getVocationInfo(getPlayerVocation(cid)).name
 end
 
-function doPlayerSay(cid, text, class)
-	return doCreatureSay(cid, text, class)
-end
-
-function doPlayerAddMana(cid, mana)
-	return doCreatureAddMana(cid, mana)
-end
-
-function playerLearnInstantSpell(cid, name)
-	return doPlayerLearnInstantSpell(cid, name)
+function getPromotedVocation(vid)
+	return getVocationInfo(vid).promotedVocation
 end
 
 function doPlayerRemovePremiumDays(cid, days)
 	return doPlayerAddPremiumDays(cid, -days)
 end
 
-function doPlayerRemOutfit(cid, looktype, addons)
-	return doPlayerRemoveOutfit(cid, looktype, addons)
-end
-
-function pay(cid, money)
-	return doPlayerRemoveMoney(cid, money)
-end
-
-function broadcastMessage(msg, msgtype)
-	return doBroadcastMessage(msg, msgtype)
-end
-
-function getPlayerName(cid)
-	return getCreatureName(cid)
-end
-
-function getPlayerPosition(cid)
-	return getCreaturePosition(cid)
-end
-
-function getCreaturePos(cid)
-	return getCreaturePosition(cid)
-end
-
-function creatureGetPosition(cid)
-	return getCreaturePosition(cid)
-end
-
-function getPlayerMana(cid)
-	return getCreatureMana(cid)
-end
-
-function getPlayerMaxMana(cid)
-	return getCreatureMaxMana(cid)
-end
-
 function getPlayerMasterPos(cid)
-	return getTemplePositionById(getPlayerTown(cid))
+	return getTownTemplePosition(getPlayerTown(cid))
+end
+
+function getOnlinePlayers()
+	local tmp = getPlayersOnline()
+	local players = {}
+	for i, cid in ipairs(tmp) do
+		table.insert(players, getCreatureName(cid))
+	end
+	return players
 end
 
 function getPlayerByName(name)
 	local cid = getCreatureByName(name)
 	return isPlayer(cid) == TRUE and cid or nil
-end
-
-function hasCondition(cid, condition)
-	return getCreatureCondition(cid, condition)
-end
-
-function isMoveable(uid)
-	return isMovable(uid)
-end
-
-function isItemMoveable(id)
-	return isItemMovable(id)
-end
-
-function getDataDir()
-	return "./data/"
-end
-
-function saveData()
-	return saveServer()
-end
-
-function savePlayers()
-	return saveServer()
 end

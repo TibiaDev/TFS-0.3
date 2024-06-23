@@ -30,7 +30,6 @@
 #include "otsystem.h"
 #include "tasks.h"
 #include "items.h"
-#include "commands.h"
 #include "creature.h"
 #include "player.h"
 #include "monster.h"
@@ -60,7 +59,6 @@ extern OTSYS_THREAD_LOCKVAR maploadlock;
 extern ConfigManager g_config;
 extern Server* g_server;
 extern Actions* g_actions;
-extern Commands commands;
 extern Chat g_chat;
 extern TalkActions* g_talkActions;
 extern Spells* g_spells;
@@ -140,6 +138,7 @@ void Game::setGameState(GameState_t newState)
 				loadGameState();
 				timedHighscoreUpdate();
 
+				IOLoginData::getInstance()->resetOnlineStatus();
 				if(g_config.getBool(ConfigManager::REMOVE_PREMIUM_ON_INIT))
 					IOLoginData::getInstance()->updatePremiumDays();
 				break;
@@ -198,7 +197,6 @@ void Game::setGameState(GameState_t newState)
 void Game::saveGameState(bool savePlayers)
 {
 	std::cout << "> Saving server..." << std::endl;
-
 	if(savePlayers)
 	{
 		for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
@@ -231,6 +229,7 @@ int32_t Game::loadMap(std::string filename)
 	Player::maxMessageBuffer = g_config.getNumber(ConfigManager::MAX_MESSAGEBUFFER);
 	Monster::despawnRange = g_config.getNumber(ConfigManager::DEFAULT_DESPAWNRANGE);
 	Monster::despawnRadius = g_config.getNumber(ConfigManager::DEFAULT_DESPAWNRADIUS);
+
 	return map->loadMap(getFilePath(FILE_TYPE_OTHER, std::string("world/" + filename + ".otbm")));
 }
 
@@ -422,10 +421,7 @@ Thing* Game::internalGetThing(Player* player, const Position& pos, int32_t index
 
 void Game::internalGetPosition(Item* item, Position& pos, uint8_t& stackpos)
 {
-	pos.x = 0;
-	pos.y = 0;
-	pos.z = 0;
-	stackpos = 0;
+	pos.x = pos.y = pos.z = stackpos = 0;
 
 	Cylinder* topParent = item->getTopParent();
 	if(topParent)
@@ -500,30 +496,22 @@ Player* Game::getPlayerByID(uint32_t id)
 
 Creature* Game::getCreatureByName(const std::string& s)
 {
-	std::string txt1 = asUpperCaseString(s);
+	std::string tmp = asLowerCaseString(s);
 	for(AutoList<Creature>::listiterator it = listCreature.list.begin(); it != listCreature.list.end(); ++it)
 	{
-		if(!(*it).second->isRemoved())
-		{
-			std::string txt2 = asUpperCaseString((*it).second->getName());
-			if(txt1 == txt2)
-				return it->second;
-		}
+		if(!(*it).second->isRemoved() && tmp == asLowerCaseString((*it).second->getName()))
+			return it->second;
 	}
 	return NULL; //just in case the creature doesnt exist
 }
 
 Player* Game::getPlayerByName(const std::string& s)
 {
-	std::string txt1 = asUpperCaseString(s);
+	std::string tmp = asLowerCaseString(s);
 	for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 	{
-		if(!(*it).second->isRemoved())
-		{
-			std::string txt2 = asUpperCaseString((*it).second->getName());
-			if(txt1 == txt2)
-				return it->second;
-		}
+		if(!(*it).second->isRemoved() && tmp == asLowerCaseString((*it).second->getName()))
+			return it->second;
 	}
 	return NULL; //just in case the player doesnt exist
 }
@@ -531,7 +519,6 @@ Player* Game::getPlayerByName(const std::string& s)
 ReturnValue Game::getPlayerByNameWildcard(const std::string& s, Player*& player)
 {
 	player = NULL;
-
 	if(s.empty())
 		return RET_PLAYERWITHTHISNAMEISNOTONLINE;
 
@@ -545,18 +532,18 @@ ReturnValue Game::getPlayerByNameWildcard(const std::string& s, Player*& player)
 	}
 
 	Player* lastFound = NULL;
-	std::string txt1 = asUpperCaseString(s.substr(0, s.length()-1));
+	std::string tmp = asLowerCaseString(s.substr(0, s.length() - 1));
 	for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 	{
 		if(!(*it).second->isRemoved())
 		{
-			std::string txt2 = asUpperCaseString((*it).second->getName());
-			if(txt2.substr(0, txt1.length()) == txt1)
+			std::string name = asLowerCaseString((*it).second->getName());
+			if(name.substr(0, tmp.length()) == tmp)
 			{
-				if(lastFound == NULL)
-					lastFound = (*it).second;
-				else
+				if(lastFound)
 					return RET_NAMEISTOOAMBIGIOUS;
+
+				lastFound = (*it).second;
 			}
 		}
 	}
@@ -566,6 +553,7 @@ ReturnValue Game::getPlayerByNameWildcard(const std::string& s, Player*& player)
 		player = lastFound;
 		return RET_NOERROR;
 	}
+
 	return RET_PLAYERWITHTHISNAMEISNOTONLINE;
 }
 
@@ -684,6 +672,22 @@ bool Game::placeCreature(Creature* creature, const Position& pos, bool forced /*
 	addCreatureCheck(creature);
 	creature->onPlacedCreature();
 	return true;
+}
+
+ReturnValue Game::placeSummon(Creature* creature, const std::string& name)
+{
+	Monster* monster = Monster::createMonster(name);
+	if(!monster)
+		return RET_NOTPOSSIBLE;
+
+	// Place the monster
+	creature->addSummon(monster);
+	if(!placeCreature(monster, creature->getPosition()))
+	{
+		creature->removeSummon(monster);
+		return RET_NOTENOUGHROOM;
+	}
+	return RET_NOERROR;
 }
 
 bool Game::removeCreature(Creature* creature, bool isLogout /*= true*/)
@@ -882,15 +886,15 @@ bool Game::playerMoveCreature(uint32_t playerId, uint32_t movingCreatureId,
 
 ReturnValue Game::internalMoveCreature(Creature* creature, Direction direction, uint32_t flags /*= 0*/)
 {
+	creature->setLastPosition(creature->getPosition());
 	Cylinder* fromTile = creature->getTile();
 	Cylinder* toTile = NULL;
 
-	creature->setLastPosition(creature->getPosition());
 	const Position& currentPos = creature->getPosition();
 	Position destPos = currentPos;
 	destPos = getNextPosition(direction, destPos);
 
-	if(creature->getPlayer())
+	if(direction < SOUTHWEST && creature->getPlayer())
 	{
 		//try go up
 		if(currentPos.z != 8 && creature->getTile()->hasHeight(3))
@@ -3261,26 +3265,27 @@ bool Game::playerSay(uint32_t playerId, uint16_t channelId, SpeakClasses type,
 	if(!player || player->isRemoved())
 		return false;
 
-	uint32_t muteTime = player->isMuted();
-	if(muteTime > 0)
+	if(player->isMuted())
 	{
 		char buffer[75];
-		sprintf(buffer, "You are still muted for %d seconds.", muteTime);
+		sprintf(buffer, "You are still muted for %d seconds.", player->isMuted());
 		player->sendTextMessage(MSG_STATUS_SMALL, buffer);
 		return false;
 	}
 
-	if(playerSayCommand(player, type, text))
+	if(player->isAccountManager())
+	{
+		player->removeMessageBuffer();
+		return internalCreatureSay(player, SPEAK_SAY, text);
+	}
+
+	if(g_talkActions->onPlayerSay(player, channelId, text))
 		return true;
 
-	if(playerSayTalkAction(player, type, text))
-		return true;
-
-	if(playerSaySpell(player, type, text))
+	if(g_spells->onPlayerSay(player, text))
 		return true;
 
 	player->removeMessageBuffer();
-
 	switch(type)
 	{
 		case SPEAK_SAY:
@@ -3322,58 +3327,12 @@ bool Game::playerSay(uint32_t playerId, uint16_t channelId, SpeakClasses type,
 	return false;
 }
 
-bool Game::playerSayCommand(Player* player, SpeakClasses type, const std::string& text)
-{
-	if(player->isAccountManager())
-		return internalCreatureSay(player, SPEAK_SAY, text);
-
-	//First, check if this was a command
-	for(uint32_t i = 0; i < commandTags.size(); i++)
-	{
-		if(commandTags[i] == text.substr(0,1))
-		{
-			if(commands.exeCommand(player, text))
-				return true;
-		}
-	}
-	return false;
-}
-
-bool Game::playerSayTalkAction(Player* player, SpeakClasses type, const std::string& text)
-{
-	if(player->isAccountManager())
-		return internalCreatureSay(player, SPEAK_SAY, text);
-
-	TalkActionResult_t result;
-	result = g_talkActions->onPlayerSpeak(player, type, text);
-	if(result == TALKACTION_BREAK)
-		return true;
-
-	return false;
-}
-
-bool Game::playerSaySpell(Player* player, SpeakClasses type, const std::string& text)
-{
-	if(player->isAccountManager())
-		return internalCreatureSay(player, SPEAK_SAY, text);
-
-	TalkActionResult_t result;
-	result = g_spells->playerSaySpell(player, type, text);
-	if(result == TALKACTION_BREAK)
-	{
-		//std::string _text = (g_config.getBool(ConfigManager::SPELL_NAME_INSTEAD_WORDS) ? g_spells->getInstantSpell(text)->getName() : text);
-		return internalCreatureSay(player, SPEAK_SAY, text);
-	}
-	else if(result == TALKACTION_FAILED)
-		return true;
-
-	return false;
-}
-
 bool Game::playerWhisper(Player* player, const std::string& text)
 {
 	SpectatorVec list;
-	getSpectators(list, player->getPosition());
+	getSpectators(list, player->getPosition(), false, false,
+		Map::maxClientViewportX, Map::maxClientViewportX,
+		Map::maxClientViewportY, Map::maxClientViewportY);
 	SpectatorVec::const_iterator it;
 
 	//send to client
@@ -3520,8 +3479,12 @@ void Game::npcSpeakToPlayer(Npc* npc, Player* player, const std::string& text, b
 
 	if(publicize)
 	{
-		SpectatorVec list;
+		std::string tmp = text;
+		replaceString(tmp, "{", "");
+		replaceString(tmp, "}", "");
+
 		SpectatorVec::iterator it;
+		SpectatorVec list;
 		getSpectators(list, npc->getPosition());
 
 		//send to client
@@ -3530,14 +3493,14 @@ void Game::npcSpeakToPlayer(Npc* npc, Player* player, const std::string& text, b
 		{
 			tmpPlayer = (*it)->getPlayer();
 			if((tmpPlayer != NULL) && (tmpPlayer != player))
-				tmpPlayer->sendCreatureSay(npc, SPEAK_SAY, text);
+				tmpPlayer->sendCreatureSay(npc, SPEAK_SAY, tmp);
 		}
 
 		//event method
 		for(it = list.begin(); it != list.end(); ++it)
 		{
 			if((*it) != player)
-				(*it)->onCreatureSay(npc, SPEAK_SAY, text);
+				(*it)->onCreatureSay(npc, SPEAK_SAY, tmp);
 		}
 	}
 }
@@ -3661,7 +3624,9 @@ bool Game::internalCreatureSay(Creature* creature, SpeakClasses type, const std:
 		if(type == SPEAK_YELL || type == SPEAK_MONSTER_YELL)
 			getSpectators(list, creature->getPosition(), false, true, 18, 18, 14, 14);
 		else
-			getSpectators(list, creature->getPosition(), false, false);
+			getSpectators(list, creature->getPosition(), false, false,
+				Map::maxClientViewportX, Map::maxClientViewportX,
+				Map::maxClientViewportY, Map::maxClientViewportY);
 
 		//send to client
 		Player* tmpPlayer = NULL;
@@ -3943,18 +3908,18 @@ bool Game::combatChangeHealth(CombatType_t combatType, Creature* attacker, Creat
 		if(target->getHealth() <= 0)
 			return false;
 
-		if(attacker && target && attacker->defaultOutfit.lookFeet == target->defaultOutfit.lookFeet && g_config.getBool(ConfigManager::CANNOT_ATTACK_SAME_LOOKFEET) && combatType != COMBAT_HEALING)
+		if(g_config.getBool(ConfigManager::CANNOT_ATTACK_SAME_LOOKFEET) && attacker && target && attacker->defaultOutfit.lookFeet == target->defaultOutfit.lookFeet && combatType != COMBAT_HEALING)
 			return false;
 
 		target->gainHealth(attacker, healthChange);
-
-		if(g_config.getBool(ConfigManager::SHOW_HEALING_DAMAGE))
+		if(g_config.getBool(ConfigManager::SHOW_HEALING_DAMAGE) && !target->isInGhostMode())
 		{
 			const SpectatorVec& list = getSpectators(targetPos);
-			char buffer[10];
+			char buffer[20];
 			sprintf(buffer, "+%d", healthChange);
 			if(combatType != COMBAT_HEALING)
 				addMagicEffect(list, targetPos, NM_ME_MAGIC_ENERGY);
+
 			addAnimatedText(list, targetPos, TEXTCOLOR_GREEN, buffer);
 		}
 	}
@@ -3967,7 +3932,7 @@ bool Game::combatChangeHealth(CombatType_t combatType, Creature* attacker, Creat
 			return true;
 		}
 
-		if(attacker && target && attacker->defaultOutfit.lookFeet == target->defaultOutfit.lookFeet && g_config.getBool(ConfigManager::CANNOT_ATTACK_SAME_LOOKFEET) && combatType != COMBAT_HEALING)
+		if(g_config.getBool(ConfigManager::CANNOT_ATTACK_SAME_LOOKFEET) && attacker && target && attacker->defaultOutfit.lookFeet == target->defaultOutfit.lookFeet && combatType != COMBAT_HEALING)
 			return false;
 
 		int32_t damage = -healthChange;
@@ -4417,27 +4382,6 @@ bool Game::closeRuleViolation(Player* player)
 	return true;
 }
 
-void Game::addCommandTag(std::string tag)
-{
-	bool found = false;
-	for(uint32_t i = 0; i < commandTags.size() ;i++)
-	{
-		if(commandTags[i] == tag)
-		{
-			found = true;
-			break;
-		}
-	}
-
-	if(!found)
-		commandTags.push_back(tag);
-}
-
-void Game::resetCommandTag()
-{
-	commandTags.clear();
-}
-
 void Game::shutdown()
 {
 	std::cout << "Preparing shutdown";
@@ -4575,19 +4519,16 @@ Highscore Game::getHighscore(uint16_t skill)
 	return hs;
 }
 
-void Game::updateCreatureSkull(Player* player)
+void Game::updateCreatureSkull(Creature* creature)
 {
-	if(getWorldType() != WORLD_TYPE_PVP)
-		return;
-
-	const SpectatorVec& list = getSpectators(player->getPosition());
+	const SpectatorVec& list = getSpectators(creature->getPosition());
 
 	//send to client
 	Player* tmpPlayer = NULL;
 	for(SpectatorVec::const_iterator it = list.begin(); it != list.end(); ++it)
 	{
 		 if((tmpPlayer = (*it)->getPlayer()))
-			tmpPlayer->sendCreatureSkull(player);
+			tmpPlayer->sendCreatureSkull(creature);
 	}
 }
 
@@ -4680,6 +4621,174 @@ Position Game::getClosestFreeTile(Creature* creature, Position toPos)
 		}
 	}
 	return Position(0, 0, 0);
+}
+
+std::string Game::getSearchString(const Position lookPos, const Position searchPos, bool player/* = false*/)
+{
+	//a. From 1 to 4 sq's pos is [player: standing] next to you.
+	//b. From 5 to 100 sq's pos is to the south, north, east, west.
+	//c. From 101 to 274 sq's pos is far to the south, north, east, west.
+	//d. From 275 to infinite sq's pos is very far to the south, north, east, west.
+	//e. South-west, s-e, n-w, n-e (corner coordinates): this phrase appears if the player you're looking for has moved five squares in any direction from the south, north, east or west.
+	//f. Lower level to the (direction): this phrase applies if the person you're looking for is from 1-25 squares up/down the actual floor you're in.
+	//g. Higher level to the (direction): this phrase applies if the person you're looking for is from 1-25 squares up/down the actual floor you're in.
+
+	enum distance_t
+	{
+		DISTANCE_BESIDE,
+		DISTANCE_CLOSE_1,
+		DISTANCE_CLOSE_2,
+		DISTANCE_FAR,
+		DISTANCE_VERYFAR
+	};
+
+	enum direction_t
+	{
+		DIR_N, DIR_S, DIR_E, DIR_W,
+		DIR_NE, DIR_NW, DIR_SE, DIR_SW
+	};
+
+	enum level_t
+	{
+		LEVEL_HIGHER,
+		LEVEL_LOWER,
+		LEVEL_SAME
+	};
+
+	distance_t distance;
+	direction_t direction;
+	level_t level;
+
+	int32_t dx = lookPos.x - searchPos.x;
+	int32_t dy = lookPos.y - searchPos.y;
+	int32_t dz = lookPos.z - searchPos.z;
+
+	if(dz > 0)
+		level = LEVEL_HIGHER;
+	else if(dz < 0)
+		level = LEVEL_LOWER;
+	else
+		level = LEVEL_SAME;
+
+	if(std::abs(dx) < 4 && std::abs(dy) < 4)
+		distance = DISTANCE_BESIDE;
+	else
+	{
+		int32_t distance2 = dx * dx + dy * dy;
+		if(distance2 < 625)
+			distance = DISTANCE_CLOSE_1;
+		else if(distance2 < 10000)
+			distance = DISTANCE_CLOSE_2;
+		else if(distance2 < 75076)
+			distance = DISTANCE_FAR;
+		else
+			distance = DISTANCE_VERYFAR;
+	}
+
+	float tan;
+	if(dx != 0)
+		tan = (float)dy/(float)dx;
+	else
+		tan = 10.;
+
+	if(std::abs(tan) < 0.4142)
+	{
+		if(dx > 0)
+			direction = DIR_W;
+		else
+			direction = DIR_E;
+	}
+	else if(std::abs(tan) < 2.4142)
+	{
+		if(tan > 0)
+		{
+			if(dy > 0)
+				direction = DIR_NW;
+			else
+				direction = DIR_SE;
+		}
+		else
+		{
+			if(dx > 0)
+				direction = DIR_SW;
+			else
+				direction = DIR_NE;
+		}
+	}
+	else
+	{
+		if(dy > 0)
+			direction = DIR_N;
+		else
+			direction = DIR_S;
+	}
+
+	std::stringstream ss;
+	if(distance == DISTANCE_BESIDE)
+	{
+		if(level == LEVEL_SAME)
+			ss << "is " << (player ? "standing " : "") << "next to you";
+		else if(level == LEVEL_HIGHER)
+			ss << "is above you";
+		else if(level == LEVEL_LOWER)
+			ss << "is below you";
+	}
+	else
+	{
+		switch(distance)
+		{
+			case DISTANCE_CLOSE_1:
+				if(level == LEVEL_SAME)
+					ss << "is to the";
+				else if(level == LEVEL_HIGHER)
+					ss << "is on a higher level to the";
+				else if(level == LEVEL_LOWER)
+					ss << "is on a lower level to the";
+				break;
+			case DISTANCE_CLOSE_2:
+				ss << "is to the";
+				break;
+			case DISTANCE_FAR:
+				ss << "is far to the";
+				break;
+			case DISTANCE_VERYFAR:
+				ss << "is very far to the";
+				break;
+			default:
+				break;
+		}
+
+		ss << " ";
+		switch(direction)
+		{
+			case DIR_N:
+				ss << "north";
+				break;
+			case DIR_S:
+				ss << "south";
+				break;
+			case DIR_E:
+				ss << "east";
+				break;
+			case DIR_W:
+				ss << "west";
+				break;
+			case DIR_NE:
+				ss << "north-east";
+				break;
+			case DIR_NW:
+				ss << "north-west";
+				break;
+			case DIR_SE:
+				ss << "south-east";
+				break;
+			case DIR_SW:
+				ss << "south-west";
+				break;
+		}
+	}
+
+	return ss.str();
 }
 
 int32_t Game::getMotdNum()
@@ -4786,21 +4895,20 @@ bool Game::violationWindow(uint32_t playerId, std::string targetPlayerName, int3
 
 	bool auth = false;
 	Account account;
-	uint32_t guid;
-	uint32_t ip;
+	uint32_t guid, ip;
 
 	Player* targetPlayer = getPlayerByName(targetPlayerName);
 	if(targetPlayer)
 	{
 		auth = targetPlayer->hasFlag(PlayerFlag_CannotBeBanned);
-		account = IOLoginData::getInstance()->loadAccount(targetPlayer->getAccount());
+		account = IOLoginData::getInstance()->loadAccount(targetPlayer->getAccount(), true);
 		guid = targetPlayer->getGUID();
 		ip = targetPlayer->lastIP;
 	}
 	else
 	{
 		auth = IOLoginData::getInstance()->hasFlag(targetPlayerName, PlayerFlag_CannotBeBanned);
-		account = IOLoginData::getInstance()->loadAccount(IOLoginData::getInstance()->getAccountNumberByName(targetPlayerName));
+		account = IOLoginData::getInstance()->loadAccount(IOLoginData::getInstance()->getAccountIdByName(targetPlayerName), true);
 		IOLoginData::getInstance()->getGuidByName(guid, targetPlayerName);
 		ip = IOLoginData::getInstance()->getLastIP(guid);
 	}

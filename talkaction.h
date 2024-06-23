@@ -22,18 +22,12 @@
 #ifndef __TALKACTION_H__
 #define __TALKACTION_H__
 
-#include <list>
+#include <map>
 #include <string>
 #include "luascript.h"
 #include "baseevents.h"
-#include "const.h"
-
-enum TalkActionResult_t
-{
-	TALKACTION_CONTINUE,
-	TALKACTION_BREAK,
-	TALKACTION_FAILED
-};
+#include "creature.h"
+#include "enums.h"
 
 enum TalkActionFilter
 {
@@ -50,7 +44,7 @@ class TalkActions : public BaseEvents
 		TalkActions();
 		virtual ~TalkActions();
 
-		TalkActionResult_t onPlayerSpeak(Player* player, SpeakClasses type, const std::string& words);
+		bool onPlayerSay(Player* player, uint16_t channelId, const std::string& words);
 
 	protected:
 		virtual LuaScriptInterface& getScriptInterface();
@@ -59,11 +53,14 @@ class TalkActions : public BaseEvents
 		virtual bool registerEvent(Event* event, xmlNodePtr p);
 		virtual void clear();
 
-		typedef std::list< std::pair<std::string, TalkAction* > > TalkActionList;
-		TalkActionList wordsMap;
+		typedef std::map<std::string, TalkAction*> TalkActionsMap;
+		TalkActionsMap talksMap;
 
 		LuaScriptInterface m_scriptInterface;
 };
+
+typedef bool (TalkActionCallback)(Creature* creature, const std::string& words, const std::string& param);
+struct TalkActionCallback_t;
 
 class TalkAction : public Event
 {
@@ -72,25 +69,52 @@ class TalkAction : public Event
 		virtual ~TalkAction() {}
 
 		virtual bool configureEvent(xmlNodePtr p);
+		virtual bool loadFunction(const std::string& functionName);
+
+		TalkActionCallback* callback;
+		int32_t executeSay(Creature* creature, const std::string& words, const std::string& param);
 
 		std::string getWords() const {return m_words;}
 		TalkActionFilter getFilter() const {return m_filter;}
 		uint32_t getAccess() const {return m_access;}
+		int32_t getChannel() const {return m_channel;}
+
 		bool isLogged() const {return m_logged;}
 		bool isSensitive() const {return m_sensitive;}
 
-		//scripting
-		int32_t executeSay(Creature* creature, const std::string& words, const std::string& param);
-
 	protected:
-		virtual std::string getScriptEventName();
+		static TalkActionCallback placeNpc;
+		static TalkActionCallback placeMonster;
+		static TalkActionCallback placeSummon;
+		static TalkActionCallback reloadInfo;
+		static TalkActionCallback closeServer;
+		static TalkActionCallback openServer;
+		static TalkActionCallback serverDiag;
+		static TalkActionCallback changeThingProporties;
+		static TalkActionCallback addSkill;
+		static TalkActionCallback showBanishmentInfo;
+		static TalkActionCallback ghost;
+		static TalkActionCallback squelch;
+		static TalkActionCallback mapTeleport;
+		static TalkActionCallback sellHouse;
+		static TalkActionCallback buyHouse;
+		static TalkActionCallback joinGuild;
+		static TalkActionCallback createGuild;
 
 		std::string m_words;
 		TalkActionFilter m_filter;
-		uint32_t m_group;
 		uint32_t m_access;
-		bool m_logged;
-		bool m_sensitive;
+		int32_t m_channel;
+		bool m_logged, m_sensitive;
+
+		static TalkActionCallback_t definedCallbacks[];
+		virtual std::string getScriptEventName();
+};
+
+struct TalkActionCallback_t
+{
+	const char* name;
+	TalkActionCallback* callback;
 };
 
 #endif

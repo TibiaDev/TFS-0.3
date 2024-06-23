@@ -32,6 +32,10 @@
 #endif
 #include <sstream>
 
+#ifndef __DISABLE_DIRTY_RECONNECT__
+#define MAX_RECONNECT_ATTEMPTS 3
+#endif
+
 class DatabaseMySQL : public _Database
 {
 	public:
@@ -52,10 +56,18 @@ class DatabaseMySQL : public _Database
 
 		DATABASE_VIRTUAL void freeResult(DBResult *res);
 
-		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() { return DATABASE_ENGINE_MYSQL; }
+		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() {return DATABASE_ENGINE_MYSQL;}
 
 	protected:
+		DATABASE_VIRTUAL void keepAlive();
+#ifndef __DISABLE_DIRTY_RECONNECT__
+		DATABASE_VIRTUAL bool reconnect();
+#endif
+
 		MYSQL m_handle;
+#ifndef __DISABLE_DIRTY_RECONNECT__
+		uint32_t m_attempts;
+#endif
 };
 
 class MySQLResult : public _DBResult

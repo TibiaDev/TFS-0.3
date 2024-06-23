@@ -56,10 +56,13 @@ void ProtocolLogin::deleteProtocolTask()
 void ProtocolLogin::disconnectClient(uint8_t error, const char* message)
 {
 	OutputMessage* output = OutputMessagePool::getInstance()->getOutputMessage(this, false);
-	TRACK_MESSAGE(output);
-	output->AddByte(error);
-	output->AddString(message);
-	OutputMessagePool::getInstance()->send(output);
+	if(output)
+	{
+		TRACK_MESSAGE(output);
+		output->AddByte(error);
+		output->AddString(message);
+		OutputMessagePool::getInstance()->send(output);
+	}
 	getConnection()->closeConnection();
 }
 
@@ -76,16 +79,9 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 	}
 
 	uint32_t clientIP = getConnection()->getIP();
-
 	/*uint16_t operatingSystem = */msg.GetU16();
 	uint16_t version  = msg.GetU16();
 	msg.SkipBytes(12);
-
-	if(version <= 760)
-	{
-		disconnectClient(0x0A, CLIENT_VERSION_STRING);
-		return false;
-	}
 
 	if(!RSA_decrypt(g_otservRSA, msg))
 	{
@@ -157,26 +153,31 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 	}
 
 	Account account;
-	if(IOLoginData::getInstance()->getAccountId(name, id))
+	if(IOLoginData::getInstance()->getAccountId(name, id) || (!name.length() && g_config.getBool(ConfigManager::ACCOUNT_MANAGER)))
 	{
 		account = IOLoginData::getInstance()->loadAccount(id);
 		if(id < 1 || id != account.number || !passwordTest(password, account.password))
 			account.number = 0;
 	}
 
-	if(account.number == 0)
+	if(!account.number)
 	{
 		ConnectionManager::getInstance()->addLoginAttempt(clientIP, false);
 		disconnectClient(0x0A, "Account name or password is not correct.");
 		return false;
 	}
 
+	//Remove premium days
+	IOLoginData::getInstance()->removePremium(account);
+	if(!g_config.getBool(ConfigManager::ACCOUNT_MANAGER) && !account.charList.size())
+	{
+		disconnectClient(0x0A, std::string("This account doesn't contain any character.\nCreate a new character on the " + g_config.getString(ConfigManager::SERVER_NAME) + " website at \"" + g_config.getString(ConfigManager::URL) + "\".").c_str());
+		return false;
+	}
+
 	ConnectionManager::getInstance()->addLoginAttempt(clientIP, true);
 	OutputMessage* output = OutputMessagePool::getInstance()->getOutputMessage(this, false);
 	TRACK_MESSAGE(output);
-
-	//Remove premium days
-	IOLoginData::getInstance()->removePremium(account);
 
 	//Add MOTD
 	output->AddByte(0x14);
@@ -186,7 +187,7 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 
 	//Add char list
 	output->AddByte(0x64);
-	if(id != 1 && g_config.getBool(ConfigManager::ACCOUNT_MANAGER))
+	if(g_config.getBool(ConfigManager::ACCOUNT_MANAGER) && id != 1)
 	{
 		output->AddByte((uint8_t)account.charList.size() + 1);
 		output->AddString("Account Manager");

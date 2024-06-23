@@ -261,6 +261,7 @@ class Creature : public AutoID, virtual public Thing
 		void removeCondition(ConditionType_t type);
 		void removeCondition(Condition* condition);
 		void removeCondition(const Creature* attacker, ConditionType_t type);
+		void removeConditions(ConditionEnd_t reason, bool onlyPersistent = true);
 		Condition* getCondition(ConditionType_t type, ConditionId_t id) const;
 		Condition* getCondition(ConditionType_t type) const;
 		void executeConditions(uint32_t interval);
@@ -349,6 +350,14 @@ class Creature : public AutoID, virtual public Thing
 		virtual WeaponType_t getWeaponType() {return WEAPON_NONE;}
 		virtual bool getCombatValues(int32_t& min, int32_t& max) {return false;}
 
+		virtual void setSkull(Skulls_t newSkull) {skull = newSkull;}
+		virtual Skulls_t getSkull() const {return skull;}
+		virtual Skulls_t getSkullClient(const Creature* creature) const {return creature->getSkull();}
+
+		virtual void setShield(PartyShields_t newPartyShield) {partyShield = newPartyShield;}
+		virtual PartyShields_t getShield() const {return partyShield;}
+		virtual PartyShields_t getPartyShield(const Creature* creature) const {return creature->getShield();}
+
 		uint32_t getSummonCount() const {return summons.size();}
 		void setDropLoot(bool _lootDrop) {lootDrop = _lootDrop;}
 		bool getDropLoot() const {return lootDrop;}
@@ -403,6 +412,8 @@ class Creature : public AutoID, virtual public Thing
 		int32_t varSpeed;
 		bool skillLoss;
 		bool lootDrop;
+		Skulls_t skull;
+		PartyShields_t partyShield;
 		Direction direction;
 		ConditionList conditions;
 		LightInfo internalLight;

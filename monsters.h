@@ -29,25 +29,19 @@
 
 struct LootBlock
 {
-	uint16_t id;
-	uint16_t countmax;
+	uint16_t id, countmax;
 	uint32_t chance;
 
 	//optional
-	int32_t subType;
-	int32_t actionId;
+	int32_t subType, actionId, uniqueId;
 	std::string text;
 
 	typedef std::list<LootBlock> LootItems;
 	LootItems childLoot;
 	LootBlock()
 	{
-		id = 0;
-		countmax = 0;
-		chance = 0;
-
-		subType = -1;
-		actionId = -1;
+		id = countmax = chance = 0;
+		subType = actionId = uniqueId = -1;
 		text = "";
 	}
 };
@@ -55,9 +49,7 @@ struct LootBlock
 struct summonBlock_t
 {
 	std::string name;
-	uint32_t chance;
-	uint32_t interval;
-	uint32_t amount;
+	uint32_t chance, interval, amount;
 };
 
 class BaseSpell;
@@ -65,13 +57,9 @@ class BaseSpell;
 struct spellBlock_t
 {
 	BaseSpell* spell;
-	uint32_t chance;
-	uint32_t speed;
-	uint32_t range;
-	int32_t minCombatValue;
-	int32_t maxCombatValue;
-	bool combatSpell;
-	bool isMelee;
+	uint32_t chance, speed, range;
+	int32_t minCombatValue, maxCombatValue;
+	bool combatSpell, isMelee;
 };
 
 struct voiceBlock_t
@@ -91,7 +79,7 @@ class MonsterType
 {
 	public:
 		MonsterType();
-		~MonsterType();
+		virtual ~MonsterType();
 
 		void reset();
 
@@ -126,6 +114,8 @@ class MonsterType
 
 		int32_t lightLevel;
 		int32_t lightColor;
+		Skulls_t skull;
+		PartyShields_t partyShield;
 
 		uint32_t manaCost;
 		SummonList summonList;
@@ -152,7 +142,7 @@ class Monsters
 {
 	public:
 		Monsters();
-		~Monsters();
+		virtual ~Monsters();
 
 		bool loadFromXml(bool reloading = false);
 		bool isLoaded(){return loaded;}

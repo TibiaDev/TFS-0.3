@@ -60,13 +60,8 @@ void HouseTile::updateHouse(Item* item)
 		Door* door = item->getDoor();
 		if(door && door->getDoorId() != 0)
 			house->addDoor(door);
-
-		if(!door)
-		{
-			BedItem* bed = item->getBed();
-			if(bed)
-				house->addBed(bed);
-		}
+		else if(BedItem* bed = item->getBed())
+			house->addBed(bed);
 	}
 }
 
@@ -116,5 +111,6 @@ Cylinder* HouseTile::__queryDestination(int32_t& index, const Thing* thing, Item
 			}
 		}
 	}
+
 	return Tile::__queryDestination(index, thing, destItem, flags);
 }

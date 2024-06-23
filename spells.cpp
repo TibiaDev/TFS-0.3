@@ -25,7 +25,6 @@
 #include "housetile.h"
 #include "spells.h"
 #include "combat.h"
-#include "commands.h"
 #include "monsters.h"
 #include "configmanager.h"
 #include "const.h"
@@ -50,55 +49,55 @@ Spells::~Spells()
 	clear();
 }
 
-TalkActionResult_t Spells::playerSaySpell(Player* player, SpeakClasses type, const std::string& words)
+bool Spells::onPlayerSay(Player* player, const std::string& words)
 {
-	std::string str_words = words;
+	std::string reWords = words;
+	trimString(reWords);
 
-	//strip trailing spaces
-	trimString(str_words);
-
-	InstantSpell* instantSpell = getInstantSpell(str_words);
+	InstantSpell* instantSpell = getInstantSpell(reWords);
 	if(!instantSpell)
-		return TALKACTION_CONTINUE;
+		return false;
 
 	std::string param = "";
 	if(instantSpell->getHasParam())
 	{
-		size_t spellLen = instantSpell->getWords().length();
-		size_t paramLen = str_words.length() - spellLen;
-		std::string paramText = str_words.substr(spellLen, paramLen);
-
-		if(!paramText.empty() && paramText[0] == ' ')
+		size_t size = instantSpell->getWords().length();
+		std::string tmp = reWords.substr(size, reWords.length() - size);
+		if(!tmp.empty() && tmp[0] == ' ')
 		{
-			size_t loc1 = paramText.find('"', 0);
-			size_t loc2 = std::string::npos;
-			if(loc1 != std::string::npos)
-				loc2 = paramText.find('"', loc1 + 1);
+			size = tmp.find('"', 0);
+			size_t tmpSize = std::string::npos;
+			if(size != tmpSize)
+				tmpSize = tmp.find('"', size + 1);
 
-			if(loc2 == std::string::npos)
-				loc2 = paramText.length();
+			if(tmpSize == std::string::npos)
+				tmpSize = tmp.length();
 
-			param = paramText.substr(loc1 + 1, loc2 - loc1 - 1);
+			param = tmp.substr(size + 1, tmpSize - size - 1);
 			trimString(param);
 		}
 	}
 
-	if(instantSpell->playerCastInstant(player, param))
-		return TALKACTION_BREAK;
-	else
-		return TALKACTION_FAILED;
+	if(!instantSpell->playerCastInstant(player, param))
+		return true;
+
+	if(g_config.getBool(ConfigManager::SPELL_NAME_INSTEAD_WORDS))
+	{
+		param = (param.length() ? ": " + param : "");
+		return g_game.internalCreatureSay(player, SPEAK_SAY, instantSpell->getName() + param);
+	}
+
+	return g_game.internalCreatureSay(player, SPEAK_SAY, reWords);
 }
 
 void Spells::clear()
 {
-	RunesMap::iterator it;
-	for(it = runes.begin(); it != runes.end(); ++it)
-		delete it->second;
+	for(RunesMap::iterator rit = runes.begin(); rit != runes.end(); ++rit)
+		delete rit->second;
 	runes.clear();
 
-	InstantsMap::iterator it2;
-	for(it2 = instants.begin(); it2 != instants.end(); ++it2)
-		delete it2->second;
+	for(InstantsMap::iterator it = instants.begin(); it != instants.end(); ++it)
+		delete it->second;
 	instants.clear();
 }
 
@@ -129,15 +128,29 @@ bool Spells::registerEvent(Event* event, xmlNodePtr p)
 {
 	InstantSpell* instant = dynamic_cast<InstantSpell*>(event);
 	RuneSpell* rune = dynamic_cast<RuneSpell*>(event);
-	if(!instant && !rune)
-		return false;
 	if(instant)
+	{
+		if(instants[instant->getWords()] != NULL)
+		{
+			std::cout << "[Warning - Spells::registerEvent] Duplicate registered instant spell with words: " << instant->getWords() << std::endl;
+			return false;
+		}
+
 		instants[instant->getWords()] = instant;
+		return true;
+	}
 	else if(rune)
+	{
+		if(runes[rune->getRuneItemId()] != NULL)
+		{
+			std::cout << "[Warning - Spells::registerEvent] Duplicate registered rune with id: " << rune->getRuneItemId() << std::endl;
+			return false;
+		}
+
 		runes[rune->getRuneItemId()] = rune;
-	else
-		return false;
-	return true;
+		return true;
+	}
+	return false;
 }
 
 Spell* Spells::getSpellByName(const std::string& name)
@@ -523,6 +536,7 @@ bool Spell::configureSpell(xmlNodePtr p)
 					std::cout << "Warning: [Spell::configureSpell] Wrong vocation name: " << strValue << std::endl;
 			}
 		}
+
 		vocationNode = vocationNode->next;
 	}
 	return true;
@@ -882,8 +896,7 @@ ReturnValue Spell::CreateIllusion(Creature* creature, uint32_t itemId, int32_t t
 	return CreateIllusion(creature, outfit, time);
 }
 
-InstantSpell::InstantSpell(LuaScriptInterface* _interface) :
-TalkAction(_interface)
+InstantSpell::InstantSpell(LuaScriptInterface* _interface) : TalkAction(_interface)
 {
 	needDirection = false;
 	hasParam = false;
@@ -988,7 +1001,6 @@ bool InstantSpell::playerCastInstant(Player* player, const std::string& param)
 		return false;
 
 	LuaVariant var;
-
 	if(selfTarget)
 	{
 		var.type = VARIANT_NUMBER;
@@ -1188,28 +1200,9 @@ bool InstantSpell::executeCastSpell(Creature* creature, const LuaVariant& var)
 	}
 }
 
-House* InstantSpell::getHouseFromPos(Creature* creature)
-{
-	if(creature)
-	{
-		Player* player = creature->getPlayer();
-		if(player)
-		{
-			HouseTile* houseTile = dynamic_cast<HouseTile*>(player->getTile());
-			if(houseTile)
-			{
-				House* house = houseTile->getHouse();
-				if(house)
-					return house;
-			}
-		}
-	}
-	return NULL;
-}
-
 bool InstantSpell::HouseGuestList(const InstantSpell* spell, Creature* creature, const std::string& param)
 {
-	House* house = getHouseFromPos(creature);
+	House* house = Houses::getInstance().getHouseByPlayer(creature->getPlayer());
 	if(!house)
 		return false;
 
@@ -1229,7 +1222,7 @@ bool InstantSpell::HouseGuestList(const InstantSpell* spell, Creature* creature,
 
 bool InstantSpell::HouseSubOwnerList(const InstantSpell* spell, Creature* creature, const std::string& param)
 {
-	House* house = getHouseFromPos(creature);
+	House* house = Houses::getInstance().getHouseByPlayer(creature->getPlayer());
 	if(!house)
 		return false;
 
@@ -1249,34 +1242,35 @@ bool InstantSpell::HouseSubOwnerList(const InstantSpell* spell, Creature* creatu
 
 bool InstantSpell::HouseDoorList(const InstantSpell* spell, Creature* creature, const std::string& param)
 {
-	House* house = getHouseFromPos(creature);
+	House* house = Houses::getInstance().getHouseByPlayer(creature->getPlayer());
 	if(!house)
 		return false;
 
-	Player* player = creature->getPlayer();
-	Position pos = Spells::getCasterPosition(player, player->getDirection());
-	Door* door = house->getDoorByPosition(pos);
-	if(door && house->canEditAccessList(door->getDoorId(), player))
+	if(Player* player = creature->getPlayer())
 	{
-		player->setEditHouse(house, door->getDoorId());
-		player->sendHouseWindow(house, door->getDoorId());
-		return true;
-	}
-	else
-	{
-		player->sendCancelMessage(RET_NOTPOSSIBLE);
-		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		Door* door = house->getDoorByPosition(Spells::getCasterPosition(player, player->getDirection()));
+		if(door && house->canEditAccessList(door->getDoorId(), player))
+		{
+			player->setEditHouse(house, door->getDoorId());
+			player->sendHouseWindow(house, door->getDoorId());
+			return true;
+		}
+		else
+		{
+			player->sendCancelMessage(RET_NOTPOSSIBLE);
+			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		}
 	}
 	return true;
 }
 
 bool InstantSpell::HouseKick(const InstantSpell* spell, Creature* creature, const std::string& param)
 {
-	Player* targetPlayer = g_game.getPlayerByName(param);
-	if(!targetPlayer)
+	Player* targetPlayer = NULL;
+	if(g_game.getPlayerByNameWildcard(param, targetPlayer) != RET_NOERROR)
 		targetPlayer = creature->getPlayer();
 
-	House* house = getHouseFromPos(targetPlayer);
+	House* house = Houses::getInstance().getHouseByPlayer(targetPlayer);
 	if(!house)
 	{
 		g_game.addMagicEffect(creature->getPosition(), NM_ME_POFF);
@@ -1284,7 +1278,7 @@ bool InstantSpell::HouseKick(const InstantSpell* spell, Creature* creature, cons
 		return false;
 	}
 
-	if(!house->kickPlayer(creature->getPlayer(), targetPlayer->getName()))
+	if(!house->kickPlayer(creature->getPlayer(), targetPlayer))
 	{
 		g_game.addMagicEffect(creature->getPosition(), NM_ME_POFF);
 		creature->getPlayer()->sendCancelMessage(RET_NOTPOSSIBLE);
@@ -1295,196 +1289,31 @@ bool InstantSpell::HouseKick(const InstantSpell* spell, Creature* creature, cons
 
 bool InstantSpell::SearchPlayer(const InstantSpell* spell, Creature* creature, const std::string& param)
 {
-	//a. From 1 to 4 sq's [Person] is standing next to you.
-	//b. From 5 to 100 sq's [Person] is to the south, north, east, west.
-	//c. From 101 to 274 sq's [Person] is far to the south, north, east, west.
-	//d. From 275 to infinite sq's [Person] is very far to the south, north, east, west.
-	//e. South-west, s-e, n-w, n-e (corner coordinates): this phrase appears if the player you're looking for has moved five squares in any direction from the south, north, east or west.
-	//f. Lower level to the (direction): this phrase applies if the person you're looking for is from 1-25 squares up/down the actual floor you're in.
-	//g. Higher level to the (direction): this phrase applies if the person you're looking for is from 1-25 squares up/down the actual floor you're in.
-
 	Player* player = creature->getPlayer();
-	if(!player)
+	if(!player || player->isRemoved())
 		return false;
 
-	enum distance_t
-	{
-		DISTANCE_BESIDE,
-		DISTANCE_CLOSE_1,
-		DISTANCE_CLOSE_2,
-		DISTANCE_FAR,
-		DISTANCE_VERYFAR
-	};
-
-	enum direction_t
-	{
-		DIR_N, DIR_S, DIR_E, DIR_W,
-		DIR_NE, DIR_NW, DIR_SE, DIR_SW
-	};
-
-	enum level_t
-	{
-		LEVEL_HIGHER,
-		LEVEL_LOWER,
-		LEVEL_SAME
-	};
-
-	Player* playerExiva = NULL;
-	ReturnValue ret = g_game.getPlayerByNameWildcard(param, playerExiva);
-	if(playerExiva && ret == RET_NOERROR)
-	{
-		if(playerExiva->hasCustomFlag(PlayerCustomFlag_NotSearchable) && !player->hasCustomFlag(PlayerCustomFlag_NotSearchable))
-		{
-			player->sendCancelMessage(RET_PLAYERWITHTHISNAMEISNOTONLINE);
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
-			return false;
-		}
-
-		const Position lookPos = player->getPosition();
-		const Position searchPos = playerExiva->getPosition();
-
-		int32_t dx = lookPos.x - searchPos.x;
-		int32_t dy = lookPos.y - searchPos.y;
-		int32_t dz = lookPos.z - searchPos.z;
-
-		distance_t distance;
-		direction_t direction;
-		level_t level;
-		//getting floor
-		if(dz > 0)
-			level = LEVEL_HIGHER;
-		else if(dz < 0)
-			level = LEVEL_LOWER;
-		else
-			level = LEVEL_SAME;
-		//getting distance
-		if(std::abs(dx) < 4 && std::abs(dy) < 4)
-			distance = DISTANCE_BESIDE;
-		else
-		{
-			int32_t distance2 = dx*dx + dy*dy;
-			if(distance2 < 625)
-				distance = DISTANCE_CLOSE_1;
-			else if(distance2 < 10000)
-				distance = DISTANCE_CLOSE_2;
-			else if(distance2 < 75076)
-				distance = DISTANCE_FAR;
-			else
-				distance = DISTANCE_VERYFAR;
-		}
-		//getting direction
-		float tan;
-		if(dx != 0)
-			tan = (float)dy/(float)dx;
-		else
-			tan = 10.;
-		if(std::abs(tan) < 0.4142)
-		{
-			if(dx > 0)
-				direction = DIR_W;
-			else
-				direction = DIR_E;
-		}
-		else if(std::abs(tan) < 2.4142)
-		{
-			if(tan > 0)
-			{
-				if(dy > 0)
-					direction = DIR_NW;
-				else
-					direction = DIR_SE;
-			}
-			else
-			{
-				if(dx > 0)
-					direction = DIR_SW;
-				else
-					direction = DIR_NE;
-			}
-		}
-		else
-		{
-			if(dy > 0)
-				direction = DIR_N;
-			else
-				direction = DIR_S;
-		}
-
-		std::stringstream ss;
-		ss << playerExiva->getName() << " ";
-		if(distance == DISTANCE_BESIDE)
-		{
-			if(level == LEVEL_SAME)
-				ss << "is standing next to you";
-			else if(level == LEVEL_HIGHER)
-				ss << "is above you";
-			else if(level == LEVEL_LOWER)
-				ss << "is below you";
-		}
-		else
-		{
-			switch(distance)
-			{
-				case DISTANCE_CLOSE_1:
-					if(level == LEVEL_SAME)
-						ss << "is to the";
-					else if(level == LEVEL_HIGHER)
-						ss << "is on a higher level to the";
-					else if(level == LEVEL_LOWER)
-						ss << "is on a lower level to the";
-					break;
-				case DISTANCE_CLOSE_2:
-					ss << "is to the";
-					break;
-				case DISTANCE_FAR:
-					ss << "is far to the";
-					break;
-				case DISTANCE_VERYFAR:
-					ss << "is very far to the";
-					break;
-				default:
-					break;
-			}
-			ss << " ";
-			switch(direction)
-			{
-				case DIR_N:
-					ss << "north";
-					break;
-				case DIR_S:
-					ss << "south";
-					break;
-				case DIR_E:
-					ss << "east";
-					break;
-				case DIR_W:
-					ss << "west";
-					break;
-				case DIR_NE:
-					ss << "north-east";
-					break;
-				case DIR_NW:
-					ss << "north-west";
-					break;
-				case DIR_SE:
-					ss << "south-east";
-					break;
-				case DIR_SW:
-					ss << "south-west";
-					break;
-			}
-		}
-		ss << ".";
-		player->sendTextMessage(MSG_INFO_DESCR, ss.str().c_str());
-		g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_ENERGY);
-		return true;
-	}
-	else
+	Player* targetPlayer = NULL;
+	ReturnValue ret = g_game.getPlayerByNameWildcard(param, targetPlayer);
+	if(ret != RET_NOERROR || !targetPlayer || targetPlayer->isRemoved())
 	{
 		player->sendCancelMessage(ret);
 		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		return false;
 	}
-	return false;
+
+	if(targetPlayer->hasCustomFlag(PlayerCustomFlag_NotSearchable) && !player->hasCustomFlag(PlayerCustomFlag_GamemasterPrivileges))
+	{
+		player->sendCancelMessage(RET_PLAYERWITHTHISNAMEISNOTONLINE);
+		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		return false;
+	}
+
+	std::stringstream ss;
+	ss << targetPlayer->getName() << " " << g_game.getSearchString(player->getPosition(), targetPlayer->getPosition(), true) << ".";
+	player->sendTextMessage(MSG_INFO_DESCR, ss.str().c_str());
+	g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_ENERGY);
+	return true;
 }
 
 bool InstantSpell::SummonMonster(const InstantSpell* spell, Creature* creature, const std::string& param)
@@ -1526,7 +1355,7 @@ bool InstantSpell::SummonMonster(const InstantSpell* spell, Creature* creature, 
 		}
 	}
 
-	ReturnValue ret = Commands::placeSummon(creature, param);
+	ReturnValue ret = g_game.placeSummon(creature, param);
 	if(ret == RET_NOERROR)
 	{
 		spell->postCastSpell(player, (uint32_t)manaCost, (uint32_t)spell->getSoulCost());
@@ -1655,16 +1484,7 @@ bool ConjureSpell::configureEvent(xmlNodePtr p)
 	if(!InstantSpell::configureEvent(p))
 		return false;
 
-	/*
-	if(!Spell::configureSpell(p))
-		return false;
-
-	if(!TalkAction::configureEvent(p))
-		return false;
-	*/
-
 	int32_t intValue;
-
 	if(readXMLInteger(p, "conjureId", intValue))
 		conjureId = intValue;
 

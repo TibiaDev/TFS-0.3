@@ -44,26 +44,40 @@ class OutputMessage : public NetworkMessage, boost::noncopyable
 		OutputMessage();
 
 	public:
-		virtual ~OutputMessage() {}
+		virtual ~OutputMessage(){}
 
-		char* getOutputBuffer() { return (char*)&m_MsgBuf[m_outputBufferStart];}
+		char* getOutputBuffer() {return (char*)&m_MsgBuf[m_outputBufferStart];}
+		Protocol* getProtocol() const {return m_protocol;}
+		Connection* getConnection() const {return m_connection;}
 
-		void writeMessageLength()
+		void writeMessageLength() {addHeader((uint16_t)(m_MsgSize));}
+
+		void addCryptoHeader(bool addChecksum)
 		{
-			*(uint16_t*)(m_MsgBuf + 6) = m_MsgSize;
-			//added header size to the message size
-			m_MsgSize += 2;
-			m_outputBufferStart = 6;
+			if(addChecksum)
+				addHeader((uint32_t)(adlerChecksum((uint8_t*)(m_MsgBuf + m_outputBufferStart), m_MsgSize)));
+
+			addHeader((uint16_t)(m_MsgSize));
 		}
 
-		void addCryptoHeader()
+#ifdef __TRACK_NETWORK__
+		void Track(std::string file, int64_t line, std::string func)
 		{
-			*(uint32_t*)(m_MsgBuf + 2) = adlerChecksum((uint8_t*)(m_MsgBuf + 6), m_MsgSize);
-			m_MsgSize += 4;
-			*(uint16_t*)(m_MsgBuf) = m_MsgSize;
-			m_MsgSize += 2;
-			m_outputBufferStart = 0;
+			if(lastUses.size() >= 25)
+				lastUses.pop_front();
+
+			std::ostringstream os;
+			os << /*file << ":"*/ "line " << line << " " << func;
+			lastUses.push_back(os.str());
 		}
+
+		void PrintTrace()
+		{
+			uint32_t n = 1;
+			for(std::list<std::string>::const_reverse_iterator it = lastUses.rbegin(); it != lastUses.rend(); ++it, ++n)
+				std::cout << "\t" << n << ".\t" << (*it) << std::endl;
+		}
+#endif
 
 		enum OutputMessageState
 		{
@@ -73,37 +87,30 @@ class OutputMessage : public NetworkMessage, boost::noncopyable
 			STATE_WAITING
 		};
 
-		Protocol* getProtocol() { return m_protocol;}
-		Connection* getConnection() { return m_connection;}
-
-#ifdef __TRACK_NETWORK__
-		void Track(std::string file, int64_t line, std::string func)
-		{
-			if(last_uses.size() >= 25)
-				last_uses.pop_front();
-
-			std::ostringstream os;
-			os << /*file << ":"*/ "line " << line << " " << func;
-			last_uses.push_back(os.str());
-		}
-		void PrintTrace()
-		{
-			uint32_t n = 1;
-			for(std::list<std::string>::const_reverse_iterator iter = last_uses.rbegin(); iter != last_uses.rend(); ++iter, ++n)
-				std::cout << "\t" << n << ".\t" << *iter << std::endl;
-		}
-#endif
-
 	protected:
-#ifdef __TRACK_NETWORK__
-		std::list<std::string> last_uses;
-#endif
+		template <typename T>
+		inline void addHeader(T value)
+		{
+			if((int32_t)m_outputBufferStart - (int32_t)sizeof(T) < 0)
+			{
+				std::cout << "[Error - OutputMessage::addHeader] m_outputBufferStart(" << m_outputBufferStart << ") < " << sizeof(T) << std::endl;
+				return;
+			}
+
+			m_outputBufferStart = m_outputBufferStart - sizeof(T);
+			*(T*)(m_MsgBuf + m_outputBufferStart) = value;
+			m_MsgSize = m_MsgSize + sizeof(T);
+		}
 
 		void freeMessage()
 		{
 			setConnection(NULL);
 			setProtocol(NULL);
 			m_frame = 0;
+			//allocate enough size for headers
+			//2 bytes for unencrypted message
+			//4 bytes for checksum
+			//2 bytes for encrypted message
 			m_outputBufferStart = 8;
 			//setState have to be the last one
 			setState(OutputMessage::STATE_FREE);
@@ -111,22 +118,25 @@ class OutputMessage : public NetworkMessage, boost::noncopyable
 
 		friend class OutputMessagePool;
 
-		void setProtocol(Protocol* protocol){ m_protocol = protocol;}
-		void setConnection(Connection* connection){ m_connection = connection;}
+		void setProtocol(Protocol* protocol) {m_protocol = protocol;}
+		void setConnection(Connection* connection) {m_connection = connection;}
 
-		void setState(OutputMessageState state) { m_state = state;}
-		OutputMessageState getState() const { return m_state;}
+		void setState(OutputMessageState state) {m_state = state;}
+		OutputMessageState getState() const {return m_state;}
 
-		void setFrame(uint64_t frame) { m_frame = frame;}
-		uint64_t getFrame() const { return m_frame;}
+		void setFrame(uint64_t frame) {m_frame = frame;}
+		uint64_t getFrame() const {return m_frame;}
 
 		Protocol* m_protocol;
 		Connection* m_connection;
 
-		uint32_t m_outputBufferStart;
-		uint64_t m_frame;
-
 		OutputMessageState m_state;
+		uint64_t m_frame;
+		uint32_t m_outputBufferStart;
+
+#ifdef __TRACK_NETWORK__
+		std::list<std::string> lastUses;
+#endif
 };
 
 class OutputMessagePool
@@ -135,7 +145,7 @@ class OutputMessagePool
 		OutputMessagePool();
 
 	public:
-		~OutputMessagePool();
+		virtual ~OutputMessagePool();
 
 		static OutputMessagePool* getInstance()
 		{
@@ -175,5 +185,4 @@ class OutputMessagePool
 #else
 	#define TRACK_MESSAGE(omsg)
 #endif
-
 #endif

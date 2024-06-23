@@ -292,7 +292,7 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 		}
 
 		bool isNamelocked = false;
-		if(IOBan::getInstance()->isNamelocked(player->getGUID()) && accnumber > 1)
+		if(IOBan::getInstance()->isNamelocked(player->getGUID()) && accnumber != 1)
 		{
 			if(g_config.getBool(ConfigManager::NAMELOCK_MANAGER))
 			{
@@ -302,26 +302,25 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 				player->setID();
 				IOLoginData::getInstance()->loadPlayer(player, "Account Manager");
 				player->accountManager = MANAGER_NAMELOCK;
-				player->realAccount = accnumber;
-				player->namelockedPlayer = name;
+				player->managerNumber = accnumber;
+				player->managerString2 = name;
 			}
 			else
 				isNamelocked = true;
 		}
 
-		if(player->getName() == "Account Manager" && g_config.getBool(ConfigManager::ACCOUNT_MANAGER))
+		if(player->getName() == "Account Manager" && g_config.getBool(ConfigManager::ACCOUNT_MANAGER) && !isNamelocked)
 		{
 			if(accnumber == 1)
 				player->accountManager = MANAGER_NEW;
-			else if(!player->isAccountManager())
+			else
 			{
 				player->accountManager = MANAGER_ACCOUNT;
-				player->realAccount = accnumber;
+				player->managerNumber = accnumber;
 			}
 		}
 
 		player->setOperatingSystem((OperatingSystem_t)operatingSystem);
-
 		if(gamemasterLogin == 1 && !player->hasCustomFlag(PlayerCustomFlag_GamemasterPrivileges) && !player->isAccountManager())
 		{
 			disconnectClient(0x14, "You are not a gamemaster!");
@@ -329,7 +328,7 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 		}
 
 		Ban ban;
-		if(IOBan::getInstance()->getBanishmentData(accnumber, ban) && !player->hasFlag(PlayerFlag_CannotBeBanned))
+		if(IOBan::getInstance()->getData(accnumber, ban) && !player->hasFlag(PlayerFlag_CannotBeBanned))
 		{
 			bool deletion = (ban.type == BANTYPE_DELETION);
 
@@ -422,12 +421,12 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 	}
 	else
 	{
-		if(_player->isOnline())
+		if(_player->client)
 		{
 			if(eventConnect != 0 || !g_config.getBool(ConfigManager::REPLACE_KICK_ON_LOGIN))
 			{
 				//Already trying to connect
-				disconnectClient(0x14, "Your already logged in.");
+				disconnectClient(0x14, "You are already logged in.");
 				return false;
 			}
 
@@ -448,9 +447,9 @@ bool ProtocolGame::connect(uint32_t playerId)
 {
 	eventConnect = 0;
 	Player* _player = g_game.getPlayerByID(playerId);
-	if(!_player || _player->isRemoved() || _player->isOnline())
+	if(!_player || _player->isRemoved() || _player->client)
 	{
-		disconnectClient(0x14, "Your already logged in.");
+		disconnectClient(0x14, "You are already logged in.");
 		return false;
 	}
 
@@ -555,7 +554,7 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 			password = "1";
 		else
 		{
-			disconnectClient(0x14, "You must enter your account number.");
+			disconnectClient(0x14, "You must enter your account name.");
 			return false;
 		}
 	}
@@ -585,8 +584,8 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 	}
 
 	std::string accPass;
-	if((!IOLoginData::getInstance()->getAccountId(accName, accId) || !(IOLoginData::getInstance()->getPassword(accId, name, accPass)
-		&& passwordTest(password, accPass))) && name != "Account Manager")
+	if(((accName.length() && !IOLoginData::getInstance()->getAccountId(accName, accId)) ||
+		!IOLoginData::getInstance()->getPassword(accId, name, accPass) || !passwordTest(password, accPass)) && name != "Account Manager")
 	{
 		ConnectionManager::getInstance()->addLoginAttempt(getIP(), false);
 		getConnection()->closeConnection();
@@ -594,7 +593,6 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 	}
 
 	ConnectionManager::getInstance()->addLoginAttempt(getIP(), true);
-
 	Dispatcher::getDispatcher().addTask(
 		createTask(boost::bind(&ProtocolGame::login, this, name, accId, password, operatingSystem, gamemasterLogin)));
 
@@ -609,10 +607,13 @@ void ProtocolGame::onRecvFirstMessage(NetworkMessage& msg)
 void ProtocolGame::disconnectClient(uint8_t error, const char* message)
 {
 	OutputMessage* output = OutputMessagePool::getInstance()->getOutputMessage(this, false);
-	TRACK_MESSAGE(output);
-	output->AddByte(error);
-	output->AddString(message);
-	OutputMessagePool::getInstance()->send(output);
+	if(output)
+	{
+		TRACK_MESSAGE(output);
+		output->AddByte(error);
+		output->AddString(message);
+		OutputMessagePool::getInstance()->send(output);
+	}
 	disconnect();
 }
 
@@ -1706,25 +1707,22 @@ void ProtocolGame::sendCreatureShield(const Creature* creature)
 			TRACK_MESSAGE(msg);
 			msg->AddByte(0x91);
 			msg->AddU32(creature->getID());
-			msg->AddByte(player->getPartyShield(creature->getPlayer()));
+			msg->AddByte(player->getPartyShield(creature));
 		}
 	}
 }
 
 void ProtocolGame::sendCreatureSkull(const Creature* creature)
 {
-	if(g_game.getWorldType() == WORLD_TYPE_PVP)
+	if(canSee(creature))
 	{
-		if(canSee(creature))
+		NetworkMessage* msg = getOutputBuffer();
+		if(msg)
 		{
-			NetworkMessage* msg = getOutputBuffer();
-			if(msg)
-			{
-				TRACK_MESSAGE(msg);
-				msg->AddByte(0x90);
-				msg->AddU32(creature->getID());
-				msg->AddByte(player->getSkullClient(creature->getPlayer()));
-			}
+			TRACK_MESSAGE(msg);
+			msg->AddByte(0x90);
+			msg->AddU32(creature->getID());
+			msg->AddByte(player->getSkullClient(creature));
 		}
 	}
 }
@@ -2361,6 +2359,7 @@ void ProtocolGame::sendAddCreature(const Creature* creature, bool isLogin)
 						{
 							if(tempstring.size())
 								AddTextMessage(msg, MSG_STATUS_DEFAULT, tempstring.c_str());
+
 							tempstring = "Your last visit was on ";
 							time_t lastLogin = player->getLastLoginSaved();
 							tempstring += ctime(&lastLogin);
@@ -2369,7 +2368,7 @@ void ProtocolGame::sendAddCreature(const Creature* creature, bool isLogin)
 						}
 						AddTextMessage(msg, MSG_STATUS_DEFAULT, tempstring);
 					}
-					else if(player->isAccountManager())
+					else
 					{
 						switch(player->accountManager)
 						{
@@ -2720,7 +2719,7 @@ void ProtocolGame::sendVIP(uint32_t guid, const std::string& name, bool isOnline
 		msg->AddByte(0xD2);
 		msg->AddU32(guid);
 		msg->AddString(name);
-		msg->AddByte(isOnline == true ? 1 : 0);
+		msg->AddByte(isOnline ? 1 : 0);
 	}
 }
 
@@ -2794,8 +2793,8 @@ void ProtocolGame::AddCreature(NetworkMessage* msg, const Creature* creature, bo
 
 	msg->AddU16(creature->getStepSpeed());
 
-	msg->AddByte(player->getSkullClient(creature->getPlayer()));
-	msg->AddByte(player->getPartyShield(creature->getPlayer()));
+	msg->AddByte(player->getSkullClient(creature));
+	msg->AddByte(player->getPartyShield(creature));
 }
 
 void ProtocolGame::AddPlayerStats(NetworkMessage* msg)
