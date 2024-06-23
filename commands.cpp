@@ -84,6 +84,7 @@ s_defcommands Commands::defined_commands[] =
 	{"/unban", &Commands::unban},
 	{"/ghost", &Commands::ghost},
 	{"/squelch", &Commands::squelch},
+	{"/maport", &Commands::mapTeleport},
 	{"/attr", &Commands::changeThingProporties},
 	{"/baninfo", &Commands::showBanishmentInfo},
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
@@ -134,8 +135,7 @@ Commands::Commands()
 
 bool Commands::loadFromXml()
 {
-	std::string filename = "data/XML/commands.xml";
-	xmlDocPtr doc = xmlParseFile(filename.c_str());
+	xmlDocPtr doc = xmlParseFile(getFilePath(FILE_TYPE_XML, "commands.xml").c_str());
 	if(doc)
 	{
 		loaded = true;
@@ -228,51 +228,61 @@ bool Commands::reload()
 
 bool Commands::exeCommand(Creature* creature, const std::string& cmd)
 {
-	std::string str_command;
-	std::string str_param;
+	boost::char_separator<char> sep("&&");
+	tokenizer cmdtokens(cmd, sep);
+	tokenizer::iterator cmdit = cmdtokens.begin();
 
-	std::string::size_type loc = cmd.find(' ', 0 );
-	if(loc != std::string::npos && loc >= 0)
+	while(cmdit != cmdtokens.end())
 	{
-		str_command = std::string(cmd, 0, loc);
-		str_param = std::string(cmd, (loc + 1), cmd.size() - loc - 1);
-	}
-	else
-	{
-		str_command = cmd;
-		str_param = std::string("");
-	}
+		
+		std::string strCommand;
+		std::string strParam;
+		std::string cmdThis = parseParams(cmdit, cmdtokens.end());
+		trimString(cmdThis);
 
-	//find command
-	CommandMap::iterator it = commandMap.find(str_command);
-	if(it == commandMap.end())
-		return false;
-
-	Player* player = creature->getPlayer();
-	if(player && (it->second->accessLevel > player->getAccessLevel() || player->name == "Account Manager"))
-	{
-		if(player->getAccessLevel() > 0)
-			player->sendTextMessage(MSG_STATUS_SMALL, "You can not execute this command.");
-
-		return false;
-	}
-
-	//execute command
-	CommandFunc cfunc = it->second->f;
-	(this->*cfunc)(creature, str_command, str_param);
-	if(player && it->second->logged)
-	{
-		player->sendTextMessage(MSG_STATUS_CONSOLE_RED, cmd.c_str());
-
-		char buf[21], buffer[100];
-		formatDate(time(NULL), buf);
-		sprintf(buffer, "data/logs/%s commands.log", player->name.c_str());
-
-		FILE* file = fopen(buffer, "a");
-		if(file)
+		std::string::size_type loc = cmdThis.find(' ', 0 );
+		if(loc != std::string::npos && loc >= 0)
 		{
-			fprintf(file, "[%s] %s\n", buf, cmd.c_str());
-			fclose(file);
+			strCommand = std::string(cmdThis, 0, loc);
+			strParam = std::string(cmdThis, (loc + 1), cmdThis.size() - loc - 1);
+		}
+		else
+		{
+			strCommand = cmdThis;
+			strParam = std::string("");
+		}
+	
+		//find command
+		CommandMap::iterator it = commandMap.find(strCommand);
+		if(it == commandMap.end())
+			return false;
+	
+		Player* player = creature->getPlayer();
+		if(player && (it->second->accessLevel > player->getAccessLevel() || player->isAccountManager()))
+		{
+			if(player->getAccessLevel() > 0)
+				player->sendTextMessage(MSG_STATUS_SMALL, "You can not execute this command.");
+	
+			return false;
+		}
+	
+		//execute command
+		CommandFunc cfunc = it->second->f;
+		(this->*cfunc)(creature, strCommand, strParam);
+		if(player && it->second->logged)
+		{
+			player->sendTextMessage(MSG_STATUS_CONSOLE_RED, cmdThis.c_str());
+	
+			char buf[21], buffer[100];
+			formatDate(time(NULL), buf);
+			sprintf(buffer, "%s_commands.log", getFilePath(FILE_TYPE_LOG, player->getName()).c_str());
+	
+			FILE* file = fopen(buffer, "a");
+			if(file)
+			{
+				fprintf(file, "[%s] %s\n", buf, cmdThis.c_str());
+				fclose(file);
+			}
 		}
 	}
 	return true;
@@ -458,7 +468,7 @@ bool Commands::createItemById(Creature* creature, const std::string& cmd, const 
 	if(pos < tmp.size())
 	{
 		tmp.erase(0, pos + 1);
-		count = std::max(1, std::min(atoi(tmp.c_str()), 100));
+		count = std::max(1, std::min(atoi(tmp.c_str()), 1000));
 	}
 
 	Item* newItem = Item::CreateItem(type, count);
@@ -504,7 +514,7 @@ bool Commands::createItemByName(Creature* creature, const std::string& cmd, cons
 	if(pos2 < param.size())
 	{
 		std::string itemCount = param.substr(pos2 + 1, param.size() - (pos2 + 1));
-		count = std::min(atoi(itemCount.c_str()), 100);
+		count = std::min(atoi(itemCount.c_str()), 1000);
 	}
 
 	int32_t itemId = Item::items.getItemIdByName(itemName);
@@ -767,8 +777,7 @@ bool Commands::getInfo(Creature* creature, const std::string& cmd, const std::st
 			player->sendTextMessage(MSG_STATUS_CONSOLE_BLUE, "You can not get info about this player.");
 			return true;
 		}
-		uint8_t ip[4];
-		*(uint32_t*)&ip = paramPlayer->lastIP;
+		uint8_t ip[4]; *(uint32_t*)&ip = paramPlayer->lastIP;
 		std::stringstream info;
 		info << "name:      " << paramPlayer->name << std::endl <<
 			"access:    " << paramPlayer->accessLevel << std::endl <<
@@ -1212,7 +1221,7 @@ bool Commands::newType(Creature* creature, const std::string& cmd, const std::st
 	int32_t lookType = atoi(param.c_str());
 	if(player)
 	{
-		if(lookType < 0 || lookType == 1 || lookType == 135 || (lookType > 160 && lookType < 192) || lookType > 301)
+		if(lookType < 0 || lookType == 1 || lookType == 135 || (lookType > 160 && lookType < 192) || lookType > 302)
 			player->sendTextMessage(MSG_STATUS_SMALL, "This looktype does not exist.");
 		else
 		{
@@ -1399,10 +1408,13 @@ bool Commands::unban(Creature* creature, const std::string& cmd, const std::stri
 	if(player)
 	{
 		uint32_t accountNumber = atoi(param.c_str());
-		bool removedIpBan = false;
+		bool removedNamelock = false, removedIpBan = false;
 		if(accountNumber == 0 && IOLoginData::getInstance()->playerExists(param))
 		{
 			accountNumber = IOLoginData::getInstance()->getAccountNumberByName(param);
+			if(IOBan::getInstance()->isNamelocked(param))
+				removedNamelock = IOBan::getInstance()->removeNamelock(param);
+
 			uint32_t lastip = IOLoginData::getInstance()->getLastIPByName(param);
 			if(lastip != 0 && IOBan::getInstance()->isIpBanished(lastip))
 				removedIpBan = IOBan::getInstance()->removeIpBanishment(lastip);
@@ -1424,10 +1436,17 @@ bool Commands::unban(Creature* creature, const std::string& cmd, const std::stri
 			sprintf(buffer, "%s has been undeleted.", param.c_str());
 			player->sendTextMessage(MSG_INFO_DESCR, buffer);
 		}
-		else if(!removedIpBan)
+		else if(!removedNamelock && !removedIpBan)
 		{
 			player->sendCancel("That player or account is not banished or deleted.");
 			return false;
+		}
+
+		if(removedNamelock)
+		{
+			char buffer[80];
+			sprintf(buffer, "Namelock from %s has been removed.", param.c_str());
+			player->sendTextMessage(MSG_INFO_DESCR, buffer);
 		}
 
 		if(removedIpBan)
@@ -1539,6 +1558,21 @@ bool Commands::squelch(Creature* creature, const std::string& cmd, const std::st
 	return false;
 }
 
+bool Commands::mapTeleport(Creature* creature, const std::string& cmd, const std::string& param)
+{
+	Player* player = creature->getPlayer();
+	if(player)
+	{
+		player->switchTeleportByMap();
+		char buffer[90];
+		sprintf(buffer, "You have %s map click teleporting.", (player->isTeleportingByMap() ? "enabled" : "disabled"));
+		player->sendTextMessage(MSG_INFO_DESCR, buffer);
+		return true;
+	}
+
+	return false;
+}
+
 bool Commands::changeThingProporties(Creature* creature, const std::string& cmd, const std::string& param)
 {
 	Player* player = creature->getPlayer();
@@ -1613,55 +1647,55 @@ bool Commands::changeThingProporties(Creature* creature, const std::string& cmd,
 							return false;
 						}
 					}
-					else if(Creature* creature = thing->getCreature())
+					else if(Creature* _creature = thing->getCreature())
 					{
 						param = parseParams(cmdit, cmdtokens.end());
 						if(strcasecmp(param.c_str(), "health") == 0)
-							creature->changeHealth(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+							_creature->changeHealth(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 						else if(strcasecmp(param.c_str(), "maxhealth") == 0)
-							creature->changeMaxHealth(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+							_creature->changeMaxHealth(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 						else if(strcasecmp(param.c_str(), "mana") == 0)
-							creature->changeMana(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+							_creature->changeMana(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 						else if(strcasecmp(param.c_str(), "maxmana") == 0)
-							creature->changeMaxMana(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+							_creature->changeMaxMana(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 						else if(strcasecmp(param.c_str(), "basespeed") == 0)
-							creature->setBaseSpeed(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+							_creature->setBaseSpeed(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 						else if(strcasecmp(param.c_str(), "droploot") == 0)
-							creature->setDropLoot(booleanString(parseParams(cmdit, cmdtokens.end()).c_str()));
+							_creature->setDropLoot(booleanString(parseParams(cmdit, cmdtokens.end()).c_str()));
 						else if(strcasecmp(param.c_str(), "lossskill") == 0)
-							creature->setLossSkill(booleanString(parseParams(cmdit, cmdtokens.end()).c_str()));
-						else if(Player* player = creature->getPlayer())
+							_creature->setLossSkill(booleanString(parseParams(cmdit, cmdtokens.end()).c_str()));
+						else if(Player* _player = _creature->getPlayer())
 						{
 							if(strcasecmp(param.c_str(), "fyi") == 0)
-								player->sendFYIBox(parseParams(cmdit, cmdtokens.end()).c_str());
+								_player->sendFYIBox(parseParams(cmdit, cmdtokens.end()).c_str());
 							else if(strcasecmp(param.c_str(), "guildrank") == 0)
-								player->setGuildRankId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+								_player->setGuildRankId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 							else if(strcasecmp(param.c_str(), "guildnick") == 0)
-								player->setGuildNick(parseParams(cmdit, cmdtokens.end()).c_str());
+								_player->setGuildNick(parseParams(cmdit, cmdtokens.end()).c_str());
 							else if(strcasecmp(param.c_str(), "group") == 0)
-								player->setGroupId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+								_player->setGroupId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 							else if(strcasecmp(param.c_str(), "extrarate") == 0)
-								player->setExtraExpRate(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+								_player->setExtraExpRate(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 							else if(strcasecmp(param.c_str(), "vocation") == 0)
-								player->setVocation(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+								_player->setVocation(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 							else if(strcasecmp(param.c_str(), "sex") == 0)
-								player->setSex((PlayerSex_t)atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+								_player->setSex((PlayerSex_t)atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 							else if(strcasecmp(param.c_str(), "stamina") == 0)
-								player->setStaminaMinutes(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+								_player->setStaminaMinutes(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 							else if(strcasecmp(param.c_str(), "town") == 0) //FIXME
-								player->setTown(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+								_player->setTown(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 							else if(strcasecmp(param.c_str(), "skull") == 0)
-								player->setSkull((Skulls_t)atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+								_player->setSkull((Skulls_t)atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 							else if(strcasecmp(param.c_str(), "balance") == 0)
-								player->balance = atoi(parseParams(cmdit, cmdtokens.end()).c_str());
+								_player->balance = atoi(parseParams(cmdit, cmdtokens.end()).c_str());
 							else if(strcasecmp(param.c_str(), "marriage") == 0)
-								player->marriage = atoi(parseParams(cmdit, cmdtokens.end()).c_str());
+								_player->marriage = atoi(parseParams(cmdit, cmdtokens.end()).c_str());
 							else if(strcasecmp(param.c_str(), "resetidle") == 0)
-								player->resetIdleTime();
+								_player->resetIdleTime();
 							else if(strcasecmp(param.c_str(), "ghost") == 0)
-								player->switchGhostMode();
+								_player->switchGhostMode();
 							else if(strcasecmp(param.c_str(), "squelch") == 0)
-								player->switchPrivMsgIgnore();
+								_player->switchPrivMsgIgnore();
 							else
 							{
 								player->sendTextMessage(MSG_STATUS_SMALL, "No valid action.");
@@ -1669,9 +1703,9 @@ bool Commands::changeThingProporties(Creature* creature, const std::string& cmd,
 								return false;
 							}
 						}
-						/*else if(Npc* npc = creature->getNpc())
+						/*else if(Npc* npc = _creature->getNpc())
 							//
-						else if(Monster* monster = creature->getMonster())
+						else if(Monster* monster = _creature->getMonster())
 							//*/
 						else
 						{

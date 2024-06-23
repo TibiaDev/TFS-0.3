@@ -42,14 +42,11 @@ Vocations::~Vocations()
 
 bool Vocations::loadFromXml()
 {
-	std::string filename = "data/XML/vocations.xml";
-
-	xmlDocPtr doc = xmlParseFile(filename.c_str());
+	xmlDocPtr doc = xmlParseFile(getFilePath(FILE_TYPE_XML,"vocations.xml").c_str());
 	if(doc)
 	{
 		xmlNodePtr root, p;
 		root = xmlDocGetRootElement(doc);
-
 		if(xmlStrcmp(root->name,(const xmlChar*)"vocations") != 0)
 		{
 			xmlFreeDoc(doc);
@@ -57,7 +54,6 @@ bool Vocations::loadFromXml()
 		}
 
 		p = root->children;
-
 		while(p)
 		{
 			std::string str;
@@ -66,16 +62,18 @@ bool Vocations::loadFromXml()
 			if(xmlStrcmp(p->name, (const xmlChar*)"vocation") == 0)
 			{
 				Vocation* voc = new Vocation();
-				uint32_t voc_id;
 				xmlNodePtr configNode;
 				if(readXMLInteger(p, "id", intVal))
 				{
-					voc_id = intVal;
+					voc->id = intVal;
 					if(readXMLString(p, "name", str))
 						voc->name = str;
 
 					if(readXMLString(p, "description", str))
 						voc->description = str;
+
+					if(readXMLString(p, "needpremium", str))
+						voc->needPremium = booleanString(str);
 
 					if(readXMLInteger(p, "gaincap", intVal))
 						voc->gainCap = intVal;
@@ -116,7 +114,7 @@ bool Vocations::loadFromXml()
 					if(readXMLString(p, "attackable", str))
 						voc->attackable = booleanString(str);
 
-					if(readXMLInteger(p, "fromvoc", intVal))
+					if(readXMLInteger(p, "fromvoc", intVal) || readXMLInteger(p, "fromvocation", intVal))
 						voc->fromVocation = intVal;
 
 					configNode = p->children;
@@ -144,7 +142,7 @@ bool Vocations::loadFromXml()
 							if(readXMLFloat(configNode, "meleeDamage", floatVal))
 								voc->meleeDamageMultipler = floatVal;
 
-							if(readXMLFloat(configNode, "distDamage", floatVal))
+							if(readXMLFloat(configNode, "distDamage", floatVal) || readXMLFloat(configNode, "distanceDamage", floatVal))
 								voc->distDamageMultipler = floatVal;
 
 							if(readXMLFloat(configNode, "defense", floatVal))
@@ -155,7 +153,7 @@ bool Vocations::loadFromXml()
 						}
 						configNode = configNode->next;
 					}
-					vocationsMap[voc_id] = voc;
+					vocationsMap[voc->id] = voc;
 				}
 				else
 					std::cout << "Missing vocation id." << std::endl;
@@ -175,7 +173,7 @@ Vocation* Vocations::getVocation(uint32_t vocId)
 	else
 	{
 		std::cout << "Warning: [Vocations::getVocation] Vocation " << vocId << " not found." << std::endl;
-		return &def_voc;
+		return &defVoc;
 	}
 }
 
@@ -196,7 +194,7 @@ int32_t Vocations::getPromotedVocation(uint32_t vocationId)
 		if(it->second->fromVocation == vocationId && it->first != vocationId)
 			return it->first;
 	}
-	return 0;
+	return -1;
 }
 
 uint32_t Vocation::skillBase[SKILL_LAST + 1] = { 50, 50, 50, 50, 30, 100, 20 };
@@ -205,6 +203,7 @@ Vocation::Vocation()
 {
 	name = "none";
 	description = "";
+	needPremium = false;
 	gainHealthTicks = 6;
 	gainHealthAmount = 1;
 	gainManaTicks = 6;

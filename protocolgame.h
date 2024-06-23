@@ -51,6 +51,8 @@ class ProtocolGame : public Protocol
 		ProtocolGame(Connection* connection);
 		virtual ~ProtocolGame();
 
+		virtual int32_t getProtocolId() {return 0x0A;}
+
 		bool login(const std::string& name, uint32_t accnumber, const std::string& password, uint16_t operatingSystem, uint8_t gamemasterLogin);
 		bool logout(bool displayEffect, bool forced);
 
@@ -188,9 +190,9 @@ class ProtocolGame : public Protocol
 		void sendCreatureSkull(const Creature* creature);
 		void sendCreatureShield(const Creature* creature);
 
-		void sendShop(const std::list<ShopInfo>& shop);
+		void sendShop(const ShopInfoList& itemList);
 		void sendCloseShop();
-		void sendPlayerCash(uint32_t amount);
+		void sendGoods(const std::map<uint32_t, uint32_t>& itemMap);
 		void sendTradeItemRequest(const Player* player, const Item* item, bool ack);
 		void sendCloseTrade();
 

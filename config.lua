@@ -10,7 +10,7 @@
 	newPlayerTownId = 1
 	newPlayerLevel = 1
 	newPlayerMagicLevel = 0
-	generateAccountNumber = "yes"
+	generateAccountNumber = "no"
 
 	-- Banishments
 	notationsToBan = 3
@@ -74,7 +74,7 @@
 	maxDeathRecords = 5
 
 	-- Guilds
-	inGameGuildManagement = "yes"
+	ingameGuildManagement = "yes"
 	levelToFormGuild = 8
 	guildNameMinLength = 4
 	guildNameMaxLength = 20

@@ -296,30 +296,33 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 		{
 			if(g_config.getBool(ConfigManager::NAMELOCK_MANAGER))
 			{
-				std::string realPassword = player->password;
 				player = NULL;
 				player = new Player("Account Manager", this);
 				player->useThing2();
 				player->setID();
 				IOLoginData::getInstance()->loadPlayer(player, "Account Manager");
-				player->password = realPassword;
+				player->accountManager = MANAGER_NAMELOCK;
 				player->realAccount = accnumber;
 				player->namelockedPlayer = name;
-				player->accountManager = true;
 			}
 			else
 				isNamelocked = true;
 		}
 
-		if(player->getName() == "Account Manager" && accnumber > 1 && !player->accountManager && g_config.getBool(ConfigManager::ACCOUNT_MANAGER))
+		if(player->getName() == "Account Manager" && g_config.getBool(ConfigManager::ACCOUNT_MANAGER))
 		{
-			player->accountManager = true;
-			player->realAccount = accnumber;
+			if(accnumber == 1)
+				player->accountManager = MANAGER_NEW;
+			else if(!player->isAccountManager())
+			{
+				player->accountManager = MANAGER_ACCOUNT;
+				player->realAccount = accnumber;
+			}
 		}
 
 		player->setOperatingSystem((OperatingSystem_t)operatingSystem);
 
-		if(gamemasterLogin == 1 && !player->hasCustomFlag(PlayerCustomFlag_GamemasterPrivileges) && player->getName() != "Account Manager")
+		if(gamemasterLogin == 1 && !player->hasCustomFlag(PlayerCustomFlag_GamemasterPrivileges) && !player->isAccountManager())
 		{
 			disconnectClient(0x14, "You are not a gamemaster!");
 			return false;
@@ -367,7 +370,7 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 			return false;
 		}
 
-		if(g_config.getBool(ConfigManager::ONE_PLAYER_ON_ACCOUNT) && player->getName() != "Account Manager"
+		if(g_config.getBool(ConfigManager::ONE_PLAYER_ON_ACCOUNT) && !player->isAccountManager()
 			&& g_game.getPlayerByAccount(player->getAccount()) && !IOLoginData::getInstance()->hasCustomFlag(accnumber, PlayerCustomFlag_CanLoginMultipleCharacters))
 		{
 			disconnectClient(0x14, "You may only login with one character\nof your account at the same time.");
@@ -380,8 +383,12 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 			int32_t retryTime = WaitingList::getTime(currentSlot);
 			std::stringstream ss;
 
-			ss << "Too many players online.\n" << "You are at place "
-				<< currentSlot << " on the waiting list.";
+			ss << "Too many players online.\n" << "You are at ";
+			if(currentSlot > 0)
+				ss << currentSlot;
+			else
+				ss << "unknown";
+			ss << " place on the waiting list.";
 
 			OutputMessage* output = OutputMessagePool::getInstance()->getOutputMessage(this, false);
 			TRACK_MESSAGE(output);
@@ -415,15 +422,15 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 	}
 	else
 	{
-		if(eventConnect != 0 || !g_config.getBool(ConfigManager::REPLACE_KICK_ON_LOGIN))
-		{
-			//Already trying to connect
-			disconnectClient(0x14, "Your already logged in.");
-			return false;
-		}
-
 		if(_player->isOnline())
 		{
+			if(eventConnect != 0 || !g_config.getBool(ConfigManager::REPLACE_KICK_ON_LOGIN))
+			{
+				//Already trying to connect
+				disconnectClient(0x14, "Your already logged in.");
+				return false;
+			}
+
 			g_chat.removeUserFromAllChannels(_player);
 			_player->disconnect();
 			_player->isConnecting = true;
@@ -513,7 +520,7 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 		return false;
 	}
 
-	uint16_t clientos = msg.GetU16();
+	uint16_t operatingSystem = msg.GetU16();
 	uint16_t version = msg.GetU16();
 
 	if(!RSA_decrypt(g_otservRSA, msg))
@@ -530,10 +537,11 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 	enableXTEAEncryption();
 	setXTEAKey(key);
 
-	uint8_t isSetGM = msg.GetByte();
-	uint32_t accnumber = msg.GetU32();
+	uint8_t gamemasterLogin = msg.GetByte();
+	std::string accName = msg.GetString();
 	const std::string name = msg.GetString();
 	std::string password = msg.GetString();
+	uint32_t accId = 1;
 
 	if(version < CLIENT_VERSION_MIN || version > CLIENT_VERSION_MAX)
 	{
@@ -541,13 +549,10 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 		return false;
 	}
 
-	if(!accnumber)
+	if(!accName.length())
 	{
 		if(g_config.getBool(ConfigManager::ACCOUNT_MANAGER))
-		{
-			accnumber = 1;
 			password = "1";
-		}
 		else
 		{
 			disconnectClient(0x14, "You must enter your account number.");
@@ -579,8 +584,9 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 		return false;
 	}
 
-	std::string acc_pass;
-	if(!(IOLoginData::getInstance()->getPassword(accnumber, name, acc_pass) && passwordTest(password, acc_pass)) && name != "Account Manager")
+	std::string accPass;
+	if((!IOLoginData::getInstance()->getAccountId(accName, accId) || !(IOLoginData::getInstance()->getPassword(accId, name, accPass)
+		&& passwordTest(password, accPass))) && name != "Account Manager")
 	{
 		ConnectionManager::getInstance()->addLoginAttempt(getIP(), false);
 		getConnection()->closeConnection();
@@ -590,7 +596,7 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 	ConnectionManager::getInstance()->addLoginAttempt(getIP(), true);
 
 	Dispatcher::getDispatcher().addTask(
-		createTask(boost::bind(&ProtocolGame::login, this, name, accnumber, password, clientos, isSetGM)));
+		createTask(boost::bind(&ProtocolGame::login, this, name, accId, password, operatingSystem, gamemasterLogin)));
 
 	return true;
 }
@@ -644,7 +650,7 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 	if((player->isRemoved() || player->getHealth() <= 0) && recvbyte != 0x14)
 		return;
 
-	if(player->getName() == "Account Manager")
+	if(player->isAccountManager())
 	{
 		switch(recvbyte)
 		{
@@ -1454,7 +1460,9 @@ void ProtocolGame::parsePlayerPurchase(NetworkMessage &msg)
 	uint16_t id = msg.GetU16();
 	uint16_t count = msg.GetByte();
 	uint16_t amount = msg.GetByte();
-	addGameTask(&Game::playerPurchaseItem, player->getID(), id, count, amount);
+	bool ignoreCap = msg.GetByte();
+	bool inBackpacks = msg.GetByte();
+	addGameTask(&Game::playerPurchaseItem, player->getID(), id, count, amount, ignoreCap, inBackpacks);
 }
 
 void ProtocolGame::parsePlayerSale(NetworkMessage &msg)
@@ -1530,7 +1538,7 @@ void ProtocolGame::parseDebugAssert(NetworkMessage& msg)
 	std::string description = msg.GetString();
 	std::string comment = msg.GetString();
 
-	FILE* file = fopen("data/logs/client_assertions.txt", "a");
+	FILE* file = fopen(getFilePath(FILE_TYPE_LOG, "client_assertions.txt").c_str(), "a");
 	if(file)
 	{
 		char bufferDate[32], bufferIp[32];
@@ -1934,17 +1942,17 @@ void ProtocolGame::sendContainer(uint32_t cid, const Container* container, bool 
 	}
 }
 
-void ProtocolGame::sendShop(const std::list<ShopInfo>& shop)
+void ProtocolGame::sendShop(const ShopInfoList& itemList)
 {
 	NetworkMessage* msg = getOutputBuffer();
 	if(msg)
 	{
 		TRACK_MESSAGE(msg);
 		msg->AddByte(0x7A);
-		msg->AddByte(std::min((size_t)255, shop.size()));
+		msg->AddByte(std::min((size_t)255, itemList.size()));
 
 		uint32_t i = 0;
-		for(std::list<ShopInfo>::const_iterator it = shop.begin(); it != shop.end() && i < 255; ++it, ++i)
+		for(ShopInfoList::const_iterator it = itemList.begin(); it != itemList.end() && i < 255; ++it, ++i)
 			AddShopItem(msg, (*it));
 	}
 }
@@ -1959,14 +1967,22 @@ void ProtocolGame::sendCloseShop()
 	}
 }
 
-void ProtocolGame::sendPlayerCash(uint32_t amount)
+void ProtocolGame::sendGoods(const std::map<uint32_t, uint32_t>& itemMap)
 {
 	NetworkMessage* msg = getOutputBuffer();
 	if(msg)
 	{
 		TRACK_MESSAGE(msg);
 		msg->AddByte(0x7B);
-		msg->AddU32(amount);
+		msg->AddU32(g_game.getMoney(player));
+		msg->AddByte(std::min((size_t)255, itemMap.size()));
+
+		uint32_t i = 0;
+		for(std::map<uint32_t, uint32_t>::const_iterator it = itemMap.begin(); it != itemMap.end() && i < 255; ++it, ++i)
+		{
+			msg->AddItemId(it->first);
+			msg->AddByte(std::min((uint32_t)255, it->second));
+		}
 	}
 }
 
@@ -2334,7 +2350,7 @@ void ProtocolGame::sendAddCreature(const Creature* creature, bool isLogin)
 				if(isLogin)
 				{
 					std::string tempstring = g_config.getString(ConfigManager::LOGIN_MSG);
-					if(player->getName() != "Account Manager")
+					if(!player->isAccountManager())
 					{
 						if(!player->getLastLoginSaved() > 0)
 						{
@@ -2353,14 +2369,22 @@ void ProtocolGame::sendAddCreature(const Creature* creature, bool isLogin)
 						}
 						AddTextMessage(msg, MSG_STATUS_DEFAULT, tempstring);
 					}
-					else if(player->getName() == "Account Manager")
+					else if(player->isAccountManager())
 					{
-						if(player->getNamelockedPlayer() != "")
-							AddTextMessage(msg, MSG_STATUS_CONSOLE_ORANGE, "Hello, it appears that your character has been namelocked, what would you like as your new name?");
-						else if(!player->isAccountManager())
-							AddTextMessage(msg, MSG_STATUS_CONSOLE_ORANGE, "Hello, type 'account' to create an account or type 'recover' to recover an account.");
-						else
-							AddTextMessage(msg, MSG_STATUS_CONSOLE_ORANGE, "Hello, type 'account' to manage your account and if you want to start over then type 'cancel'.");
+						switch(player->accountManager)
+						{
+							case MANAGER_NAMELOCK:
+								AddTextMessage(msg, MSG_STATUS_CONSOLE_ORANGE, "Hello, it appears that your character has been namelocked, what would you like as your new name?");
+								break;
+							case MANAGER_ACCOUNT:							
+								AddTextMessage(msg, MSG_STATUS_CONSOLE_ORANGE, "Hello, type 'account' to manage your account and if you want to start over then type 'cancel'.");
+								break;
+							case MANAGER_NEW:
+								AddTextMessage(msg, MSG_STATUS_CONSOLE_ORANGE, "Hello, type 'account' to create an account or type 'recover' to recover an account.");
+								break;
+							default:
+								break;
+						}
 					}
 				}
 
@@ -2758,10 +2782,10 @@ void ProtocolGame::AddCreature(NetworkMessage* msg, const Creature* creature, bo
 	msg->AddByte((int32_t)std::ceil(((float)creature->getHealth()) * 100 / std::max(creature->getMaxHealth(), (int32_t)1)));
 	msg->AddByte((uint8_t)creature->getDirection());
 
-	if(!creature->isInvisible() && !creature->isInGhostMode())
-		AddCreatureOutfit(msg, creature, creature->getCurrentOutfit());
-	else
+	if(creature->isInvisible() || creature->isInGhostMode())
 		AddCreatureInvisible(msg, creature);
+	else
+		AddCreatureOutfit(msg, creature, creature->getCurrentOutfit());		
 
 	LightInfo lightInfo;
 	creature->getCreatureLight(lightInfo);
@@ -2780,7 +2804,7 @@ void ProtocolGame::AddPlayerStats(NetworkMessage* msg)
 
 	msg->AddU16(player->getHealth());
 	msg->AddU16(player->getPlayerInfo(PLAYERINFO_MAXHEALTH));
-	msg->AddU16((int32_t)player->getFreeCapacity());
+	msg->AddU32(uint32_t(player->getFreeCapacity() * 100));
 	uint64_t experience = player->getExperience();
 	if(experience > 0x7FFFFFFF && player->getOperatingSystem() == CLIENTOS_WINDOWS) //Windows client debugs after 2,147,483,647 exp
 		msg->AddU32(0x7FFFFFFF);
@@ -2836,7 +2860,7 @@ void ProtocolGame::AddCreatureSpeak(NetworkMessage* msg, const Creature* creatur
 	//Add level only for players
 	if(const Player* speaker = creature->getPlayer())
 	{
-		if(type != SPEAK_RVR_ANSWER && speaker->getName() != "Account Manager")
+		if(type != SPEAK_RVR_ANSWER && !speaker->isAccountManager())
 			msg->AddU16(speaker->getPlayerInfo(PLAYERINFO_LEVEL));
 		else
 			msg->AddU16(0x0000);
@@ -2885,8 +2909,10 @@ void ProtocolGame::AddCreatureHealth(NetworkMessage* msg,const Creature* creatur
 
 void ProtocolGame::AddCreatureInvisible(NetworkMessage* msg, const Creature* creature)
 {
-	msg->AddU16(0x00);
-	msg->AddU16(0x00);
+	if(player->canSeeInvisibility())
+		AddCreatureOutfit(msg, creature, creature->getCurrentOutfit());
+	else
+		msg->AddU32(0x00);
 }
 
 void ProtocolGame::AddCreatureOutfit(NetworkMessage* msg, const Creature* creature, const Outfit_t& outfit)
@@ -3140,6 +3166,7 @@ void ProtocolGame::AddShopItem(NetworkMessage* msg, const ShopInfo item)
 	msg->AddU16(it.clientId);
 	msg->AddByte(item.subType);
 	msg->AddString(item.itemName);
+	msg->AddU32(uint32_t(it.weight * 100));
 	msg->AddU32(item.buyPrice);
 	msg->AddU32(item.sellPrice);
 }

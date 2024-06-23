@@ -30,28 +30,30 @@ class Vocation
 {
 	public:
 		virtual ~Vocation();
+
+		uint32_t getVocId() const {return id;}
 		const std::string& getVocName() const {return name;}
 		const std::string& getVocDescription() const {return description;}
+
 		uint32_t getReqSkillTries(int32_t skill, int32_t level);
 		uint64_t getReqMana(uint32_t magLevel);
 
 		uint32_t getHPGain() const {return gainHP;}
-		uint32_t getManaGain() const {return gainMana;}
-		uint32_t getCapGain() const {return gainCap;}
-
-		uint32_t getManaGainTicks() const {return gainManaTicks;}
-		uint32_t getManaGainAmount() const {return gainManaAmount;}
 		uint32_t getHealthGainTicks() const {return gainHealthTicks;}
 		uint32_t getHealthGainAmount() const {return gainHealthAmount;}
+		uint32_t getManaGain() const {return gainMana;}
+		uint32_t getManaGainTicks() const {return gainManaTicks;}
+		uint32_t getManaGainAmount() const {return gainManaAmount;}
 
 		uint16_t getSoulMax() const {return std::min((uint32_t)soulMax, (uint32_t)255);}
 		uint16_t getSoulGainTicks() const {return gainSoulTicks;}
-
+		uint32_t getCapGain() const {return gainCap;}
 		uint32_t getAttackSpeed() const {return attackSpeed;}
 		uint32_t getBaseSpeed() const {return baseSpeed;}
 
-		bool isAttackable() const {return attackable;}
 		uint32_t getFromVocation() const {return fromVocation;}
+		bool isAttackable() const {return attackable;}
+		bool isPremiumNeeded() const {return needPremium;}
 
 		float meleeDamageMultipler, distDamageMultipler, defenseMultipler, armorMultipler;
 
@@ -59,33 +61,34 @@ class Vocation
 		friend class Vocations;
 		Vocation();
 
+		uint32_t id;
 		std::string name;
 		std::string description;
 
+		uint32_t gainHP;
 		uint32_t gainHealthTicks;
 		uint32_t gainHealthAmount;
+		uint32_t gainMana;
 		uint32_t gainManaTicks;
 		uint32_t gainManaAmount;
-		uint32_t gainCap;
-		uint32_t gainMana;
-		uint32_t gainHP;
 
 		uint16_t gainSoulTicks;
 		uint16_t soulMax;
-
-		bool attackable;
-		uint32_t fromVocation;
-
+		uint32_t gainCap;
 		uint32_t attackSpeed;
 		uint32_t baseSpeed;
+
+		uint32_t fromVocation;
+		bool attackable;
+		bool needPremium;
 
 		static uint32_t skillBase[SKILL_LAST + 1];
 		float skillMultipliers[SKILL_LAST + 1];
 		float manaMultiplier;
 
 		typedef std::map<uint32_t, uint32_t> cacheMap;
-		cacheMap cacheMana;
 		cacheMap cacheSkill[SKILL_LAST + 1];
+		cacheMap cacheMana;
 };
 
 typedef std::map<uint32_t, Vocation*> VocationsMap;
@@ -94,7 +97,7 @@ class Vocations
 {
 	public:
 		Vocations();
-		~Vocations();
+		virtual ~Vocations();
 
 		bool loadFromXml();
 		Vocation* getVocation(uint32_t vocId);
@@ -106,7 +109,7 @@ class Vocations
 
 	private:
 		VocationsMap vocationsMap;
-		Vocation def_voc;
+		Vocation defVoc;
 };
 
 #endif

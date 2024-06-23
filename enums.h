@@ -21,6 +21,7 @@
 #ifndef __OTSERV_ENUMS_H__
 #define __OTSERV_ENUMS_H__
 #include <string>
+#include <list>
 
 enum DatabaseEngine_t
 {
@@ -36,11 +37,6 @@ enum PasswordType_t
 	PASSWORD_TYPE_PLAIN = 0,
 	PASSWORD_TYPE_MD5 = 1,
 	PASSWORD_TYPE_SHA1 = 2
-};
-
-enum StorageValues_t
-{
-	STORAGEVALUE_PROMOTION = 30018
 };
 
 enum GuildLevel_t
@@ -295,4 +291,5 @@ struct ShopInfo
 		sellPrice(_sellPrice), itemName(_itemName) {}
 };
 
+typedef std::list<ShopInfo> ShopInfoList;
 #endif

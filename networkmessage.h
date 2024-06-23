@@ -35,40 +35,40 @@ class RSA;
 class NetworkMessage
 {
 	public:
-		enum { header_length = 2 };
-		enum { max_body_length = NETWORKMESSAGE_MAXSIZE - header_length };
+		enum {header_length = 2};
+		enum {max_body_length = NETWORKMESSAGE_MAXSIZE - header_length};
 
 		// constructor/destructor
-		NetworkMessage()
-		{
-			Reset();
-		}
+		NetworkMessage() {Reset();}
 		virtual ~NetworkMessage(){}
 
 	protected:
 		// resets the internal buffer to an empty message
-		void Reset(){
+		void Reset()
+		{
 			m_MsgSize = 0;
-			m_ReadPos = 4;
+			m_ReadPos = 8;
 		}
 
 	public:
 		// simply read functions for incoming message
-		uint8_t  GetByte(){return m_MsgBuf[m_ReadPos++];}
+		uint8_t GetByte() {return m_MsgBuf[m_ReadPos++];}
 		uint16_t GetU16()
 		{
 			uint16_t v = *(uint16_t*)(m_MsgBuf + m_ReadPos);
 			m_ReadPos += 2;
 			return v;
 		}
-		uint16_t GetSpriteId()
-		{
-			return GetU16();
-		}
+		uint16_t GetSpriteId() {return GetU16();}
 		uint32_t GetU32()
 		{
 			uint32_t v = *(uint32_t*)(m_MsgBuf + m_ReadPos);
 			m_ReadPos += 4;
+			return v;
+		}
+		uint32_t PeekU32()
+		{
+			uint32_t v = *(uint32_t*)(m_MsgBuf + m_ReadPos);
 			return v;
 		}
 		std::string GetString();
@@ -76,13 +76,14 @@ class NetworkMessage
 		Position GetPosition();
 
 		// skips count unknown/unused bytes in an incoming message
-		void SkipBytes(int count){m_ReadPos += count;}
+		void SkipBytes(int32_t count) {m_ReadPos += count;}
 
 		// simply write functions for outgoing message
 		void AddByte(uint8_t  value)
 		{
 			if(!canAdd(1))
 				return;
+
 			m_MsgBuf[m_ReadPos++] = value;
 			m_MsgSize++;
 		}
@@ -90,6 +91,7 @@ class NetworkMessage
 		{
 			if(!canAdd(2))
 				return;
+
 			*(uint16_t*)(m_MsgBuf + m_ReadPos) = value;
 			m_ReadPos += 2; m_MsgSize += 2;
 		}
@@ -97,6 +99,7 @@ class NetworkMessage
 		{
 			if(!canAdd(4))
 				return;
+
 			*(uint32_t*)(m_MsgBuf + m_ReadPos) = value;
 			m_ReadPos += 4; m_MsgSize += 4;
 		}
@@ -114,17 +117,18 @@ class NetworkMessage
 		void AddItemId(uint16_t itemId);
 		void AddCreature(const Creature *creature, bool known, unsigned int remove);
 
-		int32_t getMessageLength() const { return m_MsgSize; }
-		void setMessageLength(int32_t newSize) { m_MsgSize = newSize; }
-		int32_t getReadPos() const { return m_ReadPos; }
+		int32_t getMessageLength() const {return m_MsgSize;}
+		void setMessageLength(int32_t newSize) {m_MsgSize = newSize;}
+		int32_t getReadPos() const {return m_ReadPos;}
+		void setReadPos(int32_t newPos) {m_ReadPos = newPos;}
 
 		int32_t decodeHeader();
 
-		char* getBuffer() { return (char*)&m_MsgBuf[0]; }
-		char* getBodyBuffer() { m_ReadPos = 2; return (char*)&m_MsgBuf[header_length]; }
+		char* getBuffer() {return (char*)&m_MsgBuf[0];}
+		char* getBodyBuffer(int32_t header = header_length) {m_ReadPos = 2; return (char*)&m_MsgBuf[header];}
 
 	protected:
-		inline bool canAdd(int size)
+		inline bool canAdd(int32_t size)
 		{
 			return (size + m_ReadPos < NETWORKMESSAGE_MAXSIZE - 16);
 		};

@@ -620,7 +620,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 						if(iitem->getTrashHolder())
 							continue;
 
-						if(!iiType.hasHeight || iiType.pickupable)
+						if(!iiType.hasHeight || iiType.pickupable || iiType.isBed())
 							return RET_NOTENOUGHROOM;
 					}
 					else
@@ -670,48 +670,46 @@ Cylinder* Tile::__queryDestination(int32_t& index, const Thing* thing, Item** de
 
 	if(floorChangeDown())
 	{
-		Tile* downTile = g_game.getTile(getTilePosition().x, getTilePosition().y, getTilePosition().z + 1);
-
+		uint16_t dx = getTilePosition().x;
+		uint16_t dy = getTilePosition().y;
+		uint8_t dz = getTilePosition().z + 1;
+		Tile* downTile = g_game.getTile(dx, dy, dz);
 		if(downTile)
 		{
-			if(downTile->floorChange(NORTH) && downTile->floorChange(EAST))
-				destTile = g_game.getTile(getTilePosition().x - 1, getTilePosition().y + 1, getTilePosition().z + 1);
-			else if(downTile->floorChange(NORTH) && downTile->floorChange(WEST))
-				destTile = g_game.getTile(getTilePosition().x + 1, getTilePosition().y + 1, getTilePosition().z + 1);
-			else if(downTile->floorChange(SOUTH) && downTile->floorChange(EAST))
-				destTile = g_game.getTile(getTilePosition().x - 1, getTilePosition().y - 1, getTilePosition().z + 1);
-			else if(downTile->floorChange(SOUTH) && downTile->floorChange(WEST))
-				destTile = g_game.getTile(getTilePosition().x + 1, getTilePosition().y - 1, getTilePosition().z + 1);
-			else if(downTile->floorChange(NORTH))
-				destTile = g_game.getTile(getTilePosition().x, getTilePosition().y + 1, getTilePosition().z + 1);
-			else if(downTile->floorChange(SOUTH))
-				destTile = g_game.getTile(getTilePosition().x, getTilePosition().y - 1, getTilePosition().z + 1);
-			else if(downTile->floorChange(EAST))
-				destTile = g_game.getTile(getTilePosition().x - 1, getTilePosition().y, getTilePosition().z + 1);
-			else if(downTile->floorChange(WEST))
-				destTile = g_game.getTile(getTilePosition().x + 1, getTilePosition().y, getTilePosition().z + 1);
-			else
-				destTile = downTile;
+			if(downTile->floorChange(NORTH))
+				dy += 1;
+
+			if(downTile->floorChange(SOUTH))
+				dy -= 1;
+
+			if(downTile->floorChange(EAST))
+				dx -= 1;
+
+			if(downTile->floorChange(WEST))
+				dx += 1;
+
+			destTile = g_game.getTile(dx, dy, dz);
 		}
 	}
 	else if(floorChange())
 	{
-		if(floorChange(NORTH) && floorChange(EAST))
-			destTile = g_game.getTile(getTilePosition().x + 1, getTilePosition().y - 1, getTilePosition().z - 1);
-		else if(floorChange(NORTH) && floorChange(WEST))
-			destTile = g_game.getTile(getTilePosition().x - 1, getTilePosition().y - 1, getTilePosition().z - 1);
-		else if(floorChange(SOUTH) && floorChange(EAST))
-			destTile = g_game.getTile(getTilePosition().x + 1, getTilePosition().y + 1, getTilePosition().z - 1);
-		else if(floorChange(SOUTH) && floorChange(WEST))
-			destTile = g_game.getTile(getTilePosition().x - 1, getTilePosition().y + 1, getTilePosition().z - 1);
-		else if(floorChange(NORTH))
-			destTile = g_game.getTile(getTilePosition().x, getTilePosition().y - 1, getTilePosition().z - 1);
-		else if(floorChange(SOUTH))
-			destTile = g_game.getTile(getTilePosition().x, getTilePosition().y + 1, getTilePosition().z - 1);
-		else if(floorChange(EAST))
-			destTile = g_game.getTile(getTilePosition().x + 1, getTilePosition().y, getTilePosition().z - 1);
-		else if(floorChange(WEST))
-			destTile = g_game.getTile(getTilePosition().x - 1, getTilePosition().y, getTilePosition().z - 1);
+		uint16_t dx = getTilePosition().x;
+		uint16_t dy = getTilePosition().y;
+		uint8_t dz = getTilePosition().z - 1;
+
+		if(floorChange(NORTH))
+			dy -= 1;
+
+		if(floorChange(SOUTH))
+			dy += 1;
+
+		if(floorChange(EAST))
+			dx += 1;
+
+		if(floorChange(WEST))
+			dx -= 1;
+
+		destTile = g_game.getTile(dx, dy, dz);
 	}
 
 	if(destTile == NULL)
@@ -1044,7 +1042,7 @@ void Tile::__removeThing(Thing* thing, uint32_t count)
 				{
 					if(item->isStackable() && count != item->getItemCount())
 					{
-						item->setItemCount(std::max(0, (int)(item->getItemCount() - count)));
+						item->setItemCount(std::max(0, (int32_t)(item->getItemCount() - count)));
 
 						const ItemType& it = Item::items[item->getID()];
 						onUpdateTileItem(index, item, it, item, it);

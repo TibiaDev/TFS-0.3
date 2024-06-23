@@ -111,10 +111,9 @@ bool Weapons::loadDefaults()
 					weapons[it->id] = weapon;
 					break;
 				}
+
 				default:
-				{
 					break;
-				}
 			}
 		}
 	}
@@ -263,7 +262,7 @@ bool Weapon::configureEvent(xmlNodePtr p)
 				{
 					vocWeaponMap[vocationId] = true;
 					int32_t promotedVocation = g_vocations.getPromotedVocation(vocationId);
-					if(promotedVocation != 0)
+					if(promotedVocation != -1)
 						vocWeaponMap[promotedVocation] = true;
 
 					readXMLInteger(vocationNode, "showInDescription", intValue);
@@ -613,21 +612,19 @@ bool WeaponMelee::getSkillType(const Player* player, const Item* item,
 	{
 		switch(player->getLastAttackBlockType())
 		{
-			case BLOCK_DEFENSE:
 			case BLOCK_ARMOR:
 			case BLOCK_NONE:
 				skillpoint = 1;
 				break;
 
+			case BLOCK_DEFENSE:
 			default:
 				skillpoint = 0;
 				break;
 		}
 	}
 
-	WeaponType_t weaponType = item->getWeaponType();
-
-	switch(weaponType)
+	switch(item->getWeaponType())
 	{
 		case WEAPON_SWORD:
 		{
@@ -666,7 +663,7 @@ bool WeaponMelee::getSkillType(const Player* player, const Item* item,
 int32_t WeaponMelee::getWeaponDamage(const Player* player, const Creature* target, const Item* item, bool maxDamage /*= false*/) const
 {
 	int32_t attackSkill = player->getWeaponSkill(item);
-	int32_t attackValue = std::max((int32_t)0, ((int32_t)item->getAttack() - elementDamage));
+	int32_t attackValue = std::max((int32_t)0, (int32_t(item->getAttack() + item->getExtraAttack()) - elementDamage));
 	float attackFactor = player->getAttackFactor();
 
 	int32_t maxValue = Weapons::getMaxWeaponDamage(attackSkill, attackValue, attackFactor);
@@ -981,7 +978,7 @@ int32_t WeaponDistance::getWeaponDamage(const Player* player, const Creature* ta
 	{
 		Item* bow = const_cast<Player*>(player)->getWeapon(true);
 		if(bow)
-			attackValue += bow->getAttack();
+			attackValue += bow->getAttack() + bow->getExtraAttack();
 	}
 
 	int32_t attackSkill = player->getSkill(SKILL_DIST, SKILL_LEVEL);
@@ -1027,11 +1024,11 @@ bool WeaponDistance::getSkillType(const Player* player, const Item* item,
 				skillpoint = 2;
 				break;
 
-			case BLOCK_DEFENSE:
 			case BLOCK_ARMOR:
 				skillpoint = 1;
 				break;
 
+			case BLOCK_DEFENSE:
 			default:
 				skillpoint = 0;
 				break;

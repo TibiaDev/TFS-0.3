@@ -64,8 +64,8 @@ if(Modules == nil) then
 
 	--Usage:
 		-- local node1 = keywordHandler:addKeyword({'promot'}, StdModule.say, {npcHandler = npcHandler, text = 'I can promote you for 20000 gold coins. Do you want me to promote you?'})
-		-- 		node1:addChildKeyword({'yes'}, StdModule.promotePlayer, {npcHandler = npcHandler, cost = 20000, level = 20}, text = 'Congratulations! You are now promoted.')
-		-- 		node1:addChildKeyword({'no'}, StdModule.say, {npcHandler = npcHandler, text = 'Allright then. Come back when you are ready.'}, reset = true)
+		-- 		node1:addChildKeyword({'yes'}, StdModule.promotePlayer, {npcHandler = npcHandler, cost = 20000, promotion = 1, level = 20}, text = 'Congratulations! You are now promoted.')
+		-- 		node1:addChildKeyword({'no'}, StdModule.say, {npcHandler = npcHandler, text = 'Alright then, come back when you are ready.'}, reset = true)
 	function StdModule.promotePlayer(cid, message, keywords, parameters, node)
 		local npcHandler = parameters.npcHandler
 		if(npcHandler == nil) then
@@ -76,19 +76,18 @@ if(Modules == nil) then
 		end
 
 		if(isPlayerPremiumCallback == nil or isPlayerPremiumCallback(cid) == true or parameters.premium == false) then
-			local promotedVoc = getPromotedVocation(getPlayerVocation(cid))
-			if(getPlayerStorageValue(cid, 30018) == TRUE) then
+			if(getPlayerPromotionLevel(cid) >= parameters.promotion) then
 				npcHandler:say('You are already promoted!', cid)
 			elseif(getPlayerLevel(cid) < parameters.level) then
 				npcHandler:say('I am sorry, but I can only promote you once you have reached level ' .. parameters.level .. '.', cid)
 			elseif(doPlayerRemoveMoney(cid, parameters.cost) ~= TRUE) then
 				npcHandler:say('You do not have enough money!', cid)
 			else
-				doPlayerSetVocation(cid, promotedVoc)
+				setPlayerPromotionLevel(cid, parameters.promotion)
 				npcHandler:say(parameters.text, cid)
 			end
 		else
-			npcHandler:say("You need a premium account in order to get promoted", cid)
+			npcHandler:say("You need a premium account in order to get promoted.", cid)
 		end
 		npcHandler:resetNpc()
 		return true
@@ -834,65 +833,94 @@ if(Modules == nil) then
 	end
 
 	-- doPlayerAddItem function variation. Used specifically for NPCs.
-	ShopModule.doPlayerAddItem = function(cid, itemid, amount, subType)
+	ShopModule.doPlayerAddItem = function(cid, itemid, amount, subType, ignoreCap, inBackpacks, backpack)
 		local amount = amount or 1
 		local subType = subType or 0
+		local ignoreCap = ignoreCap and TRUE or FALSE
+		local backpack = backpack or 1988
 
+		local item = 0
 		if(isItemStackable(itemid) == TRUE) then
-			local item = doCreateItemEx(itemid, amount)
-			local ret = doPlayerAddItemEx(cid, item)
-			if(ret ~= RETURNVALUE_NOERROR) then
-				return {}, 0
+			item = doCreateItemEx(itemid, amount)
+			if(doPlayerAddItemEx(cid, item, ignoreCap) ~= RETURNVALUE_NOERROR) then
+				return 0, 0
 			end
 
-			return {item}, amount
+			return amount, 0
 		end
 
-		local items = {}
-		local ret = 0
 		local a = 0
+		if(inBackpacks) then
+			local container = doCreateItemEx(backpack, 1)
+			for i = 1, amount do
+				item = doAddContainerItem(container, itemid, subType)
+				if(itemid == ITEM_PARCEL) then
+					doAddContainerItem(item, ITEM_LABEL)
+				end
+
+				if(isInArray({20, amount}, i) == TRUE) then
+					if(doPlayerAddItemEx(cid, container, ignoreCap) ~= RETURNVALUE_NOERROR) then
+						break
+					end
+					a = a + i
+
+					if(amount > i) then
+						container = doCreateItemEx(backpack, 1)
+					end
+				end
+			end
+			return a, b
+		end
+
 		for i = 1, amount do
-			items[i] = doCreateItemEx(itemid, subType)
-			ret = doPlayerAddItemEx(cid, items[i])
-			if(ret ~= RETURNVALUE_NOERROR) then
+			item = doCreateItemEx(itemid, subType)
+			if(itemid == ITEM_PARCEL) then
+				doAddContainerItem(item, ITEM_LABEL)
+			end
+
+			if(doPlayerAddItemEx(cid, item, ignoreCap) ~= RETURNVALUE_NOERROR) then
 				break
 			end
-
 			a = a + 1
 		end
-
-		return items, a
+		return a, 0
 	end
 
 	-- Callback onBuy() function. If you wish, you can change certain Npc to use your onBuy().
-	function ShopModule:callbackOnBuy(cid, itemid, subType, amount)
+	function ShopModule:callbackOnBuy(cid, itemid, subType, amount, ignoreCap, inBackpacks)
 		if(self.npcHandler.shopItems[itemid] == nil) then
 			error("[ShopModule.onBuy]", "items[itemid] == nil")
+			return false
+		end
+
+		local totalCost = amount * self.npcHandler.shopItems[itemid].buyPrice
+		if(inBackpacks) then
+			totalCost = totalCost + (math.max(1, math.floor(amount / 20)) * 20)
 		end
 
 		local parseInfo = {
 			[TAG_PLAYERNAME] = getPlayerName(cid),
 			[TAG_ITEMCOUNT] = amount,
-			[TAG_TOTALCOST] = amount * self.npcHandler.shopItems[itemid].buyPrice,
+			[TAG_TOTALCOST] = totalCost,
 			[TAG_ITEMNAME] = self.npcHandler.shopItems[itemid].realName
 		}
 
-		if(getPlayerMoney(cid) < amount * self.npcHandler.shopItems[itemid].buyPrice) then
+		if(getPlayerMoney(cid) < totalCost) then
 			local msg = self.npcHandler:getMessage(MESSAGE_NEEDMONEY)
 			msg = self.npcHandler:parseMessage(msg, parseInfo)
 			doPlayerSendCancel(cid, msg)
 			return false
 		end
 
-		local boughtItems, i = ShopModule.doPlayerAddItem(cid, itemid, amount, subType)
-		if(i < amount) then
+		local a, b = ShopModule.doPlayerAddItem(cid, itemid, amount, subType, ignoreCap, inBackpacks)
+		if(a < amount) then
 			local msgId = MESSAGE_NEEDMORESPACE
-			if(i == 0) then
+			if(a == 0) then
 				msgId = MESSAGE_NEEDSPACE
 			end
 
 			local msg = self.npcHandler:getMessage(msgId)
-			parseInfo[TAG_ITEMCOUNT] = i
+			parseInfo[TAG_ITEMCOUNT] = a
 			msg = self.npcHandler:parseMessage(msg, parseInfo)
 			doPlayerSendCancel(cid, msg)
 			if(NPCHANDLER_CONVBEHAVIOR ~= CONVERSATION_DEFAULT) then
@@ -900,8 +928,8 @@ if(Modules == nil) then
 			else
 				self.npcHandler.talkStart = os.time()
 			end
-			if(i > 0) then
-				doPlayerRemoveMoney(cid, i * self.npcHandler.shopItems[itemid].buyPrice)
+			if(a > 0) then
+				doPlayerRemoveMoney(cid, ((a * self.npcHandler.shopItems[itemid].buyPrice) + b * 20))
 				return true
 			end
 			return false
@@ -909,7 +937,7 @@ if(Modules == nil) then
 			local msg = self.npcHandler:getMessage(MESSAGE_BOUGHT)
 			msg = self.npcHandler:parseMessage(msg, parseInfo)
 			doPlayerSendTextMessage(cid, MESSAGE_INFO_DESCR, msg)
-			doPlayerRemoveMoney(cid, amount * self.npcHandler.shopItems[itemid].buyPrice)
+			doPlayerRemoveMoney(cid, totalCost)
 			if(NPCHANDLER_CONVBEHAVIOR ~= CONVERSATION_DEFAULT) then
 				self.npcHandler.talkStart[cid] = os.time()
 			else
@@ -920,9 +948,10 @@ if(Modules == nil) then
 	end
 
 	-- Callback onSell() function. If you wish, you can change certain Npc to use your onSell().
-	function ShopModule:callbackOnSell(cid, itemid, subType, amount)
+	function ShopModule:callbackOnSell(cid, itemid, subType, amount, ignoreCap, inBackpacks)
 		if(self.npcHandler.shopItems[itemid] == nil) then
 			error("[ShopModule.onSell]", "items[itemid] == nil")
+			return false
 		end
 
 		local parseInfo = {
@@ -982,8 +1011,8 @@ if(Modules == nil) then
 		local parseInfo = { [TAG_PLAYERNAME] = getPlayerName(cid) }
 		local msg = module.npcHandler:parseMessage(module.npcHandler:getMessage(MESSAGE_SENDTRADE), parseInfo)
 		openShopWindow(cid, itemWindow,
-			function(cid, itemid, subType, amount) module.npcHandler:onBuy(cid, itemid, subType, amount) end,
-			function(cid, itemid, subType, amount) module.npcHandler:onSell(cid, itemid, subType, amount) end)
+			function(cid, itemid, subType, amount, ignoreCap, inBackpacks) module.npcHandler:onBuy(cid, itemid, subType, amount, ignoreCap, inBackpacks) end,
+			function(cid, itemid, subType, amount, ignoreCap, inBackpacks) module.npcHandler:onSell(cid, itemid, subType, amount, ignoreCap, inBackpacks) end)
 		module.npcHandler:say(msg, cid)
 		return true
 	end

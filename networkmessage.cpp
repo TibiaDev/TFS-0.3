@@ -33,7 +33,9 @@
 
 int32_t NetworkMessage::decodeHeader()
 {
-	return (int32_t)(m_MsgBuf[0] | m_MsgBuf[1] << 8);
+	int32_t size = (int32_t)(m_MsgBuf[0] | m_MsgBuf[1] << 8);
+	m_MsgSize = size;
+	return size;
 }
 
 /******************************************************************************/
@@ -72,7 +74,7 @@ Position NetworkMessage::GetPosition()
 void NetworkMessage::AddString(const char* value)
 {
 	uint32_t stringlen = (uint32_t)strlen(value);
-	if(!canAdd(stringlen+2) || stringlen > 8192)
+	if(!canAdd(stringlen + 2) || stringlen > 8192)
 		return;
 
 	AddU16(stringlen);

@@ -247,7 +247,7 @@ void mainLoader()
 
 	#if !defined(WIN32) && !defined(__ROOT_PERMISSION__)
 	if(getuid() == 0 || geteuid() == 0)
-		std::cout << "> WARNING: " << STATUS_SERVER_NAME << " has been executed as root user, it is recommended to execute is as a normal user." << std::endl;
+		std::cout << "> WARNING: " << STATUS_SERVER_NAME << " has been executed as root user! It is recommended to execute as a normal user." << std::endl;
 	#endif
 
 	std::cout << std::endl;
@@ -257,11 +257,7 @@ void mainLoader()
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading config");
 	#endif
-	#if !defined(WIN32) && !defined(__NO_HOMEDIR_CONF__)
-	if(!g_config.loadFile(getenv("HOME")."/.otserv/config.lua"))
-	#else
-	if(!g_config.loadFile("config.lua"))
-	#endif
+	if(!g_config.loadFile(getFilePath(FILE_TYPE_CONFIG, "config.lua")))
 		startupErrorMessage("Unable to load config.lua!");
 
 	#ifdef WIN32
@@ -312,15 +308,24 @@ void mainLoader()
 	else
 	{
 		std::cout << ">> Running Database Manager" << std::endl;
-		int32_t version = DatabaseManager::getInstance()->updateDatabase();
-		if(version == -2)
+		if(!DatabaseManager::getInstance()->isDatabaseSetup())
 			startupErrorMessage("The database you specified in config.lua is empty, please import schema.<dbengine> to the database (if you are using MySQL, please read doc/MYSQL_HELP for more information).");
-		else if(version != -1)
-			std::cout << "> Database has been updated to version: " << version << "." << std::endl;
+		else if(db->getDatabaseEngine() != DATABASE_ENGINE_POSTGRESQL)
+		{
+			uint32_t version = 0;
+			do
+			{
+				version = DatabaseManager::getInstance()->updateDatabase();
+				if(version == 0)
+					break;
+
+				std::cout << "> Database has been updated to version: " << version << "." << std::endl;
+			}
+			while(version < LATEST_DB_VERSION);
+		}
 
 		DatabaseManager::getInstance()->checkTriggers();
 		DatabaseManager::getInstance()->checkPasswordType();
-
 		if(!DatabaseManager::getInstance()->optimizeTables())
 			std::cout << "> No tables were optimized." << std::endl;
 	}
@@ -346,7 +351,7 @@ void mainLoader()
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading items");
 	#endif
-	if(Item::items.loadFromOtb("data/items/items.otb"))
+	if(Item::items.loadFromOtb(getFilePath(FILE_TYPE_OTHER, "items/items.otb")))
 		startupErrorMessage("Unable to load items (OTB)!");
 
 	if(!Item::items.loadFromXml())
@@ -480,24 +485,18 @@ void mainLoader()
 
 	std::cout << ">> All modules has been loaded, server starting up..." << std::endl;
 
-	std::pair<uint32_t, uint32_t> IpNetMask;
-	IpNetMask.first  = inet_addr("127.0.0.1");
-	IpNetMask.second = 0xFFFFFFFF;
-	serverIPs.push_back(IpNetMask);
-
-	char szHostName[128];
-	if(gethostname(szHostName, 128) == 0)
+	serverIPs.push_back(std::make_pair(inet_addr("127.0.0.1"), 0xFFFFFFFF));
+	char hostName[128];
+	if(gethostname(hostName, 128) == 0)
 	{
-		hostent *he = gethostbyname(szHostName);
-		if(he)
+		hostent *host = gethostbyname(hostName);
+		if(host)
 		{
-			unsigned char** addr = (unsigned char**)he->h_addr_list;
-			while(addr[0] != NULL)
+			uint8_t** address = (uint8_t**)host->h_addr_list;
+			while(address[0] != NULL)
 			{
-				IpNetMask.first  = *(uint32_t*)(*addr);
-				IpNetMask.second = 0x0000FFFF;
-				serverIPs.push_back(IpNetMask);
-				addr++;
+				serverIPs.push_back(std::make_pair(*(uint32_t*)(*address), 0x0000FFFF));
+				address++;
 			}
 		}
 	}
@@ -506,9 +505,9 @@ void mainLoader()
 	uint32_t resolvedIp = inet_addr(ip.c_str());
 	if(resolvedIp == INADDR_NONE)
 	{
-		struct hostent* he = gethostbyname(ip.c_str());
-		if(he != 0)
-			resolvedIp = *(uint32_t*)he->h_addr;
+		hostent *host = gethostbyname(ip.c_str());
+		if(host != 0)
+			resolvedIp = *(uint32_t*)host->h_addr;
 		else
 		{
 			std::cout << "ERROR: Cannot resolve " << ip << "!" << std::endl;
@@ -516,13 +515,11 @@ void mainLoader()
 		}
 	}
 
-	IpNetMask.first  = resolvedIp;
-	IpNetMask.second = 0;
-	serverIPs.push_back(IpNetMask);
+	serverIPs.push_back(std::make_pair(resolvedIp, 0));
 
 	#if !defined(WIN32) && !defined(__ROOT_PERMISSION__)
 	if(getuid() == 0 || geteuid() == 0)
-		std::cout << "> WARNING: " << STATUS_SERVER_NAME << " has been executed as root user, it is recommended to execute is as a normal user." << std::endl;
+		std::cout << "> WARNING: " << STATUS_SERVER_NAME << " has been executed as root user! It is recommended to execute as a normal user." << std::endl;
 	#endif
 
 	IOLoginData::getInstance()->resetOnlineStatus();
@@ -704,7 +701,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 				}
 				case ID_MENU_SERVER_OPEN:
 				{
-					if(g_game.getGameState() != GAME_STATE_STARTUP && !GUI::getInstance()->m_connections)
+					if(g_game.getGameState() != GAME_STATE_STARTUP && GUI::getInstance()->m_connections)
 					{
 						Dispatcher::getDispatcher().addTask(
 							createTask(boost::bind(&Game::setGameState, &g_game, GAME_STATE_NORMAL)));

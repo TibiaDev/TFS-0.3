@@ -1,55 +1,28 @@
-function doPlayerGiveItem(cid, itemid, count, charges)
-	local hasCharges = (isItemRune(itemid) == TRUE or isItemFluidContainer(itemid) == TRUE)
-	if(hasCharges and charges == nil) then
-		charges = 1
-	end
-	while count > 0 do
-		local tempcount = 1
-		if(hasCharges) then
-			tempcount = charges
-		end
-		if(isItemStackable(itemid) == TRUE) then
-			tempcount = math.min(100, count)
-   		end
-	   	local ret = doPlayerAddItem(cid, itemid, tempcount)
-	   	if(ret == LUA_ERROR) then
-			ret = doCreateItem(itemid, tempcount, getPlayerPosition(cid))
-		end
-		if(ret ~= LUA_ERROR) then
-			if(hasCharges) then
-				count = count - 1
-			else
-				count = count - tempcount
-			end
-		else
+function doPlayerGiveItem(cid, itemid, amount, subType)
+	local item = 0
+	if(isItemStackable(itemid) == TRUE) then
+		item = doCreateItemEx(itemid, amount)
+		if(doPlayerAddItemEx(cid, item) ~= RETURNVALUE_NOERROR) then
 			return LUA_ERROR
+		end
+	else
+		for i = 1, amount do
+			item = doCreateItemEx(itemid, subType)
+			if(doPlayerAddItemEx(cid, item) ~= RETURNVALUE_NOERROR) then
+				return LUA_ERROR
+			end
 		end
 	end
 	return LUA_NO_ERROR
 end
 
-function doPlayerTakeItem(cid, itemid, count)
-	if(getPlayerItemCount(cid,itemid) >= count) then
-		while count > 0 do
-			local tempcount = 0
-			if(isItemStackable(itemid) == TRUE) then
-				tempcount = math.min(100, count)
-			else
-				tempcount = 1
-			end
-			local ret = doPlayerRemoveItem(cid, itemid, tempcount)
-			if(ret ~= LUA_ERROR) then
-				count = count - tempcount
-			else
-				return LUA_ERROR
-			end
-		end
-		if(count == 0) then
+function doPlayerTakeItem(cid, itemid, amount)
+	if(getPlayerItemCount(cid, itemid) >= amount) then
+		if(doPlayerRemoveItem(cid, itemid, amount) == TRUE) then
 			return LUA_NO_ERROR
 		end
-	else
-		return LUA_ERROR
 	end
+	return LUA_ERROR
 end
 
 function doPlayerBuyItem(cid, itemid, count, cost, charges)
@@ -181,7 +154,7 @@ function isRookie(cid)
 end
 
 function getConfigInfo(info)
-	if (type(info) ~= 'string') then return nil end
+	if(type(info) ~= 'string') then return nil end
 
 	dofile(getConfigFile())
 	return _G[info]
@@ -296,6 +269,29 @@ end
 
 function getExperienceForLevel(level)
 	return (50 * level * level * level) / 3 - 100 * level * level + (850 * level) / 3 - 200
+end
+
+function convertIntToIP(int, mask)
+	local b4 = bit.urshift(bit.uband(int, 4278190080), 24)
+	local b3 = bit.urshift(bit.uband(int, 16711680), 16)
+	local b2 = bit.urshift(bit.uband(int, 65280), 8)
+	local b1 = bit.urshift(bit.uband(int, 255), 0)
+	if(mask ~= nil) then
+		local m4 = bit.urshift(bit.uband(mask,  4278190080), 24)
+		local m3 = bit.urshift(bit.uband(mask,  16711680), 16)
+		local m2 = bit.urshift(bit.uband(mask,  65280), 8)
+		local m1 = bit.urshift(bit.uband(mask,  255), 0)
+		if((m1 == 255 or m1 == 0) and (m2 == 255 or m2 == 0) and (m3 == 255 or m3 == 0) and (m4 == 255 or m4 == 0)) then
+			if m1 == 0 then b1 = "x" end
+			if m2 == 0 then b2 = "x" end
+			if m3 == 0 then b3 = "x" end
+			if m4 == 0 then b4 = "x" end
+		elseif(m1 ~= 255 or m2 ~= 255 or m3 ~= 255 or m4 ~= 255) then
+			return b1 .. "." .. b2 .. "." .. b3 .. "." .. b4 .. " : " .. m1 .. "." .. m2 .. "." .. m3 .. "." .. m4
+		end
+	end
+	
+	return b1 .. "." .. b2 .. "." .. b3 .. "." .. b4
 end
 
 exhaustion =

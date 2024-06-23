@@ -34,7 +34,7 @@ CREATE TABLE `server_config`
 	`value` INT NOT NULL
 ) ENGINE = InnoDB;
 
-INSERT INTO `server_config` VALUES ('db_version', 1);
+INSERT INTO `server_config` VALUES ('db_version', 2);
 
 CREATE TABLE `server_motd`
 (
@@ -79,20 +79,21 @@ CREATE TABLE `groups`
 	`violationaccess` INT NOT NULL,
 	`maxdepotitems` INT NOT NULL,
 	`maxviplist` INT NOT NULL,
+	`outfit` INT NOT NULL DEFAULT 0,
 	PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 
-INSERT INTO `groups` VALUES (1, 'Player', 0, 0, 0, 0, 0, 0);
-INSERT INTO `groups` VALUES (2, 'Tutor', 16809984, 1, 1, 0, 0, 0);
-INSERT INTO `groups` VALUES (3, 'Senior Tutor', 68736352256, 3, 2, 1, 0, 0);
-INSERT INTO `groups` VALUES (4, 'Game Master', 492842123151, 63, 3, 2, 4000, 200);
-INSERT INTO `groups` VALUES (5, 'Community Manager', 542239465466, 1279, 4, 3, 6000, 300);
-INSERT INTO `groups` VALUES (6, 'God', 546534563834, 2047, 5, 3, 8000, 400);
-
+INSERT INTO `groups` VALUES (1, 'Player', 0, 0, 0, 0, 0, 0, 0);
+INSERT INTO `groups` VALUES (2, 'Tutor', 16809984, 524291, 1, 0, 0, 0, 0);
+INSERT INTO `groups` VALUES (3, 'Senior Tutor', 68736352256, 524303, 2, 1, 0, 0, 0);
+INSERT INTO `groups` VALUES (4, 'Gamemaster', 510024081247, 4189375, 3, 2, 4000, 200, 75);
+INSERT INTO `groups` VALUES (5, 'Community Manager', 542239465466, 4189695, 4, 3, 6000, 300, 266);
+INSERT INTO `groups` VALUES (6, 'God', 546534563834, 4194303, 5, 3, 8000, 400, 302);
 
 CREATE TABLE `accounts`
 (
 	`id` INT NOT NULL AUTO_INCREMENT,
+	`name` VARCHAR(32) NOT NULL DEFAULT '',
 	`password` VARCHAR(255) NOT NULL/* VARCHAR(32) NOT NULL COMMENT 'MD5'*//* VARCHAR(40) NOT NULL COMMENT 'SHA1'*/,
 	`premdays` INT NOT NULL DEFAULT 0,
 	`lastday` INT UNSIGNED NOT NULL DEFAULT 0,
@@ -101,13 +102,12 @@ CREATE TABLE `accounts`
 	`blocked` TINYINT(1) NOT NULL DEFAULT FALSE,
 	`warnings` INT NOT NULL DEFAULT 0,
 	`group_id` INT NOT NULL DEFAULT 1,
-	`deleted` TINYINT(1) NOT NULL DEFAULT FALSE,
-	`warned` TINYINT(1) NOT NULL DEFAULT FALSE,
 	PRIMARY KEY (`id`),
+	KEY (`name`),
 	FOREIGN KEY (`group_id`) REFERENCES `groups` (`id`)
 ) ENGINE = InnoDB;
 
-INSERT INTO `accounts` VALUES (1, '1', 65535, 0, '', '0', 0, 0, 1, 0, 0);
+INSERT INTO `accounts` VALUES (1, '1', '1', 65535, 0, '', '0', 0, 0, 1);
 
 CREATE TABLE `players`
 (
@@ -157,13 +157,15 @@ CREATE TABLE `players`
 	`premend` INT NOT NULL DEFAULT 0 COMMENT 'NOT IN USE BY THE SERVER',
 	`online` TINYINT NOT NULL DEFAULT 0,
 	`marriage` INT UNSIGNED NOT NULL DEFAULT 0,
+	`promotion` INT NOT NULL DEFAULT 0,
+	`deleted` TINYINT(1) NOT NULL DEFAULT FALSE,
 	PRIMARY KEY (`id`),
 	KEY (`name`),
 	FOREIGN KEY (`account_id`) REFERENCES `accounts`(`id`) ON DELETE CASCADE,
 	FOREIGN KEY (`group_id`) REFERENCES `groups`(`id`)
 ) ENGINE = InnoDB;
 
-INSERT INTO `players` VALUES (1, 'Account Manager', 1, 1, 1, 0, 150, 150, 0, 0, 0, 0, 0, 110, 0, 0, 0, 0, 0, 0, 0, 50, 50, 7, '', 400, 0, 0, 0, 0, 0, 0, 0, '', 0, 0, 0, 201660000, 0, 10, 10, 10, 10, 0, 0, 0);
+INSERT INTO `players` VALUES (1, 'Account Manager', 1, 1, 1, 0, 150, 150, 0, 0, 0, 0, 0, 110, 0, 0, 0, 0, 0, 0, 0, 50, 50, 7, '', 400, 0, 0, 0, 0, 0, 0, 0, '', 0, 0, 0, 201660000, 0, 10, 10, 10, 10, 0, 0, 0, 0, 0);
 
 CREATE TABLE `bans`
 (
@@ -262,7 +264,7 @@ CREATE TABLE `player_items`
 	`sid` INT NOT NULL DEFAULT 0,
 	`itemtype` INT NOT NULL DEFAULT 0,
 	`count` INT NOT NULL DEFAULT 0,
-	`attributes` text NOT NULL,
+	`attributes` BLOB NOT NULL,
 	FOREIGN KEY (`player_id`) REFERENCES `players`(`id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 

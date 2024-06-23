@@ -372,7 +372,7 @@ int32_t Items::loadFromOtb(std::string file)
 
 bool Items::loadFromXml()
 {
-	std::string filename = "data/items/items.xml";
+	std::string filename = getFilePath(FILE_TYPE_OTHER, "items/items.xml");
 
 	xmlDocPtr doc = xmlParseFile(filename.c_str());
 	int32_t intValue;
@@ -881,69 +881,96 @@ bool Items::loadFromXml()
 							else if(tmpStrValue == "absorbpercentall")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentAll = intValue;
+								{
+									it.abilities.absorbPercentEnergy += intValue;
+									it.abilities.absorbPercentFire += intValue;
+									it.abilities.absorbPercentEarth += intValue;
+									it.abilities.absorbPercentIce += intValue;
+									it.abilities.absorbPercentHoly += intValue;
+									it.abilities.absorbPercentDeath += intValue;
+									it.abilities.absorbPercentPhysical += intValue;
+									it.abilities.absorbPercentLifeDrain += intValue;
+									it.abilities.absorbPercentManaDrain += intValue;
+									it.abilities.absorbPercentDrown += intValue;
+									it.abilities.absorbPercentOther += intValue;
+								}
+							}
+							else if(tmpStrValue == "absorbpercentelements")
+							{
+								if(readXMLInteger(itemAttributesNode, "value", intValue))
+								{
+									it.abilities.absorbPercentEnergy += intValue;
+									it.abilities.absorbPercentFire += intValue;
+									it.abilities.absorbPercentEarth += intValue;
+									it.abilities.absorbPercentIce += intValue;
+								}
 							}
 							else if(tmpStrValue == "absorbpercentmagic")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 								{
-									it.abilities.absorbPercentEnergy = intValue;
-									it.abilities.absorbPercentFire = intValue;
-									it.abilities.absorbPercentEarth = intValue;
-									it.abilities.absorbPercentIce = intValue;
-									it.abilities.absorbPercentHoly = intValue;
-									it.abilities.absorbPercentDeath = intValue;
+									it.abilities.absorbPercentEnergy += intValue;
+									it.abilities.absorbPercentFire += intValue;
+									it.abilities.absorbPercentEarth += intValue;
+									it.abilities.absorbPercentIce += intValue;
+									it.abilities.absorbPercentHoly += intValue;
+									it.abilities.absorbPercentDeath += intValue;
 								}
 							}
 							else if(tmpStrValue == "absorbpercentenergy")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentEnergy = intValue;
+									it.abilities.absorbPercentEnergy += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentfire")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentFire = intValue;
+									it.abilities.absorbPercentFire += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentpoison" ||	tmpStrValue == "absorbpercentearth")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentEarth = intValue;
+									it.abilities.absorbPercentEarth += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentice")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentIce = intValue;
+									it.abilities.absorbPercentIce += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentholy")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentHoly = intValue;
+									it.abilities.absorbPercentHoly += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentdeath")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentDeath = intValue;
+									it.abilities.absorbPercentDeath += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentlifedrain")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentLifeDrain = intValue;
+									it.abilities.absorbPercentLifeDrain += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentmanadrain")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentManaDrain = intValue;
+									it.abilities.absorbPercentManaDrain += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentdrown")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentDrown = intValue;
+									it.abilities.absorbPercentDrown += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentphysical")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentPhysical = intValue;
+									it.abilities.absorbPercentPhysical += intValue;
+							}
+							else if(tmpStrValue == "absorbpercentother")
+							{
+								if(readXMLInteger(itemAttributesNode, "value", intValue))
+									it.abilities.absorbPercentOther += intValue;
 							}
 							else if(tmpStrValue == "suppressdrunk")
 							{
@@ -1254,49 +1281,4 @@ int32_t Items::getItemIdByName(const std::string& name)
 		while(iType);
 	}
 	return -1;
-}
-
-template<typename A>
-Array<A>::Array(uint32_t n)
-{
-	m_data = (A*)malloc(sizeof(A)*n);
-	memset(m_data, 0, sizeof(A)*n);
-	m_size = n;
-}
-
-template<typename A>
-Array<A>::~Array()
-{
-	free(m_data);
-}
-
-template<typename A>
-A Array<A>::getElement(uint32_t id)
-{
-	if(id < m_size)
-		return m_data[id];
-	else
-		return 0;
-}
-
-template<typename A>
-const A Array<A>::getElement(uint32_t id) const
-{
-	if(id < m_size)
-		return m_data[id];
-	else
-		return 0;
-}
-
-template<typename A>
-void Array<A>::addElement(A a, uint32_t pos)
-{
-	#define INCREMENT 5000
-	if(pos >= m_size)
-	{
-		m_data = (A*)realloc(m_data, sizeof(A)*(pos + INCREMENT));
-		memset(m_data + m_size, 0, sizeof(A)*(pos + INCREMENT - m_size));
-		m_size = pos + INCREMENT;
-	}
-	m_data[pos] = a;
 }

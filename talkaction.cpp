@@ -88,9 +88,8 @@ TalkActionResult_t TalkActions::onPlayerSpeak(Player* player, SpeakClasses type,
 		return TALKACTION_CONTINUE;
 
 	std::string cmdstring[TALKFILTER_LAST] = words, paramstring[TALKFILTER_LAST] = "";
-	size_t loc;
 
-	loc = words.find('"', 0 );
+	size_t loc = words.find('"', 0);
 	if(loc != std::string::npos && loc >= 0)
 	{
 		cmdstring[TALKFILTER_QUOTATION] = std::string(words, 0, loc);
@@ -99,7 +98,7 @@ TalkActionResult_t TalkActions::onPlayerSpeak(Player* player, SpeakClasses type,
 		trim_right(cmdstring[TALKFILTER_QUOTATION], " ");
 	}
 
-	loc = words.find(' ', 0 );
+	loc = words.find(" ", 0);
 	if(loc != std::string::npos && loc >= 0)
 	{
 		cmdstring[TALKFILTER_WORD] = std::string(words, 0, loc);
@@ -112,7 +111,7 @@ TalkActionResult_t TalkActions::onPlayerSpeak(Player* player, SpeakClasses type,
 			strcasecmp(it->first.c_str(), cmdstring[it->second->getFilter()].c_str()) == 0))
 		{
 			TalkAction* talkAction = it->second;
-			if(talkAction->getAccess() > player->getAccessLevel() || player->getName() == "Account Manager")
+			if(talkAction->getAccess() > player->getAccessLevel() || player->isAccountManager())
 			{
 				if(player->getAccessLevel() > 0)
 					player->sendTextMessage(MSG_STATUS_SMALL, "You can not execute this talkaction.");
@@ -120,16 +119,15 @@ TalkActionResult_t TalkActions::onPlayerSpeak(Player* player, SpeakClasses type,
 				return TALKACTION_FAILED;
 			}
 
-			uint32_t ret = talkAction->executeSay(player, cmdstring[talkAction->getFilter()], paramstring[talkAction->getFilter()]);
-			if(ret == 1)
+			if(talkAction->executeSay(player, cmdstring[talkAction->getFilter()], paramstring[talkAction->getFilter()]) == 1)
 			{
 				if(player && talkAction->isLogged())
 				{
 					player->sendTextMessage(MSG_STATUS_CONSOLE_RED, words.c_str());
 
-					char buf[21], buffer[85];
+					char buf[21], buffer[100];
 					formatDate(time(NULL), buf);
-					sprintf(buffer, "data/logs/%s talkactions.log", player->getName().c_str());
+					sprintf(buffer, "%s_talkactions.log", getFilePath(FILE_TYPE_LOG, player->getName()).c_str());
 
 					FILE* file = fopen(buffer, "a");
 					if(file)
@@ -179,16 +177,10 @@ bool TalkAction::configureEvent(xmlNodePtr p)
 		m_access = intValue;
 
 	if(readXMLString(p, "log", strValue))
-	{
-		strValue = asLowerCaseString(strValue);
-		m_sensitive = booleanString(strValue);
-	}
+		m_logged = booleanString(asLowerCaseString(strValue));
 
 	if(readXMLString(p, "case-sensitive", strValue))
-	{
-		strValue = asLowerCaseString(strValue);
-		m_sensitive = booleanString(strValue);
-	}
+		m_sensitive = booleanString(asLowerCaseString(strValue));
 
 	return true;
 }
