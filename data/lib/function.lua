@@ -221,10 +221,6 @@ function getPosByDir(fromPosition, direction, size)
 	return pos
 end
 
-function getPlayerMoney(cid)
-	return ((getPlayerItemCount(cid, ITEM_CRYSTAL_COIN) * 10000) + (getPlayerItemCount(cid, ITEM_PLATINUM_COIN) * 100) + getPlayerItemCount(cid, ITEM_GOLD_COIN))
-end
-
 function doPlayerWithdrawAllMoney(cid)
 	return doPlayerWithdrawMoney(cid, getPlayerBalance(cid))
 end
@@ -253,9 +249,14 @@ function getTibiaTime()
 end
 
 function doWriteLogFile(file, text)
-	local file = io.open(file, "a+")
-	file:write("[" .. os.date("%d/%m/%Y  %H:%M:%S") .. "] " .. text .. "\n")
-	file:close()
+	local f = io.open(file, "a+")
+	if(not f) then
+		return false
+	end
+
+	f:write("[" .. os.date("%d/%m/%Y %H:%M:%S") .. "] " .. text .. "\n")
+	f:close()
+	return true
 end
 
 function getExperienceForLevel(lv)
@@ -311,6 +312,10 @@ end
 
 function getItemText(uid)
 	return getItemDescriptions(uid).text
+end
+
+function getItemSpecialDescription(uid)
+	return getItemDescriptions(uid).special
 end
 
 function getItemWriter(uid)
@@ -387,6 +392,10 @@ function getPlayerFrags(cid)
 	return math.ceil((getPlayerRedSkullTicks(cid) / getConfigInfo('timeToDecreaseFrags')) + 1)
 end
 
+function doPlayerAddFrags(cid, amount)
+	return doPlayerSetRedSkullTicks(cid, getPlayerRedSkullTicks(cid) + getConfigInfo('timeToDecreaseFrags') * amount)
+end
+
 function getPartyLeader(cid)
 	local party = getPartyMembers(cid)
 	if(type(party) ~= 'table') then
@@ -401,13 +410,7 @@ function isInParty(cid)
 end
 
 function isPrivateChannel(channelId)
-	for i = CHANNEL_GUILD, CHANNEL_HELP do
-		if(channelId == i) then
-			return FALSE
-		end
-	end
-
-	return TRUE
+	return channelId >= 65535 and TRUE or FALSE
 end
 
 function doConvertIntegerToIp(int, mask)

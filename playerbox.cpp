@@ -1,30 +1,25 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// Player box
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
-
-#include "definitions.h"
-#ifndef __CONSOLE__
-#include "game.h"
-#include <iostream>
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
+#if defined(WIN32) && not defined(__CONSOLE__)
+#include "otpch.h"
 #include "gui.h"
-#include "ioban.h"
 
+#include "ioban.h"
+#include "game.h"
 extern Game g_game;
 
 HWND PlayerBox::parent = NULL;
@@ -59,15 +54,11 @@ PlayerBox::PlayerBox()
 	}
 }
 
-PlayerBox::~PlayerBox()
-{
-	//
-}
-
 void PlayerBox::updatePlayersOnline()
 {
 	int32_t playersOnline = SendMessage(list, CB_GETCOUNT, 0, 0);
 	char playersOnlineBuffer[50];
+
 	sprintf(playersOnlineBuffer, "%d player%s online", playersOnline, (playersOnline != 1 ? "s" : ""));
 	SendMessage(online, WM_SETTEXT, 0, (LPARAM)playersOnlineBuffer);
 }
@@ -83,6 +74,7 @@ void PlayerBox::removePlayer(Player* player)
 	DWORD index = SendMessage(list, CB_FINDSTRING, 0,(LPARAM)player->getName().c_str());
 	if((signed)index != CB_ERR)
 		SendMessage(list, CB_DELETESTRING, index, 0);
+
 	updatePlayersOnline();
 }
 
@@ -107,8 +99,9 @@ LRESULT CALLBACK PlayerBox::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPAR
 			AutoList<Player>::listiterator it;
 			for(it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 				SendMessage(list, CB_ADDSTRING, 0, (LPARAM)(*it).second->getName().c_str());
+
+			break;
 		}
-		break;
 		case WM_COMMAND:
 		{
 			switch(HIWORD(wParam))
@@ -124,15 +117,18 @@ LRESULT CALLBACK PlayerBox::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPAR
 						if(MessageBox(hWnd, buffer, "Player management", MB_YESNO) == IDYES)
 						{
 							if((HWND)lParam == permBan)
-								IOBan::getInstance()->addDeletion(player->getAccount(), 23, 7, "Permament banishment.", 0);
+								IOBan::getInstance()->addDeletion(player->getAccount(), 23, ACTION_DELETION, "Permament banishment.", 0);
 
 							g_game.kickPlayer(player->getID(), true);
 						}
 					}
 					else
 						MessageBox(hWnd, "A player with this name is not online", "Player management", MB_OK);
+
+					break;
 				}
-				break;
+				default:
+					break;
 			}
 			break;
 		}
@@ -154,9 +150,8 @@ bool PlayerBox::popUp(LPCTSTR szCaption)
 {
 	RECT r;
 	GetWindowRect(GetDesktopWindow(), &r);
-
 	playerBox = CreateWindowEx(WS_EX_TOOLWINDOW, "PlayerBox", szCaption, WS_POPUPWINDOW|WS_CAPTION|WS_TABSTOP, (r.right-200)/2, (r.bottom-115)/2, 225, 115, parent, NULL, m_hInst, NULL);
-	if(playerBox == NULL)
+	if(!playerBox)
 		return FALSE;
 
 	SetForegroundWindow(playerBox);
@@ -169,14 +164,12 @@ bool PlayerBox::popUp(LPCTSTR szCaption)
 	SendMessage(list, WM_KEYDOWN, VK_DOWN, 0);
 	while(GetMessage(&msg, NULL, 0, 0))
 	{
-		if(msg.message == WM_KEYDOWN)
+		if(msg.message == WM_KEYDOWN && msg.wParam == VK_ESCAPE)
 		{
-			if(msg.wParam == VK_ESCAPE)
-			{
-				SendMessage(playerBox, WM_DESTROY, 0, 0);
-				ret = 0;
-			}
+			SendMessage(playerBox, WM_DESTROY, 0, 0);
+			ret = 0;
 		}
+
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}

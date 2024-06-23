@@ -21,6 +21,7 @@
 #ifndef __MOVEMENT_H__
 #define __MOVEMENT_H__
 #include "baseevents.h"
+#include "creature.h"
 
 enum MoveEvent_t
 {
@@ -40,7 +41,6 @@ enum MoveEvent_t
 class MoveEvent;
 typedef std::list<MoveEvent*> EventList;
 
-typedef std::map<int32_t, bool> VocEquipMap;
 struct MoveEventList
 {
 	EventList moveEvent[MOVE_EVENT_NONE];
@@ -123,7 +123,7 @@ class MoveEvent : public Event
 		int32_t getReqMagLv() const {return reqMagLevel;}
 		bool isPremium() const {return premium;}
 
-		const VocEquipMap& getVocEquipMap() const {return vocEquipMap;}
+		const VocationMap& getVocEquipMap() const {return vocEquipMap;}
 		const std::string& getVocationString() const {return vocationString;}
 
 	protected:
@@ -149,7 +149,7 @@ class MoveEvent : public Event
 		int32_t reqMagLevel;
 		bool premium;
 
-		VocEquipMap vocEquipMap;
+		VocationMap vocEquipMap;
 		std::string vocationString;
 };
 

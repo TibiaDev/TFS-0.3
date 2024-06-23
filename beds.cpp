@@ -1,30 +1,28 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// Beds
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
 
 #include "beds.h"
-
 #include "house.h"
-#include "iologindata.h"
-#include "game.h"
+
 #include "player.h"
+#include "iologindata.h"
+
+#include "game.h"
 #include "configmanager.h"
 
 extern Game g_game;
@@ -154,7 +152,7 @@ void BedItem::sleep(Player* player)
 		Beds::getInstance().setBedSleeper(this, player->getGUID());
 		BedItem* nextBedItem = getNextBedItem();
 
-		internalSetSleeper(player);		
+		internalSetSleeper(player);
 		if(nextBedItem)
 			nextBedItem->internalSetSleeper(player);
 
@@ -214,11 +212,10 @@ void BedItem::regeneratePlayer(Player* player) const
 	int32_t sleptTime = int32_t(time(NULL) - sleepStart);
 	if(Condition* condition = player->getCondition(CONDITION_REGENERATION, CONDITIONID_DEFAULT))
 	{
-		int32_t amount = 0;
+		int32_t amount = sleptTime / 30;
 		if(condition->getTicks() != -1)
 		{
 			amount = std::min((condition->getTicks()/1000), sleptTime) / 30;
-
 			int32_t tmp = condition->getTicks() - (amount * 30000);
 			if(tmp > 0)
 				condition->setTicks(tmp);
@@ -226,10 +223,8 @@ void BedItem::regeneratePlayer(Player* player) const
 			{
 				player->removeCondition(condition);
 				condition = NULL;
-			}				
+			}
 		}
-		else
-			amount = sleptTime / 30;
 
 		player->changeHealth(amount);
 		player->changeMana(amount);

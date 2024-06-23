@@ -44,11 +44,9 @@ class Actions : public BaseEvents
 		Actions();
 		virtual ~Actions();
 
-		bool useItem(Player* player, const Position& pos, uint8_t index, Item* item, bool isHotkey);
+		bool useItem(Player* player, const Position& pos, uint8_t index, Item* item);
 		bool useItemEx(Player* player, const Position& fromPos, const Position& toPos,
 			uint8_t toStackPos, Item* item, bool isHotkey, uint32_t creatureId = 0);
-
-		bool openContainer(Player* player,Container* container, const uint8_t index);
 
 		ReturnValue canUse(const Player* player, const Position& pos);
 		ReturnValue canUse(const Player* player, const Position& pos, const Item* item);
@@ -84,7 +82,6 @@ class Actions : public BaseEvents
 
 		Action* getAction(const Item* item, ActionType_t type = ACTION_ANY) const;
 		void clearMap(ActionUseMap& map);
-		void showUseHotkeyMessage(Player* player, int32_t id, uint32_t count);
 };
 
 typedef bool (ActionFunction)(Player* player, Item* item, const PositionEx& posFrom, const PositionEx& posTo, bool extendedUse, uint32_t creatureId);
@@ -94,7 +91,7 @@ class Action : public Event
 	public:
 		Action(const Action* copy);
 		Action(LuaScriptInterface* _interface);
-		virtual ~Action();
+		virtual ~Action() {};
 
 		virtual bool configureEvent(xmlNodePtr p);
 		virtual bool loadFunction(const std::string& functionName);

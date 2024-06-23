@@ -1,32 +1,29 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// Various functions.
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
-
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
-#include "tools.h"
-#include "configmanager.h"
-#include "md5.h"
-#include "sha1.h"
-#include <sstream>
+#include <iostream>
 #include <iomanip>
 
+#include "tools.h"
+#include "md5.h"
+#include "sha1.h"
+
+#include "vocation.h"
+#include "configmanager.h"
 extern ConfigManager g_config;
 
 std::string transformToSHA1(std::string plainText, bool upperCase /*= false*/)
@@ -77,21 +74,16 @@ bool passwordTest(const std::string &plain, std::string &hash)
 		{
 			std::transform(hash.begin(), hash.end(), hash.begin(), upchar);
 			return transformToMD5(plain, true) == hash;
-			break;
 		}
 
 		case PASSWORD_TYPE_SHA1:
 		{
 			std::transform(hash.begin(), hash.end(), hash.begin(), upchar);
 			return transformToSHA1(plain, true) == hash;
-			break;
 		}
 
 		default:
-		{
 			return plain == hash;
-			break;
-		}
 	}
 	return false;
 }
@@ -174,7 +166,7 @@ bool readXMLInteger(xmlNodePtr node, const char* tag, int32_t& value)
 }
 #endif
 
-bool readXMLInteger64(xmlNodePtr node, const char* tag, uint64_t& value)
+bool readXMLInteger64(xmlNodePtr node, const char* tag, int64_t& value)
 {
 	char* nodeValue = (char*)xmlGetProp(node, (xmlChar*)tag);
 	if(nodeValue)
@@ -198,32 +190,6 @@ bool readXMLFloat(xmlNodePtr node, const char* tag, float& value)
 	}
 
 	return false;
-}
-
-bool utf8ToLatin1(char* intext, std::string& outtext)
-{
-	outtext = "";
-
-	if(intext == NULL)
-		return false;
-
-	int32_t inlen  = strlen(intext);
-	if(inlen == 0)
-		return false;
-
-	int32_t outlen = inlen * 2;
-	uint8_t* outbuf = new uint8_t[outlen];
-	int32_t res = UTF8Toisolat1(outbuf, &outlen, (uint8_t*)intext, &inlen);
-	if(res < 0)
-	{
-		delete[] outbuf;
-		return false;
-	}
-
-	outbuf[outlen] = '\0';
-	outtext = (char*)outbuf;
-	delete[] outbuf;
-	return true;
 }
 
 bool readXMLString(xmlNodePtr node, const char* tag, std::string& value)
@@ -282,6 +248,43 @@ bool parseXMLContentString(xmlNodePtr node, std::string& value)
 	}
 
 	return result;
+}
+
+std::string getLastXMLError()
+{
+	std::stringstream ss;
+	xmlErrorPtr lastError = xmlGetLastError();
+	if(lastError->line)
+		ss << "Line: " << lastError->line << ", ";
+
+	ss << "Info: " << lastError->message << std::endl;
+	return ss.str();
+}
+
+bool utf8ToLatin1(char* intext, std::string& outtext)
+{
+	outtext = "";
+
+	if(intext == NULL)
+		return false;
+
+	int32_t inlen  = strlen(intext);
+	if(inlen == 0)
+		return false;
+
+	int32_t outlen = inlen * 2;
+	uint8_t* outbuf = new uint8_t[outlen];
+	int32_t res = UTF8Toisolat1(outbuf, &outlen, (uint8_t*)intext, &inlen);
+	if(res < 0)
+	{
+		delete[] outbuf;
+		return false;
+	}
+
+	outbuf[outlen] = '\0';
+	outtext = (char*)outbuf;
+	delete[] outbuf;
+	return true;
 }
 
 StringVec explodeString(const std::string& string, const std::string& separator)
@@ -446,7 +449,7 @@ bool isValidPassword(std::string text)
 
 bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 {
-	uint32_t textLength = text.length(), lenBeforeSpace = 1, lenBeforeQuote = 1, lenBeforeDash = 1, repeatedCharacter = 0;
+	uint32_t textLength = text.length(), lenBeforeSpace = 1/*, lenBeforeQuote = 1*/, lenBeforeDash = 1, repeatedCharacter = 0; //Elf
 	char lastChar = 32;
 
 	if(forceUppercaseOnFirstLetter)
@@ -463,7 +466,8 @@ bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 		{
 			lenBeforeSpace++;
 
-			if(text[size] != 39)
+			// [START] Elf
+			/*if(text[size] != 39)
 				lenBeforeQuote++;
 			else
 			{
@@ -471,7 +475,8 @@ bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 					return false;
 
 				lenBeforeQuote = 0;
-			}
+			}*/
+			// [END] Elf
 
 			if(text[size] != 45)
 				lenBeforeDash++;
@@ -499,10 +504,10 @@ bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 			if(lenBeforeSpace <= 1 || size == textLength - 1 || text[size + 1] == 32)
 				return false;
 
-			lenBeforeSpace = lenBeforeQuote = lenBeforeDash = 0;
+			lenBeforeSpace = /*lenBeforeQuote = */lenBeforeDash = 0; //Elf
 		}
 
-		if(!(isLowercaseLetter(text[size]) || text[size] == 32 || text[size] == 39 || text[size] == 45
+		if(!(isLowercaseLetter(text[size]) || text[size] == 32/* || text[size] == 39*/ || text[size] == 45
 			|| (isUppercaseLetter(text[size]) && text[size - 1] == 32)))
 			return false;
 	}
@@ -620,6 +625,50 @@ void formatDate2(time_t time, char* buffer/* atleast 16 */)
 		sprintf(buffer, "UNIX Time: %d", (int32_t)time);
 }
 
+Skulls_t getSkull(std::string strValue)
+{
+	Skulls_t skull = SKULL_NONE;
+	std::string tmpStrValue = asLowerCaseString(strValue);
+	if(tmpStrValue == "red" || tmpStrValue == "4")
+		skull = SKULL_RED;
+	else if(tmpStrValue == "white" || tmpStrValue == "3")
+		skull = SKULL_WHITE;
+	else if(tmpStrValue == "green" || tmpStrValue == "2")
+		skull = SKULL_GREEN;
+	else if(tmpStrValue == "yellow" || tmpStrValue == "1")
+		skull = SKULL_YELLOW;
+
+	return skull;
+}
+
+PartyShields_t getPartyShield(std::string strValue)
+{
+	PartyShields_t partyShield = SHIELD_NONE;
+	std::string tmpStrValue = asLowerCaseString(strValue);
+	if(tmpStrValue == "whitenoshareoff" || tmpStrValue == "10")
+		partyShield = SHIELD_YELLOW_NOSHAREDEXP;
+	else if(tmpStrValue == "blueshareoff" || tmpStrValue == "9")
+		partyShield = SHIELD_BLUE_NOSHAREDEXP;
+	else if(tmpStrValue == "yellowshareblink" || tmpStrValue == "8")
+		partyShield = SHIELD_YELLOW_NOSHAREDEXP_BLINK;
+	else if(tmpStrValue == "blueshareblink" || tmpStrValue == "7")
+		partyShield = SHIELD_BLUE_NOSHAREDEXP_BLINK;
+	else if(tmpStrValue == "yellowshareon" || tmpStrValue == "6")
+		partyShield = SHIELD_YELLOW_SHAREDEXP;
+	else if(tmpStrValue == "blueshareon" || tmpStrValue == "5")
+		partyShield = SHIELD_BLUE_SHAREDEXP;
+	else if(tmpStrValue == "yellow" || tmpStrValue == "4")
+		partyShield = SHIELD_YELLOW;
+	else if(tmpStrValue == "blue" || tmpStrValue == "3")
+		partyShield = SHIELD_BLUE;
+	else if(tmpStrValue == "whiteyellow" || tmpStrValue == "2")
+		partyShield = SHIELD_WHITEYELLOW;
+	else if(tmpStrValue == "whiteblue" || tmpStrValue == "1")
+		partyShield = SHIELD_WHITEBLUE;
+
+	return partyShield;
+}
+
 Direction getDirection(std::string string)
 {
 	Direction direction = SOUTH;
@@ -639,6 +688,42 @@ Direction getDirection(std::string string)
 		direction = NORTHWEST;
 	else if(string == "northeast" || string == "north east" || string == "north-east" || string == "ne" || string == "7")
 		direction = NORTHEAST;
+
+	return direction;
+}
+
+Direction getDirectionTo(Position pos1, Position pos2, bool extended/* = true*/)
+{
+	Direction direction = NORTH;
+	if(pos1.x > pos2.x)
+	{
+		direction = WEST;
+		if(extended)
+		{
+			if(pos1.y > pos2.y)
+				direction = NORTHWEST;
+			else if(pos1.y < pos2.y)
+				direction = SOUTHWEST;
+		}
+	}
+	else if(pos1.x < pos2.x)
+	{
+		direction = EAST;
+		if(extended)
+		{
+			if(pos1.y > pos2.y)
+				direction = NORTHEAST;
+			else if(pos1.y < pos2.y)
+				direction = SOUTHEAST;
+		}
+	}
+	else
+	{
+		if(pos1.y > pos2.y)
+			direction = NORTH;
+		else if(pos1.y < pos2.y)
+			direction = SOUTH;
+	}
 
 	return direction;
 }
@@ -671,8 +756,6 @@ Direction getReverseDirection(Direction dir)
 			break;
 		case SOUTHEAST:
 			_dir = NORTHWEST;
-			break;
-		default:
 			break;
 	}
 
@@ -710,8 +793,6 @@ Position getNextPosition(Direction direction, Position pos)
 		case NORTHEAST:
 			pos.x++;
 			pos.y--;
-			break;
-		default:
 			break;
 	}
 
@@ -1070,8 +1151,6 @@ std::string getSkillName(uint16_t skillId, bool suffix/* = true*/)
 			return "magic level";
 		case SKILL__LEVEL:
 			return "level";
-		default:
-			break;
 	}
 
 	return "unknown";
@@ -1147,41 +1226,40 @@ std::string getReason(int32_t reasonId)
 			return "Invalid Payment";
 		case 22:
 			return "Spoiling Auction";
-		default:
-			break;
 	}
 
 	return "Unknown Reason";
 }
 
-std::string getAction(int32_t actionId, bool ipBanishment)
+std::string getAction(ViolationAction_t actionId, bool ipBanishment)
 {
 	std::string action;
 	switch(actionId)
 	{
-		case 0:
+		case ACTION_NOTATION:
 			action = "Notation";
 			break;
-		case 1:
+		case ACTION_NAMEREPORT:
 			action = "Name Report";
 			break;
-		case 2:
-			action = "Banishment";
-			break;
-		case 3:
+		case ACTION_BANREPORT:
 			action = "Name Report + Banishment";
 			break;
-		case 4:
+		case ACTION_BANFINAL:
 			action = "Banishment + Final Warning";
 			break;
-		case 5:
+		case ACTION_BANREPORTFINAL:
 			action = "Name Report + Banishment + Final Warning";
 			break;
-		case 6:
+		case ACTION_STATEMENT:
 			action = "Statement Report";
 			break;
-		default:
+		case ACTION_DELETION:
 			action = "Deletion";
+			break;
+		case ACTION_BANISHMENT:
+		default:
+			action = "Banishment";
 			break;
 	}
 
@@ -1191,15 +1269,90 @@ std::string getAction(int32_t actionId, bool ipBanishment)
 	return action;
 }
 
-bool fileExists(const char* filename)
+std::string parseVocationString(StringVec vocStringVec)
 {
-	if(FILE* f = fopen(filename, "rb"))
+	std::string str = "";
+	if(!vocStringVec.empty())
 	{
-		fclose(f);
-		return true;
+		for(StringVec::iterator it = vocStringVec.begin(); it != vocStringVec.end(); ++it)
+		{
+			if((*it) != vocStringVec.front())
+			{
+				if((*it) != vocStringVec.back())
+					str += ", ";
+				else
+					str += " and ";
+			}
+
+			str += (*it);
+			str += "s";
+		}
 	}
 
-	return false;
+	return str;
+}
+
+bool parseVocationNode(xmlNodePtr vocationNode, VocationMap& vocationMap, StringVec& vocStringVec, std::string& errorStr)
+{
+	int32_t intValue;
+	std::string strValue, tmpStrValue;
+	if(!xmlStrcmp(vocationNode->name,(const xmlChar*)"vocation"))
+	{
+		int32_t vocationId = -1;
+		if(readXMLString(vocationNode, "name", strValue))
+		{
+			vocationId = Vocations::getInstance()->getVocationId(strValue);
+			if(vocationId != -1)
+			{
+				vocationMap[vocationId] = true;
+				int32_t promotedVocation = Vocations::getInstance()->getPromotedVocation(vocationId);
+				if(promotedVocation != -1)
+					vocationMap[promotedVocation] = true;
+			}
+			else
+			{
+				errorStr += "Wrong vocation name: " + strValue;
+				return false;
+			}
+		}
+		else if(readXMLInteger(vocationNode, "id", intValue))
+		{
+			Vocation* vocation = Vocations::getInstance()->getVocation(intValue);
+			if(vocation && vocation->getName() != "")
+			{
+				vocationId = vocation->getId();
+				strValue = vocation->getName();
+
+				vocationMap[vocationId] = true;
+				int32_t promotedVocation = Vocations::getInstance()->getPromotedVocation(vocationId);
+				if(promotedVocation != -1)
+					vocationMap[promotedVocation] = true;
+			}
+			else
+			{
+				std::stringstream ss;
+				ss << "Wrong vocation id: " << intValue;
+
+				errorStr += ss.str();
+				return false;
+			}
+		}
+
+		if(vocationId != -1 && (!readXMLString(vocationNode, "showInDescription", tmpStrValue) || booleanString(tmpStrValue)))
+			vocStringVec.push_back(asLowerCaseString(strValue));
+	}
+
+	return true;
+}
+
+bool fileExists(const char* filename)
+{
+	FILE* f = fopen(filename, "rb");
+	if(!f)
+		return false;
+
+	fclose(f);
+	return true;
 }
 
 uint32_t adlerChecksum(uint8_t *data, size_t length)
@@ -1229,12 +1382,11 @@ uint32_t adlerChecksum(uint8_t *data, size_t length)
 
 std::string getFilePath(FileType_t filetype, std::string filename)
 {
-	#ifndef __FILESYSTEM_HIERARCHY_STANDARD__
-	std::string path = "data/";
-	#else
-	std::string path = "/usr/share/tfs/";
-	#endif 
-
+	std::string path = "";
+	#ifdef __FILESYSTEM_HIERARCHY_STANDARD__
+	path = "/usr/share/tfs/";
+	#endif
+	path += g_config.getString(ConfigManager::DATA_DIRECTORY);
 	switch(filetype)
 	{
 		case FILE_TYPE_XML:
@@ -1251,6 +1403,7 @@ std::string getFilePath(FileType_t filetype, std::string filename)
 			path += filename;
 			break;
 		case FILE_TYPE_CONFIG:
+		{
 			#if defined(__FILESYSTEM_HIERARCHY_STANDARD__) && defined(__HOMEDIR_CONF__)
 			if(fileExists("~/.tfs/" + filename))
 				path = "~/.tfs/" + filename;
@@ -1261,7 +1414,9 @@ std::string getFilePath(FileType_t filetype, std::string filename)
 			#else
 				path = filename;
 			#endif
+
 			break;
+		}
 		default:
 			std::cout << "ERROR: Wrong file type!" << std::endl;
 			break;

@@ -1,31 +1,28 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #ifdef __REMOTE_CONTROL__
 #include "otpch.h"
-#include "admin.h"
-
 #include <iostream>
+
+#include "admin.h"
+#include "tools.h"
 
 #include "configmanager.h"
 #include "game.h"
-#include "tools.h"
 #include "rsa.h"
 
 #include "connection.h"
@@ -39,18 +36,18 @@ extern Game g_game;
 extern ConfigManager g_config;
 Admin* g_admin = NULL;
 
-Logger::Logger()
+Loggar::Loggar()
 {
 	m_file = fopen(getFilePath(FILE_TYPE_LOG, "ForgottenAdmin.log").c_str(), "a");
 }
 
-Logger::~Logger()
+Loggar::~Loggar()
 {
 	if(m_file)
 		fclose(m_file);
 }
 
-void Logger::logMessage(const char* channel, LogType_t type, int32_t level, std::string message, const char* func)
+void Loggar::logMessage(const char* channel, LogType_t type, int32_t level, std::string message, const char* func)
 {
 	char buffer[32];
 	formatDate(time(NULL), buffer);
@@ -240,7 +237,7 @@ void ProtocolAdmin::parsePacket(NetworkMessage& msg)
 			else
 			{
 				output->AddByte(AP_MSG_LOGIN_FAILED);
-				output->AddString("can not login");
+				output->AddString("cannot login");
 				addLogLine(this, LOGTYPE_WARNING, 1, "wrong state at login");
 			}
 
@@ -299,8 +296,8 @@ void ProtocolAdmin::parsePacket(NetworkMessage& msg)
 			else
 			{
 				output->AddByte(AP_MSG_ENCRYPTION_FAILED);
-				output->AddString("can not set encryption");
-				addLogLine(this, LOGTYPE_EVENT, 1, "can not set encryption");
+				output->AddString("cannot set encryption");
+				addLogLine(this, LOGTYPE_EVENT, 1, "cannot set encryption");
 			}
 
 			break;
@@ -344,8 +341,8 @@ void ProtocolAdmin::parsePacket(NetworkMessage& msg)
 			else
 			{
 				output->AddByte(AP_MSG_KEY_EXCHANGE_FAILED);
-				output->AddString("can not get public key");
-				addLogLine(this, LOGTYPE_WARNING, 1, "can not get public key");
+				output->AddString("cannot get public key");
+				addLogLine(this, LOGTYPE_WARNING, 1, "cannot get public key");
 			}
 
 			break;
@@ -464,19 +461,11 @@ void ProtocolAdmin::adminCommandPayHouses()
 	if(!output)
 		return;
 
-	TRACK_MESSAGE(output);
-	if(Houses::getInstance().payHouses())
-	{
-		addLogLine(this, LOGTYPE_EVENT, 1, "pay houses ok");
-		output->AddByte(AP_MSG_COMMAND_OK);
-	}
-	else
-	{
-		addLogLine(this, LOGTYPE_WARNING, 1, "pay houses failed");
-		output->AddByte(AP_MSG_COMMAND_FAILED);
-		output->AddString(" ");
-	}
+	Houses::getInstance().payHouses();
+	addLogLine(this, LOGTYPE_EVENT, 1, "pay houses ok");
 
+	TRACK_MESSAGE(output);
+	output->AddByte(AP_MSG_COMMAND_OK);
 	OutputMessagePool::getInstance()->send(output);
 }
 
@@ -513,7 +502,7 @@ void ProtocolAdmin::adminCommandSetOwner(const std::string& param)
 	TRACK_MESSAGE(output);
 	StringVec params = explodeString(param, ";");
 	std::string houseId = params[0], name = params[1];
-	
+
 	trimString(houseId);
 	trimString(name);
 	if(House* house = Houses::getInstance().getHouse(atoi(houseId.c_str())))
@@ -546,12 +535,16 @@ bool Admin::loadFromXml()
 {
 	xmlDocPtr doc = xmlParseFile(getFilePath(FILE_TYPE_XML, "admin.xml").c_str());
 	if(!doc)
-		return false;
-
-	xmlNodePtr root, p, q;
-	root = xmlDocGetRootElement(doc);
-	if(!xmlStrEqual(root->name,(const xmlChar*)"otadmin"))
 	{
+		std::cout << "[Warning - Admin::loadFromXml] Cannot load admin file." << std::endl;
+		std::cout << getLastXMLError() << std::endl;
+		return false;
+	}
+
+	xmlNodePtr p, q, root = xmlDocGetRootElement(doc);
+	if(xmlStrcmp(root->name,(const xmlChar*)"otadmin"))
+	{
+		std::cout << "[Error - Admin::loadFromXml] Malformed admin file" << std::endl;
 		xmlFreeDoc(doc);
 		return false;
 	}
@@ -639,9 +632,9 @@ uint16_t Admin::getProtocolPolicy()
 {
 	uint16_t policy = 0;
 	if(requireLogin())
-		policy = policy | REQUIRE_LOGIN;
+		policy |= REQUIRE_LOGIN;
 	if(requireEncryption())
-		policy = policy | REQUIRE_ENCRYPTION;
+		policy |= REQUIRE_ENCRYPTION;
 
 	return policy;
 }
@@ -699,7 +692,7 @@ bool Admin::passwordMatch(std::string& password)
 
 static void addLogLine(ProtocolAdmin* protocol, LogType_t type, int32_t level, std::string message)
 {
-	if(g_config.getBool(ConfigManager::ADMIN_LOGS_ENABLED))
+	if(!g_config.getBool(ConfigManager::ADMIN_LOGS_ENABLED))
 		return;
 
 	std::string tmp;

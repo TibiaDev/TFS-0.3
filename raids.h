@@ -62,6 +62,7 @@ class Raids
 		}
 
 		bool loadFromXml();
+		bool parseRaidNode(xmlNodePtr raidNode);
 		bool startup();
 
 		void clear();

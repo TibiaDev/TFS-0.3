@@ -59,6 +59,7 @@ class ProtocolStatus : public Protocol
 		enum {protocolId = 0xFF};
 		enum {isSingleSocket = false};
 		enum {hasChecksum = false};
+		static const char* protocolName() {return "status protocol";}
 
 		virtual void onRecvFirstMessage(NetworkMessage& msg);
 
@@ -82,7 +83,7 @@ class Status
 		void removePlayer() {m_playersOnline--;}
 		bool hasSlot() const {return m_playersMax > m_playersOnline;}
 
-		std::string getStatusString() const;
+		std::string getStatusString(bool sendPlayers) const;
 		void getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMessage& msg) const;
 
 		uint32_t getPlayersOnline() const {return m_playersOnline;}

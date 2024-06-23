@@ -1,33 +1,30 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
 #if defined __WINDOWS__ || defined WIN32
 #include <winerror.h>
 #endif
 
 #include "server.h"
-#include "game.h"
-#include "configmanager.h"
-
 #include "connection.h"
 #include "outputmessage.h"
+
+#include "game.h"
+#include "configmanager.h"
 
 extern Game g_game;
 extern ConfigManager g_config;
@@ -50,19 +47,8 @@ void ServicePort::open(uint16_t port)
 	if(m_pendingStart)
 		m_pendingStart = false;
 
-	try
-	{
-		m_acceptor = new boost::asio::ip::tcp::acceptor(m_io_service, boost::asio::ip::tcp::endpoint(
-			boost::asio::ip::address(boost::asio::ip::address_v4(INADDR_ANY)), m_serverPort), false);
-	}
-	catch(boost::system::system_error& error)
-	{
-		std::cout << "> ERROR: Can bind only one socket to a specific port (" << m_serverPort << ")." << std::endl;
-		std::cout << "The exact error was: " << error.what() << std::endl;
-		if(g_config.getBool(ConfigManager::ABORT_SOCKET_FAIL))
-			exit(1);
-	}
-
+	m_acceptor = new boost::asio::ip::tcp::acceptor(m_io_service, boost::asio::ip::tcp::endpoint(
+		boost::asio::ip::address(boost::asio::ip::address_v4(INADDR_ANY)), m_serverPort));
 	accept();
 }
 
@@ -94,12 +80,12 @@ void ServicePort::accept()
 		return;
 	}
 
-	Connection* connection = ConnectionManager::getInstance()->createConnection(m_io_service, shared_from_this());
-	m_acceptor->async_accept(connection->getHandle(), boost::bind(
-		&ServicePort::handle, this, connection, boost::asio::placeholders::error));
+	boost::asio::ip::tcp::socket* socket = new boost::asio::ip::tcp::socket(m_io_service);
+	m_acceptor->async_accept(*socket, boost::bind(
+		&ServicePort::handle, this, socket, boost::asio::placeholders::error));
 }
 
-void ServicePort::handle(Connection* connection, const boost::system::error_code& error)
+void ServicePort::handle(boost::asio::ip::tcp::socket* socket, const boost::system::error_code& error)
 {
 	if(!error)
 	{
@@ -111,10 +97,29 @@ void ServicePort::handle(Connection* connection, const boost::system::error_code
 			return;
 		}
 
-		if(m_services.front()->isSingleSocket())
-			connection->handle(m_services.front()->makeProtocol(connection));
-		else
-			connection->accept();
+		boost::system::error_code error;
+		const boost::asio::ip::tcp::endpoint endpoint = socket->remote_endpoint(error);
+
+		uint32_t remoteIp = 0;
+		if(!error)
+			remoteIp = htonl(endpoint.address().to_v4().to_ulong());
+
+		Connection* connection = NULL;
+		if(remoteIp != 0 && ConnectionManager::getInstance()->acceptConnection(remoteIp) &&
+			(connection = ConnectionManager::getInstance()->createConnection(socket, shared_from_this())))
+		{
+			if(m_services.front()->isSingleSocket())
+				connection->handle(m_services.front()->makeProtocol(connection));
+			else
+				connection->accept();
+		}
+		else if(socket->is_open())
+		{
+			boost::system::error_code error;
+			socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, error);
+			socket->close(error);
+			delete socket;
+		}
 
 #ifdef __DEBUG_NET_DETAIL__
 		std::cout << "handle - OK" << std::endl;
@@ -150,6 +155,21 @@ void ServicePort::handle(Connection* connection, const boost::system::error_code
 #endif
 }
 
+std::string ServicePort::getProtocolNames() const
+{
+	if(m_services.empty())
+		return "";
+
+	std::string str = m_services.front()->getProtocolName();
+	for(uint32_t i = 1; i < m_services.size(); ++i)
+	{
+		str += ", ";
+		str += m_services[i]->getProtocolName();
+	}
+
+	return str;
+}
+
 Protocol* ServicePort::makeProtocol(bool checksum, NetworkMessage& msg) const
 {
 	uint8_t protocolId = msg.GetByte();
@@ -162,12 +182,27 @@ Protocol* ServicePort::makeProtocol(bool checksum, NetworkMessage& msg) const
 	return NULL;
 }
 
+void ServiceManager::run()
+{
+	assert(!running);
+	running = true;
+	m_io_service.run();
+}
+
 void ServiceManager::stop()
 {
-	for(AcceptorsMap::iterator it = m_acceptors.begin(); it != m_acceptors.end(); ++it)
-		m_io_service.post(boost::bind(&ServicePort::close, it->second.get()));
+	if(!running)
+		return;
 
+	running = false;
+	for(AcceptorsMap::iterator it = m_acceptors.begin(); it != m_acceptors.end(); ++it)
+		m_io_service.post(boost::bind(&ServicePort::close, it->second));
+
+	m_acceptors.clear();
 	OutputMessagePool::getInstance()->stop();
+
+	deathTimer.expires_from_now(boost::posix_time::seconds(3));
+	deathTimer.async_wait(boost::bind(&ServiceManager::die, this));
 }
 
 std::list<uint16_t> ServiceManager::getPorts() const

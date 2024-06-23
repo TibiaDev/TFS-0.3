@@ -21,6 +21,8 @@
 #ifndef __OTSERV_GAME_H__
 #define __OTSERV_GAME_H__
 #include "otsystem.h"
+#include "enums.h"
+
 #include "templates.h"
 #include "scheduler.h"
 
@@ -39,7 +41,7 @@ class Monster;
 class Npc;
 class CombatInfo;
 
-enum stackPosType_t
+enum stackposType_t
 {
 	STACKPOS_NORMAL,
 	STACKPOS_MOVE,
@@ -82,26 +84,27 @@ enum ReloadInfo_t
 {
 	RELOAD_FIRST = 1,
 	RELOAD_ACTIONS = RELOAD_FIRST,
-	RELOAD_CONFIG = 2,
-	RELOAD_CREATUREEVENTS = 3,
-	RELOAD_GAMESERVERS = 4,
-	RELOAD_GLOBALEVENTS = 5,
-	RELOAD_GROUPS = 6,
-	RELOAD_HIGHSCORES = 7,
-	RELOAD_HOUSEPRICES = 8,
-	RELOAD_ITEMS = 9,
-	RELOAD_MONSTERS = 10,
-	RELOAD_MOVEEVENTS = 11,
-	RELOAD_NPCS = 12,
-	RELOAD_OUTFITS = 13,
-	RELOAD_QUESTS = 14,
-	RELOAD_RAIDS = 15,
-	RELOAD_SPELLS = 16,
-	RELOAD_STAGES = 17,
-	RELOAD_TALKACTIONS = 18,
-	RELOAD_VOCATIONS = 19,
-	RELOAD_WEAPONS = 20,
-	RELOAD_ALL = 21,
+	RELOAD_CHAT = 2,
+	RELOAD_CONFIG = 3,
+	RELOAD_CREATUREEVENTS = 4,
+	RELOAD_GAMESERVERS = 5,
+	RELOAD_GLOBALEVENTS = 6,
+	RELOAD_GROUPS = 7,
+	RELOAD_HIGHSCORES = 8,
+	RELOAD_HOUSEPRICES = 9,
+	RELOAD_ITEMS = 10,
+	RELOAD_MONSTERS = 11,
+	RELOAD_MOVEEVENTS = 12,
+	RELOAD_NPCS = 13,
+	RELOAD_OUTFITS = 14,
+	RELOAD_QUESTS = 15,
+	RELOAD_RAIDS = 16,
+	RELOAD_SPELLS = 17,
+	RELOAD_STAGES = 18,
+	RELOAD_TALKACTIONS = 19,
+	RELOAD_VOCATIONS = 20,
+	RELOAD_WEAPONS = 21,
+	RELOAD_ALL = 22,
 	RELOAD_LAST = RELOAD_WEAPONS
 };
 
@@ -127,8 +130,8 @@ struct RefreshBlock_t
 };
 
 typedef std::map< uint32_t, shared_ptr<RuleViolation> > RuleViolationsMap;
-typedef std::vector< std::pair<std::string, uint32_t> > Highscore;
 typedef std::map<Tile*, RefreshBlock_t> RefreshTiles;
+typedef std::vector< std::pair<std::string, uint32_t> > Highscore;
 typedef std::list<Position> Trash;
 
 #define EVENT_LIGHTINTERVAL 10000
@@ -181,8 +184,8 @@ class Game
 
 		Cylinder* internalGetCylinder(Player* player, const Position& pos);
 		Thing* internalGetThing(Player* player, const Position& pos, int32_t index,
-			uint32_t spriteId = 0, stackPosType_t type = STACKPOS_NORMAL);
-		void internalGetPosition(Item* item, Position& pos, uint8_t& stackpos);
+			uint32_t spriteId = 0, stackposType_t type = STACKPOS_NORMAL);
+		void internalGetPosition(Item* item, Position& pos, int16_t& stackpos);
 
 		std::string getTradeErrorDescription(ReturnValue ret, Item* item);
 
@@ -190,7 +193,7 @@ class Game
 		  * Get a single tile of the map.
 		  * \returns A pointer to the tile
 		  */
-		Tile* getTile(uint16_t x, uint16_t y, uint8_t z) {return map->getTile(x, y, z);}
+		Tile* getTile(uint16_t x, uint16_t y, uint16_t z) {return map->getTile(x, y, z);}
 		Tile* getTile(const Position& pos) {return map->getTile(pos);}
 
 		/**
@@ -288,9 +291,6 @@ class Game
 
 		void addCreatureCheck(Creature* creature);
 		void removeCreatureCheck(Creature* creature);
-
-		bool violationWindow(uint32_t playerId, std::string targetName, int32_t reason, int32_t action,
-			std::string comment, std::string statement, uint16_t channelId, bool ipBanishment);
 
 		uint32_t getPlayersOnline() {return (uint32_t)Player::listPlayer.list.size();}
 		uint32_t getMonstersOnline() {return (uint32_t)Monster::listMonster.list.size();}
@@ -407,29 +407,20 @@ class Game
 		  */
 		bool internalCreatureSay(Creature* creature, SpeakClasses type, const std::string& text, Position* pos = NULL);
 
-		Position getClosestFreeTile(Creature* creature, Position pos, bool extended = false, bool ignoreHouse = true);
-		std::string getSearchString(const Position fromPos, const Position toPos, bool fromIsCreature = false, bool toIsCreature = false);
-
-		int32_t getMotdNum();
-		void loadMotd();
-		void loadPlayersRecord();
-		void checkPlayersRecord();
-
-		void kickPlayer(uint32_t playerId, bool displayEffect);
-		bool playerReportBug(uint32_t playerId, std::string bug);
-
 		bool internalStartTrade(Player* player, Player* partner, Item* tradeItem);
 		bool internalCloseTrade(Player* player);
-		bool playerBroadcastMessage(Player* player, const std::string& text, SpeakClasses type);
-		bool broadcastMessage(const std::string& text, MessageClasses type);
 
 		//Implementation of player invoked events
-		bool playerMoveThing(uint32_t playerId, const Position& fromPos, uint16_t spriteId, uint8_t fromStackPos,
+		bool playerBroadcastMessage(Player* player, const std::string& text, SpeakClasses type);
+		bool playerReportBug(uint32_t playerId, std::string bug);
+		bool playerViolationWindow(uint32_t playerId, std::string targetName, uint8_t reason, ViolationAction_t action,
+			std::string comment, std::string statement, uint16_t channelId, bool ipBanishment);
+		bool playerMoveThing(uint32_t playerId, const Position& fromPos, uint16_t spriteId, int16_t fromStackpos,
 			const Position& toPos, uint8_t count);
 		bool playerMoveCreature(uint32_t playerId, uint32_t movingCreatureId,
 			const Position& movingCreatureOrigPos, const Position& toPos);
 		bool playerMoveItem(uint32_t playerId, const Position& fromPos,
-			uint16_t spriteId, uint8_t fromStackPos, const Position& toPos, uint8_t count);
+			uint16_t spriteId, int16_t fromStackpos, const Position& toPos, uint8_t count);
 		bool playerMove(uint32_t playerId, Direction direction);
 		bool playerCreatePrivateChannel(uint32_t playerId);
 		bool playerChannelInvite(uint32_t playerId, const std::string& name);
@@ -445,20 +436,20 @@ class Game
 		bool playerReceivePing(uint32_t playerId);
 		bool playerAutoWalk(uint32_t playerId, std::list<Direction>& listDir);
 		bool playerStopAutoWalk(uint32_t playerId);
-		bool playerUseItemEx(uint32_t playerId, const Position& fromPos, uint8_t fromStackPos,
-			uint16_t fromSpriteId, const Position& toPos, uint8_t toStackPos, uint16_t toSpriteId, bool isHotkey);
-		bool playerUseItem(uint32_t playerId, const Position& pos, uint8_t stackPos,
+		bool playerUseItemEx(uint32_t playerId, const Position& fromPos, int16_t fromStackpos,
+			uint16_t fromSpriteId, const Position& toPos, int16_t toStackpos, uint16_t toSpriteId, bool isHotkey);
+		bool playerUseItem(uint32_t playerId, const Position& pos, int16_t stackpos,
 			uint8_t index, uint16_t spriteId, bool isHotkey);
 		bool playerUseBattleWindow(uint32_t playerId, const Position& fromPos,
-			uint8_t fromStackPos, uint32_t creatureId, uint16_t spriteId, bool isHotkey);
+			int16_t fromStackpos, uint32_t creatureId, uint16_t spriteId, bool isHotkey);
 		bool playerCloseContainer(uint32_t playerId, uint8_t cid);
 		bool playerMoveUpContainer(uint32_t playerId, uint8_t cid);
 		bool playerUpdateContainer(uint32_t playerId, uint8_t cid);
 		bool playerUpdateTile(uint32_t playerId, const Position& pos);
-		bool playerRotateItem(uint32_t playerId, const Position& pos, uint8_t stackPos, const uint16_t spriteId);
+		bool playerRotateItem(uint32_t playerId, const Position& pos, int16_t stackpos, const uint16_t spriteId);
 		bool playerWriteItem(uint32_t playerId, uint32_t windowTextId, const std::string& text);
 		bool playerUpdateHouseWindow(uint32_t playerId, uint8_t listId, uint32_t windowTextId, const std::string& text);
-		bool playerRequestTrade(uint32_t playerId, const Position& pos, uint8_t stackPos,
+		bool playerRequestTrade(uint32_t playerId, const Position& pos, int16_t stackpos,
 			uint32_t tradePlayerId, uint16_t spriteId);
 		bool playerAcceptTrade(uint32_t playerId);
 		bool playerLookInTrade(uint32_t playerId, bool lookAtCounterOffer, int index);
@@ -472,7 +463,7 @@ class Game
 		bool playerFollowCreature(uint32_t playerId, uint32_t creatureId);
 		bool playerCancelAttackAndFollow(uint32_t playerId);
 		bool playerSetFightModes(uint32_t playerId, fightMode_t fightMode, chaseMode_t chaseMode, secureMode_t secureMode);
-		bool playerLookAt(uint32_t playerId, const Position& pos, uint16_t spriteId, uint8_t stackPos);
+		bool playerLookAt(uint32_t playerId, const Position& pos, uint16_t spriteId, int16_t stackpos);
 		bool playerRequestAddVip(uint32_t playerId, const std::string& name);
 		bool playerRequestRemoveVip(uint32_t playerId, uint32_t guid);
 		bool playerTurn(uint32_t playerId, Direction dir);
@@ -486,6 +477,15 @@ class Game
 		bool playerPassPartyLeadership(uint32_t playerId, uint32_t newLeaderId);
 		bool playerLeaveParty(uint32_t playerId);
 		bool playerEnableSharedPartyExperience(uint32_t playerId, uint8_t sharedExpActive, uint8_t unknown);
+
+		void kickPlayer(uint32_t playerId, bool displayEffect);
+		bool broadcastMessage(const std::string& text, MessageClasses type);
+		void showHotkeyUseMessage(Player* player, Item* item);
+
+		int32_t getMotdNum();
+		void loadMotd();
+		void loadPlayersRecord();
+		void checkPlayersRecord();
 
 		bool reloadInfo(ReloadInfo_t reload, uint32_t playerId = 0);
 		void cleanup();
@@ -505,6 +505,9 @@ class Game
 		bool getPathToEx(const Creature* creature, const Position& targetPos, std::list<Direction>& dirList,
 			uint32_t minTargetDist, uint32_t maxTargetDist, bool fullPathSearch = true,
 			bool clearSight = true, int32_t maxSearchDist = -1);
+
+		Position getClosestFreeTile(Creature* creature, Position pos, bool extended = false, bool ignoreHouse = true);
+		std::string getSearchString(const Position fromPos, const Position toPos, bool fromIsCreature = false, bool toIsCreature = false);
 
 		void changeLight(const Creature* creature);
 		void changeSpeed(Creature* creature, int32_t varSpeedDelta);
@@ -618,6 +621,7 @@ class Game
 		std::string lastMotdText;
 		int32_t lastMotdNum;
 		uint32_t lastPlayersRecord;
+		uint32_t checkLightEvent, checkCreatureEvent, checkDecayEvent, saveEvent;
 		int64_t stateDelay;
 		bool globalSaveMessage[2];
 

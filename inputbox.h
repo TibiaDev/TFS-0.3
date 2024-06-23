@@ -17,13 +17,11 @@
 // along with this program; if not, write to the Free Software Foundation,
 // Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //////////////////////////////////////////////////////////////////////
-
-#ifndef __CONSOLE__
+#if defined(WIN32) && not defined(__CONSOLE__)
 #ifndef __INPUTBOX_H__
 #define __INPUTBOX_H__
-#include <stdlib.h>
+#include "otsystem.h"
 #include <tchar.h>
-#include <windows.h>
 
 #define INPUTBOX_WIDTH 400
 #define INPUTBOX_HEIGHT 125

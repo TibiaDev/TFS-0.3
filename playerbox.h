@@ -21,10 +21,7 @@
 #ifndef __CONSOLE__
 #ifndef __FORGOTTENSERVER_PLAYERBOX__
 #define __FORGOTTENSERVER_PLAYERBOX__
-#include <stdlib.h>
-#include <tchar.h>
-#include <windows.h>
-
+#include "otsystem.h"
 #include "player.h"
 
 class PlayerBox
@@ -36,16 +33,20 @@ class PlayerBox
 	static HWND online;
 	static HINSTANCE m_hInst;
 	static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+
 	public:
-		bool popUp(LPCTSTR szCaption);
 		PlayerBox();
-		virtual ~PlayerBox();
-		static HWND list;
+		virtual ~PlayerBox() {}
+
 		void updatePlayersOnline();
 		void addPlayer(Player* player);
 		void removePlayer(Player* player);
-		void setParent(HWND hWndParent){ parent = hWndParent; }
+
+		void setParent(HWND hWndParent) {parent = hWndParent;}
+		bool popUp(LPCTSTR szCaption);
+		static HWND list;
 };
 
 #endif
 #endif
+

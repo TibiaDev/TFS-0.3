@@ -10,7 +10,7 @@ local colors = {
 	["status"] = MESSAGE_STATUS_DEFAULT
 }
 
-function onSay(cid, words, param)
+function onSay(cid, words, param, channel)
 	if(param == "") then
 		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Command param required.")
 		return TRUE
@@ -21,7 +21,7 @@ function onSay(cid, words, param)
 		doBroadcastMessage(t[1])
 	elseif(doBroadcastMessage(t[2], colors[t[1]]) == LUA_ERROR) then
 		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Bad message color type.")
-		return TRUE
 	end
+
 	return TRUE
 end

@@ -1,42 +1,38 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
-#include "definitions.h"
-#include "game.h"
-#include "tools.h"
-#include "house.h"
-#include "housetile.h"
-#include "spells.h"
-#include "combat.h"
-#include "monsters.h"
-#include "configmanager.h"
 #include "const.h"
-
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
+
+#include "spells.h"
+#include "tools.h"
+
+#include "house.h"
+#include "housetile.h"
+#include "combat.h"
+
+#include "monsters.h"
+#include "configmanager.h"
+#include "game.h"
 
 extern Game g_game;
 extern Spells* g_spells;
 extern Monsters g_monsters;
-extern Vocations g_vocations;
 extern ConfigManager g_config;
 
 Spells::Spells():
@@ -45,19 +41,14 @@ m_scriptInterface("Spell Interface")
 	m_scriptInterface.initState();
 }
 
-Spells::~Spells()
-{
-	clear();
-}
-
-bool Spells::onPlayerSay(Player* player, const std::string& words)
+ReturnValue Spells::onPlayerSay(Player* player, const std::string& words)
 {
 	std::string reWords = words;
 	trimString(reWords);
 
 	InstantSpell* instantSpell = getInstantSpell(reWords);
 	if(!instantSpell)
-		return false;
+		return RET_NOTPOSSIBLE;
 
 	size_t size = instantSpell->getWords().length();
 	std::string param = reWords.substr(size, reWords.length() - size), reParam = "";
@@ -79,14 +70,14 @@ bool Spells::onPlayerSay(Player* player, const std::string& words)
 	}
 
 	if(!instantSpell->playerCastInstant(player, reParam))
-		return true;
+		return RET_NEEDEXCHANGE;
 
 	SpeakClasses type = SPEAK_SAY;
 	if(g_config.getBool(ConfigManager::EMOTE_SPELLS))
 		type = SPEAK_MONSTER_SAY;
 
 	if(!g_config.getBool(ConfigManager::SPELL_NAME_INSTEAD_WORDS))
-		return g_game.internalCreatureSay(player, type, reWords);
+		return g_game.internalCreatureSay(player, type, reWords) ? RET_NOERROR : RET_NOTPOSSIBLE;
 
 	std::string ret = instantSpell->getName();
 	if(param.length())
@@ -102,7 +93,7 @@ bool Spells::onPlayerSay(Player* player, const std::string& words)
 		ret += ": " + param.substr(tmp, rtmp);
 	}
 
-	return g_game.internalCreatureSay(player, type, ret);
+	return g_game.internalCreatureSay(player, type, ret) ? RET_NOERROR : RET_NOTPOSSIBLE;
 }
 
 void Spells::clear()
@@ -135,9 +126,7 @@ Event* Spells::getEvent(const std::string& nodeName)
 
 bool Spells::registerEvent(Event* event, xmlNodePtr p)
 {
-	InstantSpell* instant = dynamic_cast<InstantSpell*>(event);
-	RuneSpell* rune = dynamic_cast<RuneSpell*>(event);
-	if(instant)
+	if(InstantSpell* instant = dynamic_cast<InstantSpell*>(event))
 	{
 		if(instants.find(instant->getWords()) != instants.end())
 		{
@@ -148,7 +137,8 @@ bool Spells::registerEvent(Event* event, xmlNodePtr p)
 		instants[instant->getWords()] = instant;
 		return true;
 	}
-	else if(rune)
+
+	if(RuneSpell* rune = dynamic_cast<RuneSpell*>(event))
 	{
 		if(runes.find(rune->getRuneItemId()) != runes.end())
 		{
@@ -166,10 +156,7 @@ bool Spells::registerEvent(Event* event, xmlNodePtr p)
 Spell* Spells::getSpellByName(const std::string& name)
 {
 	Spell* spell;
-	if((spell = getRuneSpellByName(name)))
-		return spell;
-
-	if((spell = getInstantSpellByName(name)))
+	if((spell = getRuneSpellByName(name)) || (spell = getInstantSpellByName(name)))
 		return spell;
 
 	return NULL;
@@ -262,9 +249,7 @@ InstantSpell* Spells::getInstantSpellByName(const std::string& name)
 
 Position Spells::getCasterPosition(Creature* creature, Direction dir)
 {
-	Position pos = creature->getPosition();
-	pos = getNextPosition(dir, pos);
-	return pos;
+	return getNextPosition(dir, creature->getPosition());
 }
 
 bool BaseSpell::castSpell(Creature* creature)
@@ -324,7 +309,7 @@ bool CombatSpell::loadScriptCombat()
 		m_scriptInterface->releaseScriptEnv();
 	}
 
-	return (combat != NULL);
+	return combat != NULL;
 }
 
 bool CombatSpell::castSpell(Creature* creature)
@@ -479,39 +464,15 @@ bool Spell::configureSpell(xmlNodePtr p)
 		name = strValue;
 		const char* reservedList[] =
 		{
-			"melee",
-			"physical",
-			"poison",
-			"earth",
-			"fire",
-			"ice",
-			"freeze",
-			"energy",
-			"drown",
-			"death",
-			"curse",
-			"holy",
-			"lifedrain",
-			"manadrain",
-			"healing",
-			"speed",
-			"outfit",
-			"invisible",
-			"drunk",
-			"firefield",
-			"poisonfield",
-			"energyfield",
-			"firecondition",
-			"poisoncondition",
-			"energycondition",
-			"drowncondition",
-			"freezecondition",
+			"melee", "physical", "poison", "earth", "fire", "ice", "freeze", "energy", "drown", "death", "curse", "holy",
+			"lifedrain", "manadrain", "healing", "speed", "outfit", "invisible", "drunk", "firefield", "poisonfield",
+			"energyfield", "firecondition", "poisoncondition", "energycondition", "drowncondition", "freezecondition",
 			"cursecondition"
 		};
 
 		for(uint32_t i = 0; i < sizeof(reservedList) / sizeof(const char*); ++i)
 		{
-			if(strcasecmp(reservedList[i], name.c_str()) == 0)
+			if(!strcasecmp(reservedList[i], name.c_str()))
 			{
 				std::cout << "Error: [Spell::configureSpell] Spell is using a reserved name: " << reservedList[i] << std::endl;
 				return false;
@@ -582,33 +543,12 @@ bool Spell::configureSpell(xmlNodePtr p)
 	if(readXMLString(p, "aggressive", strValue))
 		isAggressive = booleanString(strValue);
 
+	std::string error = "";
 	xmlNodePtr vocationNode = p->children;
 	while(vocationNode)
 	{
-		if(xmlStrcmp(vocationNode->name,(const xmlChar*)"vocation") == 0)
-		{
-			if(readXMLString(vocationNode, "name", strValue))
-			{
-				int32_t vocationId = g_vocations.getVocationId(strValue);
-				if(vocationId != -1)
-				{
-					vocSpellMap[vocationId] = true;
-					int32_t promotedVocation = g_vocations.getPromotedVocation(vocationId);
-					if(promotedVocation != -1)
-						vocSpellMap[promotedVocation] = true;
-
-					intValue = 1;
-					readXMLInteger(vocationNode, "showInDescription", intValue);
-					if(intValue != 0)
-					{
-						toLowerCaseString(strValue);
-						vocStringVec.push_back(strValue);
-					}
-				}
-				else
-					std::cout << "[Warning - Spell::configureSpell] Wrong vocation name: " << strValue << std::endl;
-			}
-		}
+		if(!parseVocationNode(vocationNode, vocSpellMap, vocStringVec, error))
+			std::cout << "[Warning - Spell::configureSpell] " << error << std::endl;
 
 		vocationNode = vocationNode->next;
 	}
@@ -759,7 +699,7 @@ bool Spell::playerInstantSpellCheck(Player* player, const Position& toPos)
 				return false;
 			}
 
-			if(blockingCreature && !tile->creatures.empty())
+			if(blockingCreature && tile->creatures && !tile->creatures->empty())
 			{
 				player->sendCancelMessage(RET_NOTENOUGHROOM);
 				g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
@@ -808,14 +748,11 @@ bool Spell::playerRuneSpellCheck(Player* player, const Position& toPos)
 				return false;
 			}
 
-			if(range != -1)
+			if(range != -1 && !g_game.canThrowObjectTo(playerPos, toPos, true, range, range))
 			{
-				if(!g_game.canThrowObjectTo(playerPos, toPos, true, range, range))
-				{
-					player->sendCancelMessage(RET_DESTINATIONOUTOFREACH);
-					g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
-					return false;
-				}
+				player->sendCancelMessage(RET_DESTINATIONOUTOFREACH);
+				g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+				return false;
 			}
 
 			ReturnValue ret;
@@ -826,7 +763,7 @@ bool Spell::playerRuneSpellCheck(Player* player, const Position& toPos)
 				return false;
 			}
 
-			if(blockingCreature && !tile->creatures.empty())
+			if(blockingCreature && tile->creatures && !tile->creatures->empty())
 			{
 				player->sendCancelMessage(RET_NOTENOUGHROOM);
 				g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
@@ -839,14 +776,15 @@ bool Spell::playerRuneSpellCheck(Player* player, const Position& toPos)
 				return false;
 			}
 
-			if(needTarget && tile->creatures.empty())
+			if(needTarget && (!tile->creatures || tile->creatures->empty()))
 			{
 				player->sendCancelMessage(RET_CANONLYUSETHISRUNEONCREATURES);
 				g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
 				return false;
 			}
 
-			if(isAggressive && needTarget && player->getSecureMode() == SECUREMODE_ON && !tile->creatures.empty())
+			if(isAggressive && needTarget && player->getSecureMode() == SECUREMODE_ON
+				&& tile->creatures && !tile->creatures->empty())
 			{
 				Player* targetPlayer = tile->getTopCreature()->getPlayer();
 				if(targetPlayer && targetPlayer != player && targetPlayer->getSkull() == SKULL_NONE && !Combat::isInPvpZone(player, targetPlayer))
@@ -923,11 +861,8 @@ ReturnValue Spell::CreateIllusion(Creature* creature, const std::string& name, i
 		return RET_CREATUREDOESNOTEXIST;
 
 	Player* player = creature->getPlayer();
-	if(player && !player->hasFlag(PlayerFlag_CanIllusionAll))
-	{
-		if(!mType->isIllusionable)
-			return RET_NOTPOSSIBLE;
-	}
+	if(player && !player->hasFlag(PlayerFlag_CanIllusionAll) && !mType->isIllusionable)
+		return RET_NOTPOSSIBLE;
 
 	return CreateIllusion(creature, mType->outfit, time);
 }
@@ -1137,12 +1072,13 @@ bool InstantSpell::playerCastInstant(Player* player, const std::string& param)
 
 bool InstantSpell::canThrowSpell(const Creature* creature, const Creature* target) const
 {
+	if(target->isInGhostMode() && !creature->canSeeGhost(target))
+		return false;
+
 	const Position& fromPos = creature->getPosition();
 	const Position& toPos = target->getPosition();
-
-	return (!(fromPos.z != toPos.z ||
-	(range == -1 && !g_game.canThrowObjectTo(fromPos, toPos, checkLineOfSight)) ||
-	(range != -1 && !g_game.canThrowObjectTo(fromPos, toPos, checkLineOfSight, range, range))));
+	return (!(fromPos.z != toPos.z || (range == -1 && !g_game.canThrowObjectTo(fromPos, toPos, checkLineOfSight))
+		|| (range != -1 && !g_game.canThrowObjectTo(fromPos, toPos, checkLineOfSight, range, range))));
 }
 
 bool InstantSpell::castSpell(Creature* creature)
@@ -1771,23 +1707,7 @@ bool RuneSpell::configureEvent(xmlNodePtr p)
 	if(magLevel != 0 && magLevel != it.runeMagLevel)
 		it.runeMagLevel = magLevel;
 
-	if(!vocStringVec.empty())
-	{
-		for(VocStringVec::iterator vit = vocStringVec.begin(); vit != vocStringVec.end(); ++vit)
-		{
-			if((*vit) != vocStringVec.front())
-			{
-				if((*vit) != vocStringVec.back())
-					it.vocationString += ", ";
-				else
-					it.vocationString += " and ";
-			}
-
-			it.vocationString += (*vit);
-			it.vocationString += "s";
-		}
-	}
-
+	it.vocationString = parseVocationString(vocStringVec);
 	return true;
 }
 

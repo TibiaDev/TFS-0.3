@@ -67,6 +67,18 @@ enum Channels_t
 	CHANNEL_PRIVATE = 0xFFFF
 };
 
+enum ViolationAction_t
+{
+	ACTION_NOTATION = 0,
+	ACTION_NAMEREPORT,
+	ACTION_BANISHMENT,
+	ACTION_BANREPORT,
+	ACTION_BANFINAL,
+	ACTION_BANREPORTFINAL,
+	ACTION_STATEMENT,
+	ACTION_DELETION
+};
+
 enum RaceType_t
 {
 	RACE_NONE	= 0,
@@ -235,7 +247,8 @@ enum ConditionId_t
 	CONDITIONID_LEGS = 7,
 	CONDITIONID_FEET = 8,
 	CONDITIONID_RING = 9,
-	CONDITIONID_AMMO = 10
+	CONDITIONID_AMMO = 10,
+	CONDITIONID_OUTFIT = 11
 };
 
 enum PlayerSex_t
@@ -264,11 +277,7 @@ enum CharacterTypes_t
 
 struct Outfit_t
 {
-	Outfit_t()
-	{
-		lookHead = lookBody = lookLegs = lookFeet = lookType = lookTypeEx = lookAddons = 0;
-	}
-
+	Outfit_t() {lookHead = lookBody = lookLegs = lookFeet = lookType = lookTypeEx = lookAddons = 0;}
 	uint16_t lookType, lookTypeEx;
 	uint8_t lookHead, lookBody, lookLegs, lookFeet, lookAddons;
 };
@@ -277,11 +286,7 @@ struct LightInfo
 {
 	uint32_t level, color;
 
-	LightInfo()
-	{
-		level = color = 0;
-	}
-
+	LightInfo() {level = color = 0;}
 	LightInfo(uint32_t _level, uint32_t _color):
 		level(_level), color(_color) {}
 };
@@ -299,7 +304,6 @@ struct ShopInfo
 		buyPrice = sellPrice = -1;
 		itemName = "";
 	}
-
 	ShopInfo(uint32_t _itemId, int32_t _subType = 1, int32_t _buyPrice = -1, int32_t _sellPrice = -1,
 		const std::string& _itemName = ""): itemId(_itemId), subType(_subType), buyPrice(_buyPrice),
 		sellPrice(_sellPrice), itemName(_itemName) {}

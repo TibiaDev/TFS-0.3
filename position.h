@@ -44,28 +44,28 @@ typedef std::vector<Direction> DirVector;
 class Position
 {
 	public:
-		Position(): x(0), y(0), z(7) {}
+		Position(): x(0), y(0), z(0) {}
 		~Position() {}
 
-		template<int32_t deltax, int32_t deltay, int32_t deltaz>
+		template<uint16_t deltax, uint16_t deltay, uint16_t deltaz>
 		inline static bool areInRange(const Position& p1, const Position& p2)
 		{
-			return (!(std::abs(float(p1.x - p2.x)) > deltax || std::abs(float(p1.y - p2.y)) > deltay || std::abs(float(p1.z - p2.z)) > deltaz));
+			return !(std::abs(float(p1.x - p2.x)) > deltax || std::abs(float(p1.y - p2.y)) > deltay || std::abs(float(p1.z - p2.z)) > deltaz);
 		}
 
-		template<int32_t deltax, int32_t deltay>
+		template<uint16_t deltax, uint16_t deltay>
 		inline static bool areInRange(const Position& p1, const Position& p2)
 		{
-			return (!(std::abs(float(p1.x - p2.x)) > deltax || std::abs(float(p1.y - p2.y)) > deltay));
+			return !(std::abs(float(p1.x - p2.x)) > deltax || std::abs(float(p1.y - p2.y)) > deltay);
 		}
 
 		static bool areInRange(const Position& r, const Position& p1, const Position& p2)
 		{
-			return (!(std::abs(float(p1.x - p2.x)) > r.x || std::abs(float(p1.y - p2.y)) > r.y || std::abs(float(p1.z - p2.z)) > r.z));
+			return !(std::abs(float(p1.x - p2.x)) > r.x || std::abs(float(p1.y - p2.y)) > r.y || std::abs(float(p1.z - p2.z)) > r.z);
 		}
 
-		Position(int32_t _x, int32_t _y, int32_t _z): x(_x), y(_y), z(_z) {}
-		int32_t x, y, z;
+		Position(uint16_t _x, uint16_t _y, uint16_t _z): x(_x), y(_y), z(_z) {}
+		uint16_t x, y, z;
 
 		bool operator<(const Position& p) const
 		{
@@ -97,18 +97,12 @@ class Position
 
 		bool operator==(const Position p) const
 		{
-			if(p.x == x && p.y == y && p.z == z)
-				return true;
-
-			return false;
+			return (p.x == x && p.y == y && p.z == z);
 		}
 
 		bool operator!=(const Position p) const
 		{
-			if(p.x == x && p.y == y && p.z == z)
-				return false;
-
-			return true;
+			return !(*this == p);
 		}
 
 		Position operator-(const Position p1)
@@ -126,28 +120,22 @@ class PositionEx : public Position
 		PositionEx() {}
 		~PositionEx() {}
 
-		PositionEx(int32_t _x, int32_t _y, int32_t _z, int32_t _stackpos) : Position(_x,_y,_z), stackpos(_stackpos) {}
-		PositionEx(int32_t _x, int32_t _y, int32_t _z) : Position(_x,_y,_z), stackpos(0) {}
+		PositionEx(uint16_t _x, uint16_t _y, uint16_t _z, int16_t _stackpos): Position(_x,_y,_z), stackpos(_stackpos) {}
+		PositionEx(uint16_t _x, uint16_t _y, uint16_t _z): Position(_x,_y,_z), stackpos(0) {}
 
-		PositionEx(Position p) : Position(p.x, p.y, p.z), stackpos(0) {}
-		PositionEx(Position p, int32_t _stackpos) : Position(p.x, p.y, p.z), stackpos(_stackpos) {}
+		PositionEx(Position p): Position(p.x, p.y, p.z), stackpos(0) {}
+		PositionEx(Position p, int16_t _stackpos): Position(p.x, p.y, p.z), stackpos(_stackpos) {}
 
-		int32_t stackpos;
+		int16_t stackpos;
 
 		bool operator==(const PositionEx p)  const
 		{
-			if(p.x == x && p.y == y && p.z == z && p.stackpos == stackpos)
-				return true;
-
-			return false;
+			return (p.x == x && p.y == y && p.z == z && p.stackpos == stackpos);
 		}
 
 		bool operator!=(const PositionEx p)  const
 		{
-			if(p.x == x && p.y == y && p.z == z && p.stackpos != stackpos)
-				return false;
-
-			return true;
+			return !(p.x == x && p.y == y && p.z == z && p.stackpos != stackpos);
 		}
 };
 

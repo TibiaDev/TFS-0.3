@@ -1,33 +1,31 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 
 #include "spawn.h"
-#include "game.h"
+#include "tools.h"
+
 #include "player.h"
 #include "npc.h"
-#include "tools.h"
+
 #include "configmanager.h"
+#include "game.h"
 
 extern ConfigManager g_config;
 extern Monsters g_monsters;
@@ -55,206 +53,199 @@ bool Spawns::loadFromXml(const std::string& _filename)
 
 	filename = _filename;
 	xmlDocPtr doc = xmlParseFile(filename.c_str());
-	if(doc)
+	if(!doc)
 	{
-		xmlNodePtr root, spawnNode;
-		root = xmlDocGetRootElement(doc);
-
-		if(xmlStrcmp(root->name,(const xmlChar*)"spawns") != 0)
-		{
-			xmlFreeDoc(doc);
-			return false;
-		}
-
-		int32_t intValue;
-		std::string strValue;
-
-		spawnNode = root->children;
-		while(spawnNode)
-		{
-			if(xmlStrcmp(spawnNode->name, (const xmlChar*)"spawn") == 0)
-			{
-				Position centerPos;
-				int32_t radius = -1;
-
-				if(readXMLInteger(spawnNode, "centerx", intValue))
-					centerPos.x = intValue;
-				else
-				{
-					xmlFreeDoc(doc);
-					return false;
-				}
-
-				if(readXMLInteger(spawnNode, "centery", intValue))
-					centerPos.y = intValue;
-				else
-				{
-					xmlFreeDoc(doc);
-					return false;
-				}
-
-				if(readXMLInteger(spawnNode, "centerz", intValue))
-					centerPos.z = intValue;
-				else
-				{
-					xmlFreeDoc(doc);
-					return false;
-				}
-
-				if(readXMLInteger(spawnNode, "radius", intValue))
-					radius = intValue;
-				else
-				{
-					xmlFreeDoc(doc);
-					return false;
-				}
-
-				Spawn* spawn = new Spawn(centerPos, radius);
-				spawnList.push_back(spawn);
-
-				xmlNodePtr tmpNode = spawnNode->children;
-				while(tmpNode)
-				{
-					if(xmlStrcmp(tmpNode->name, (const xmlChar*)"monster") == 0)
-					{
-						std::string name = "";
-						Position pos = centerPos;
-						Direction dir = NORTH;
-						uint32_t interval = 0;
-
-						if(readXMLString(tmpNode, "name", strValue))
-							name = strValue;
-						else
-						{
-							tmpNode = tmpNode->next;
-							continue;
-						}
-
-						if(readXMLInteger(tmpNode, "direction", intValue))
-						{
-							switch(intValue)
-							{
-								case 0:
-									dir = NORTH;
-									break;
-								case 1:
-									dir = EAST;
-									break;
-								case 2:
-									dir = SOUTH;
-									break;
-								case 3:
-									dir = WEST;
-									break;
-							}
-						}
-
-						if(readXMLInteger(tmpNode, "x", intValue))
-							pos.x += intValue;
-						else
-						{
-							tmpNode = tmpNode->next;
-							continue;
-						}
-
-						if(readXMLInteger(tmpNode, "y", intValue))
-							pos.y += intValue;
-						else
-						{
-							tmpNode = tmpNode->next;
-							continue;
-						}
-
-						if(readXMLInteger(tmpNode, "spawntime", intValue) || readXMLInteger(tmpNode, "interval", intValue))
-							interval = intValue * 1000;
-						else
-						{
-							tmpNode = tmpNode->next;
-							continue;
-						}
-
-						if(interval <= MINSPAWN_INTERVAL)
-						{
-							std::cout << "[Warning - Spawns::loadFromXml] " << name << " " << pos << " spawntime can not";
-							std::cout << " be less than " << (MINSPAWN_INTERVAL / 1000) << " seconds." << std::endl;
-						}
-						else
-							spawn->addMonster(name, pos, dir, interval);
-					}
-					else if(xmlStrcmp(tmpNode->name, (const xmlChar*)"npc") == 0)
-					{
-						Direction direction = NORTH;
-						std::string name = "";
-						Position placePos = centerPos;
-
-						if(readXMLString(tmpNode, "name", strValue))
-							name = strValue;
-						else
-						{
-							tmpNode = tmpNode->next;
-							continue;
-						}
-
-						if(readXMLInteger(tmpNode, "direction", intValue))
-						{
-							switch(intValue)
-							{
-								case 0:
-									direction = NORTH;
-									break;
-								case 1:
-									direction = EAST;
-									break;
-								case 2:
-									direction = SOUTH;
-									break;
-								case 3:
-									direction = WEST;
-									break;
-							}
-						}
-
-						if(readXMLInteger(tmpNode, "x", intValue))
-							placePos.x += intValue;
-						else
-						{
-							tmpNode = tmpNode->next;
-							continue;
-						}
-
-						if(readXMLInteger(tmpNode, "y", intValue))
-							placePos.y += intValue;
-						else
-						{
-							tmpNode = tmpNode->next;
-							continue;
-						}
-
-						Npc* npc = Npc::createNpc(name);
-						if(!npc)
-						{
-							tmpNode = tmpNode->next;
-							continue;
-						}
-
-						npc->setDirection(direction);
-						npc->setMasterPos(placePos, radius);
-						npcList.push_back(npc);
-					}
-
-					tmpNode = tmpNode->next;
-				}
-			}
-
-			spawnNode = spawnNode->next;
-		}
-
-		xmlFreeDoc(doc);
-		loaded = true;
-		return true;
+		std::cout << "[Warning - Spawns::loadFromXml] Cannot open spawns file." << std::endl;
+		std::cout << getLastXMLError() << std::endl;
+		return false;
 	}
 
-	return false;
+	xmlNodePtr spawnNode, root = xmlDocGetRootElement(doc);
+	if(xmlStrcmp(root->name,(const xmlChar*)"spawns"))
+	{
+		std::cout << "[Error - Spawns::loadFromXml] Malformed spawns file." << std::endl;
+		xmlFreeDoc(doc);
+		return false;
+	}
+
+	int32_t intValue;
+	std::string strValue;
+
+	spawnNode = root->children;
+	while(spawnNode)
+	{
+		if(!xmlStrcmp(spawnNode->name, (const xmlChar*)"spawn"))
+		{
+			Position centerPos;
+			int32_t radius = -1;
+
+			if(readXMLInteger(spawnNode, "centerx", intValue))
+				centerPos.x = intValue;
+			else
+			{
+				xmlFreeDoc(doc);
+				return false;
+			}
+
+			if(readXMLInteger(spawnNode, "centery", intValue))
+				centerPos.y = intValue;
+			else
+			{
+				xmlFreeDoc(doc);
+				return false;
+			}
+
+			if(readXMLInteger(spawnNode, "centerz", intValue))
+				centerPos.z = intValue;
+			else
+			{
+				xmlFreeDoc(doc);
+				return false;
+			}
+
+			if(readXMLInteger(spawnNode, "radius", intValue))
+				radius = intValue;
+			else
+			{
+				xmlFreeDoc(doc);
+				return false;
+			}
+
+			Spawn* spawn = new Spawn(centerPos, radius);
+			spawnList.push_back(spawn);
+
+			xmlNodePtr tmpNode = spawnNode->children;
+			while(tmpNode)
+			{
+				if(!xmlStrcmp(tmpNode->name, (const xmlChar*)"monster"))
+				{
+					std::string name;
+					if(readXMLString(tmpNode, "name", strValue))
+						name = strValue;
+					else
+					{
+						tmpNode = tmpNode->next;
+						continue;
+					}
+
+					Direction dir = NORTH;
+					if(readXMLInteger(tmpNode, "direction", intValue))
+					{
+						switch(intValue)
+						{
+							case 1:
+								dir = EAST;
+								break;
+							case 2:
+								dir = SOUTH;
+								break;
+							case 3:
+								dir = WEST;
+								break;
+						}
+					}
+
+					Position pos = centerPos;
+					if(readXMLInteger(tmpNode, "x", intValue))
+						pos.x += intValue;
+					else
+					{
+						tmpNode = tmpNode->next;
+						continue;
+					}
+
+					if(readXMLInteger(tmpNode, "y", intValue))
+						pos.y += intValue;
+					else
+					{
+						tmpNode = tmpNode->next;
+						continue;
+					}
+
+					uint32_t interval = 0;
+					if(readXMLInteger(tmpNode, "spawntime", intValue) || readXMLInteger(tmpNode, "interval", intValue))
+						interval = intValue * 1000;
+					else
+					{
+						tmpNode = tmpNode->next;
+						continue;
+					}
+
+					if(interval <= MINSPAWN_INTERVAL)
+					{
+						std::cout << "[Warning - Spawns::loadFromXml] " << name << " " << pos << " spawntime cannot";
+						std::cout << " be less than " << (MINSPAWN_INTERVAL / 1000) << " seconds." << std::endl;
+					}
+					else
+						spawn->addMonster(name, pos, dir, interval);
+				}
+				else if(!xmlStrcmp(tmpNode->name, (const xmlChar*)"npc"))
+				{
+					std::string name;
+					if(readXMLString(tmpNode, "name", strValue))
+						name = strValue;
+					else
+					{
+						tmpNode = tmpNode->next;
+						continue;
+					}
+
+					Direction direction = NORTH;
+					if(readXMLInteger(tmpNode, "direction", intValue))
+					{
+						switch(intValue)
+						{
+							case 1:
+								direction = EAST;
+								break;
+							case 2:
+								direction = SOUTH;
+								break;
+							case 3:
+								direction = WEST;
+								break;
+						}
+					}
+
+					Position placePos = centerPos;
+					if(readXMLInteger(tmpNode, "x", intValue))
+						placePos.x += intValue;
+					else
+					{
+						tmpNode = tmpNode->next;
+						continue;
+					}
+
+					if(readXMLInteger(tmpNode, "y", intValue))
+						placePos.y += intValue;
+					else
+					{
+						tmpNode = tmpNode->next;
+						continue;
+					}
+
+					Npc* npc = Npc::createNpc(name);
+					if(!npc)
+					{
+						tmpNode = tmpNode->next;
+						continue;
+					}
+
+					npc->setDirection(direction);
+					npc->setMasterPos(placePos, radius);
+					npcList.push_back(npc);
+				}
+
+				tmpNode = tmpNode->next;
+			}
+		}
+
+		spawnNode = spawnNode->next;
+	}
+
+	xmlFreeDoc(doc);
+	loaded = true;
+	return true;
 }
 
 void Spawns::startup()
@@ -275,8 +266,11 @@ void Spawns::startup()
 void Spawns::clear()
 {
 	started = false;
-	for(SpawnList::iterator it= spawnList.begin(); it != spawnList.end(); ++it)
-		delete (*it);
+	for(SpawnList::iterator it = spawnList.begin(); it != spawnList.end(); ++it)
+	{
+		if((*it))
+			delete (*it);
+	}
 
 	spawnList.clear();
 	loaded = false;

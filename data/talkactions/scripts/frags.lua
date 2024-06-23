@@ -2,7 +2,7 @@ local config = {
 	fragTime = getConfigInfo('timeToDecreaseFrags')
 }
 
-function onSay(cid, words, param)
+function onSay(cid, words, param, channel)
 	local amount = getPlayerRedSkullTicks(cid)
 	if(amount > 0 and config.fragTime > 0) then
 		local frags = math.floor((amount / config.fragTime) + 1)
@@ -14,5 +14,6 @@ function onSay(cid, words, param)
 	else
 		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "You do not have any unjustified frag.")	
 	end
+
 	return TRUE
 end

@@ -1,41 +1,36 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
 
 #include "creature.h"
-#include "game.h"
 #include "player.h"
 #include "npc.h"
 #include "monster.h"
-#include "container.h"
+
 #include "condition.h"
 #include "combat.h"
-#include "configmanager.h"
 
-#include <string>
-#include <vector>
-#include <algorithm>
-
+#include "container.h"
 #if defined __EXCEPTION_TRACER__
 #include "exception.h"
 #endif
+
+#include "configmanager.h"
+#include "game.h"
 
 OTSYS_THREAD_LOCKVAR AutoID::autoIDLock;
 uint32_t AutoID::count = 1000;
@@ -214,6 +209,8 @@ void Creature::onThink(uint32_t interval)
 	}
 
 	onAttacking(interval);
+	executeConditions(interval);
+
 	CreatureEventList thinkEvents = getCreatureEvents(CREATURE_EVENT_THINK);
 	for(CreatureEventList::iterator it = thinkEvents.begin(); it != thinkEvents.end(); ++it)
 		(*it)->executeThink(this, interval);
@@ -252,7 +249,7 @@ void Creature::onWalk()
 	if(listWalkDir.empty())
 		onWalkComplete();
 
-	if(eventWalk != 0)
+	if(eventWalk)
 	{
 		eventWalk = 0;
 		addEventWalk();
@@ -261,33 +258,30 @@ void Creature::onWalk()
 
 void Creature::onWalk(Direction& dir)
 {
-	if(hasCondition(CONDITION_DRUNK))
+	if(!hasCondition(CONDITION_DRUNK))
+		return;
+
+	uint32_t r = random_range(0, 16);
+	if(r > 4)
+		return;
+
+	switch(r)
 	{
-		uint32_t r = random_range(0, 16);
-		if(r <= 4)
-		{
-			switch(r)
-			{
-				case 0:
-					dir = NORTH;
-					break;
-				case 1:
-					dir = WEST;
-					break;
-				case 3:
-					dir = SOUTH;
-					break;
-				case 4:
-					dir = EAST;
-					break;
-
-				default:
-					break;
-			}
-
-			g_game.internalCreatureSay(this, SPEAK_MONSTER_SAY, "Hicks!");
-		}
+		case 0:
+			dir = NORTH;
+			break;
+		case 1:
+			dir = WEST;
+			break;
+		case 3:
+			dir = SOUTH;
+			break;
+		case 4:
+			dir = EAST;
+			break;
 	}
+
+	g_game.internalCreatureSay(this, SPEAK_MONSTER_SAY, "Hicks!");
 }
 
 bool Creature::getNextStep(Direction& dir)
@@ -316,26 +310,26 @@ bool Creature::startAutoWalk(std::list<Direction>& listDir)
 
 void Creature::addEventWalk()
 {
-	if(eventWalk == 0)
-	{
-		int64_t ticks = getEventStepTicks();
-		if(ticks > 0)
-			eventWalk = Scheduler::getScheduler().addEvent(createSchedulerTask(ticks, boost::bind(&Game::checkCreatureWalk, &g_game, getID())));
-	}
+	if(eventWalk)
+		return;
+
+	int64_t ticks = getEventStepTicks();
+	if(ticks > 0)
+		eventWalk = Scheduler::getScheduler().addEvent(createSchedulerTask(ticks,
+			boost::bind(&Game::checkCreatureWalk, &g_game, getID())));
 }
 
 void Creature::stopEventWalk()
 {
-	if(eventWalk != 0)
-	{
-		Scheduler::getScheduler().stopEvent(eventWalk);
-		eventWalk = 0;
+	if(!eventWalk)
+		return;
 
-		if(!listWalkDir.empty())
-		{
-			listWalkDir.clear();
-			onWalkAborted();
-		}
+	Scheduler::getScheduler().stopEvent(eventWalk);
+	eventWalk = 0;
+	if(!listWalkDir.empty())
+	{
+		listWalkDir.clear();
+		onWalkAborted();
 	}
 }
 
@@ -344,13 +338,14 @@ void Creature::updateMapCache()
 	const Position& myPos = getPosition();
 	Position pos(0, 0, myPos.z);
 
+	Tile* tile;
 	for(int32_t y = -((mapWalkHeight - 1) / 2); y <= ((mapWalkHeight - 1) / 2); ++y)
 	{
 		for(int32_t x = -((mapWalkWidth - 1) / 2); x <= ((mapWalkWidth - 1) / 2); ++x)
 		{
 			pos.x = myPos.x + x;
 			pos.y = myPos.y + y;
-			if(Tile* tile = g_game.getTile(pos.x, pos.y, myPos.z))
+			if((tile = g_game.getTile(pos.x, pos.y, myPos.z)))
 				updateTileCache(tile, pos);
 		}
 	}
@@ -528,9 +523,7 @@ void Creature::onCreatureMove(const Creature* creature, const Tile* newTile, con
 		extraStepDuration = 0;
 		if(!teleport)
 		{
-			if(oldPos.z != newPos.z)
-				lastStepCost = 2;
-			else if(std::abs(newPos.x - oldPos.x) >=1 && std::abs(newPos.y - oldPos.y) >= 1)
+			if(oldPos.z != newPos.z || (std::abs(newPos.x - oldPos.x) >=1 && std::abs(newPos.y - oldPos.y) >= 1))
 				lastStepCost = 2;
 		}
 		else
@@ -723,11 +716,13 @@ bool Creature::onDeath()
 	if(deny)
 		return false;
 
-	if(lastHitKiller && !lastHitCreature->onKilledCreature(this))
-		deny = true;
+	if(lastHitKiller && lastHitCreature &&
+		!lastHitCreature->onKilledCreature(this))
+			deny = true;
 
-	if(mostDamageKiller && !mostDamageCreature->onKilledCreature(this))
-		deny = true;
+	if(mostDamageKiller && mostDamageCreature &&
+		!mostDamageCreature->onKilledCreature(this))
+			deny = true;
 
 	if(deny)
 		return false;
@@ -790,9 +785,11 @@ void Creature::dropCorpse()
 bool Creature::getKillers(Creature** _lastHitCreature, Creature** _mostDamageCreature)
 {
 	uint32_t mostDamage = 0;
+
+	CountBlock_t cb;
 	for(CountMap::iterator it = damageMap.begin(); it != damageMap.end(); ++it)
 	{
-		CountBlock_t cb = it->second;
+		cb = it->second;
 		if((cb.total > mostDamage && (OTSYS_TIME() - cb.ticks <= g_game.getInFightTicks())))
 		{
 			if((*_mostDamageCreature = g_game.getCreatureByID((*it).first)))
@@ -1045,7 +1042,7 @@ uint64_t Creature::getGainedExperience(Creature* attacker, bool useMultiplier/* 
 		baseExperience *= player->rates[SKILL__LEVEL];
 
 	baseExperience *= g_game.getExperienceStage(player->getLevel());
-	if(!player->hasCustomFlag(PlayerCustomFlag_HasInfiniteStamina))
+	if(!player->hasFlag(PlayerFlag_HasInfiniteStamina))
 	{
 		int64_t totalTime = 0;
 		for(CountMap::const_iterator it = damageMap.begin(); it != damageMap.end(); ++it)
@@ -1224,7 +1221,7 @@ void Creature::onGainExperience(uint64_t gainExp)
 
 		std::stringstream ss;
 		ss << gainExp;
-		g_game.addAnimatedText(getPosition(), TEXTCOLOR_WHITE, ss.str());
+		g_game.addAnimatedText(getPosition(), g_config.getNumber(ConfigManager::EXPERIENCE_COLOR), ss.str());
 	}
 }
 
@@ -1234,7 +1231,7 @@ void Creature::onGainSharedExperience(uint64_t gainExp)
 	{
 		std::stringstream ss;
 		ss << gainExp;
-		g_game.addAnimatedText(getPosition(), TEXTCOLOR_WHITE, ss.str());
+		g_game.addAnimatedText(getPosition(), g_config.getNumber(ConfigManager::EXPERIENCE_COLOR), ss.str());
 	}
 }
 
@@ -1567,12 +1564,7 @@ bool FrozenPathingConditionCall::operator()(const Position& startPos, const Posi
 
 	int32_t testDist = std::max(std::abs(targetPos.x - testPos.x), std::abs(targetPos.y - testPos.y));
 	if(fpp.maxTargetDist == 1)
-	{
-		if(testDist < fpp.minTargetDist || testDist > fpp.maxTargetDist)
-			return false;
-
-		return true;
-	}
+		return (testDist >= fpp.minTargetDist && testDist <= fpp.maxTargetDist);
 
 	if(testDist <= fpp.maxTargetDist)
 	{

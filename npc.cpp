@@ -1,47 +1,42 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-#include "definitions.h"
-
-#include <algorithm>
 #include <functional>
-#include <string>
-#include <sstream>
-#include <fstream>
 
+#include <iostream>
+#include <fstream>
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 
 #include "npc.h"
-#include "luascript.h"
-#include "game.h"
 #include "tools.h"
-#include "configmanager.h"
+
+#include "luascript.h"
 #include "position.h"
+
 #include "spells.h"
 #include "vocation.h"
+
+#include "configmanager.h"
+#include "game.h"
 
 extern ConfigManager g_config;
 extern Game g_game;
 extern Spells* g_spells;
-extern Vocations g_vocations;
 
 AutoList<Npc> Npc::listNpc;
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
@@ -56,6 +51,7 @@ void Npcs::reload()
 
 	delete Npc::m_scriptInterface;
 	Npc::m_scriptInterface = NULL;
+
 	for(AutoList<Npc>::listiterator it = Npc::listNpc.list.begin(); it != Npc::listNpc.list.end(); ++it)
 		it->second->reload();
 }
@@ -160,13 +156,17 @@ bool Npc::loadFromXml(const std::string& filename)
 {
 	xmlDocPtr doc = xmlParseFile(filename.c_str());
 	if(!doc)
-		return false;
-
-	xmlNodePtr root, p;
-	root = xmlDocGetRootElement(doc);
-	if(xmlStrcmp(root->name,(const xmlChar*)"npc") != 0)
 	{
-		std::cerr << "Malformed XML" << std::endl;
+		std::cout << "[Warning - Npc::loadFromXml] Cannot load npc file (" << filename << ")." << std::endl;
+		std::cout << getLastXMLError() << std::endl;
+		return false;
+	}
+
+	xmlNodePtr p, root = xmlDocGetRootElement(doc);
+	if(xmlStrcmp(root->name,(const xmlChar*)"npc"))
+	{
+		std::cout << "[Error - Npc::loadFromXml] Malformed npc file (" << filename << ")." << std::endl;
+		xmlFreeDoc(doc);
 		return false;
 	}
 
@@ -180,15 +180,13 @@ bool Npc::loadFromXml(const std::string& filename)
 	if(readXMLString(root, "name", strValue))
 		name = strValue;
 
+	nameDescription = name;
 	if(readXMLString(root, "namedescription", strValue) || readXMLString(root, "nameDescription", strValue))
 		nameDescription = strValue;
-	else
-		nameDescription = name;
 
+	baseSpeed = 110;
 	if(readXMLInteger(root, "speed", intValue))
 		baseSpeed = intValue;
-	else
-		baseSpeed = 110;
 
 	if(readXMLString(root, "attackable", strValue))
 		attackable = booleanString(strValue);
@@ -281,7 +279,7 @@ bool Npc::loadFromXml(const std::string& filename)
 
 				if(readXMLInteger(p, "addons", intValue))
 					defaultOutfit.lookAddons = intValue;
-				}
+			}
 			else if(readXMLInteger(p, "typeex", intValue))
 				defaultOutfit.lookTypeEx = intValue;
 
@@ -340,7 +338,7 @@ bool Npc::loadFromXml(const std::string& filename)
 				talkRadius = intValue;
 
 			if(readXMLInteger(p, "idletime", intValue))
-					idleTime = intValue;
+				idleTime = intValue;
 
 			if(readXMLInteger(p, "idleinterval", intValue))
 				idleInterval = intValue;
@@ -364,9 +362,9 @@ bool Npc::loadFromXml(const std::string& filename)
 
 uint32_t Npc::loadParams(xmlNodePtr node)
 {
-	uint32_t params = RESPOND_DEFAULT;
 	std::string strValue;
 
+	uint32_t params = RESPOND_DEFAULT;
 	if(readXMLString(node, "param", strValue))
 	{
 		StringVec paramList = explodeString(strValue, ";");
@@ -401,34 +399,39 @@ uint32_t Npc::loadParams(xmlNodePtr node)
 				std::cout << "[Warning - Npc::loadParams] NPC Name: " << name << " - Unknown param " << (*it) << std::endl;
 		}
 	}
+
 	return params;
 }
 
 ResponseList Npc::loadInteraction(xmlNodePtr node)
 {
-	ResponseList _responseList;
 	std::string strValue;
 	int32_t intValue;
 
+	ResponseList _responseList;
 	while(node)
 	{
 		if(xmlStrcmp(node->name, (const xmlChar*)"include") == 0)
 		{
 			if(readXMLString(node, "file", strValue))
 			{
-				std::string included = getFilePath(FILE_TYPE_OTHER, "npc/lib/" + strValue);
-				if(xmlDocPtr doc = xmlParseFile(included.c_str()))
+				if(xmlDocPtr doc = xmlParseFile(getFilePath(FILE_TYPE_OTHER, "npc/lib/" + strValue).c_str()))
 				{
 					xmlNodePtr root = xmlDocGetRootElement(doc);
-					if(xmlStrcmp(root->name,(const xmlChar*)"interaction") == 0)
+					if(xmlStrcmp(root->name,(const xmlChar*)"interaction"))
 					{
 						ResponseList includedResponses = loadInteraction(root->children);
 						_responseList.insert(_responseList.end(), includedResponses.begin(), includedResponses.end());
 					}
 					else
-						std::cerr << "Malformed XML" << std::endl;
+						std::cout << "[Error - Npc::loadInteraction] Malformed interaction file (" << strValue << ")." << std::endl;
 
 					xmlFreeDoc(doc);
+				}
+				else
+				{
+					std::cout << "[Warning - Npc::loadInteraction] Cannot load interaction file (" << strValue << ")." << std::endl;
+					std::cout << getLastXMLError() << std::endl;
 				}
 			}
 		}
@@ -1719,10 +1722,7 @@ void Npc::executeResponse(Player* player, NpcState* npcState, const NpcResponse*
 						if((*it).actionType == ACTION_SCRIPTPARAM)
 						{
 							if((*it).strValue == "|PLAYER|")
-							{
-								uint32_t cid = env->addThing(player);
-								lua_pushnumber(L, cid);
-							}
+								lua_pushnumber(L, env->addThing(player));
 							else if((*it).strValue == "|TEXT|")
 								lua_pushstring(L, npcState->respondToText.c_str());
 							else
@@ -2013,9 +2013,9 @@ const NpcResponse* Npc::getResponse(const ResponseList& list, const Player* play
 			{
 				Vocation* tmpVoc = player->vocation;
 				for(uint32_t i = 0; i <= player->promotionLevel; i++)
-					tmpVoc = g_vocations.getVocation(tmpVoc->getFromVocation());
+					tmpVoc = Vocations::getInstance()->getVocation(tmpVoc->getFromVocation());
 
-				if(tmpVoc->getVocId() != 2)
+				if(tmpVoc->getId() != 2)
 					continue;
 
 				++matchCount;
@@ -2025,9 +2025,9 @@ const NpcResponse* Npc::getResponse(const ResponseList& list, const Player* play
 			{
 				Vocation* tmpVoc = player->vocation;
 				for(uint32_t i = 0; i <= player->promotionLevel; i++)
-					tmpVoc = g_vocations.getVocation(tmpVoc->getFromVocation());
+					tmpVoc = Vocations::getInstance()->getVocation(tmpVoc->getFromVocation());
 
-				if(tmpVoc->getVocId() != 4)
+				if(tmpVoc->getId() != 4)
 					continue;
 
 				++matchCount;
@@ -2037,9 +2037,9 @@ const NpcResponse* Npc::getResponse(const ResponseList& list, const Player* play
 			{
 				Vocation* tmpVoc = player->vocation;
 				for(uint32_t i = 0; i <= player->promotionLevel; i++)
-					tmpVoc = g_vocations.getVocation(tmpVoc->getFromVocation());
+					tmpVoc = Vocations::getInstance()->getVocation(tmpVoc->getFromVocation());
 
-				if(tmpVoc->getVocId() != 3)
+				if(tmpVoc->getId() != 3)
 					continue;
 
 				++matchCount;
@@ -2049,9 +2049,9 @@ const NpcResponse* Npc::getResponse(const ResponseList& list, const Player* play
 			{
 				Vocation* tmpVoc = player->vocation;
 				for(uint32_t i = 0; i <= player->promotionLevel; i++)
-					tmpVoc = g_vocations.getVocation(tmpVoc->getFromVocation());
+					tmpVoc = Vocations::getInstance()->getVocation(tmpVoc->getFromVocation());
 
-				if(tmpVoc->getVocId() != 1)
+				if(tmpVoc->getId() != 1)
 					continue;
 
 				++matchCount;
@@ -2059,7 +2059,7 @@ const NpcResponse* Npc::getResponse(const ResponseList& list, const Player* play
 
 			if(hasBitSet(RESPOND_LOWLEVEL, params))
 			{
-				if((int32_t)player->getLevel() > npcState->level)
+				if((int32_t)player->getLevel() >= npcState->level)
 					continue;
 
 				++matchCount;
@@ -2067,8 +2067,7 @@ const NpcResponse* Npc::getResponse(const ResponseList& list, const Player* play
 
 			if(hasBitSet(RESPOND_LOWMONEY, params))
 			{
-				int32_t moneyCount = g_game.getMoney(player);
-				if(moneyCount >= npcState->price)
+				if((signed)g_game.getMoney(player) >= npcState->price)
 					continue;
 
 				++matchCount;
@@ -2076,8 +2075,7 @@ const NpcResponse* Npc::getResponse(const ResponseList& list, const Player* play
 
 			if(hasBitSet(RESPOND_LOWAMOUNT, params) || hasBitSet(RESPOND_NOAMOUNT, params))
 			{
-				int32_t itemCount = player->__getItemTypeCount(npcState->itemId);
-				if(itemCount >= npcState->amount)
+				if((signed)player->__getItemTypeCount(npcState->itemId) >= npcState->amount)
 					continue;
 
 				if(hasBitSet(RESPOND_LOWAMOUNT, params))
@@ -2251,23 +2249,23 @@ uint32_t Npc::getMatchCount(NpcResponse* response, StringVec wordList,
 	bool exactMatch, int32_t& matchAllCount, int32_t& totalKeywordCount)
 {
 	int32_t bestMatchCount = matchAllCount = totalKeywordCount = 0;
-
 	const std::list<std::string>& inputList = response->getInputList();
 	for(std::list<std::string>::const_iterator it = inputList.begin(); it != inputList.end(); ++it)
 	{
 		int32_t matchCount = 0;
-		StringVec::iterator lastWordMatchIter = wordList.begin();
+		StringVec::iterator lastWordMatch = wordList.begin();
+		std::string keywords = (*it), tmpKit;
 
-		std::string keywords = (*it);
 		StringVec keywordList = explodeString(keywords, ";");
-		for(StringVec::iterator keyIter = keywordList.begin(); keyIter != keywordList.end(); ++keyIter)
+		for(StringVec::iterator kit = keywordList.begin(); kit != keywordList.end(); ++kit)
 		{
-			if(!exactMatch && (*keyIter) == "|*|") //Match anything.
+			tmpKit = asLowerCaseString(*kit);
+			if(!exactMatch && (*kit) == "|*|") //Match anything.
 				matchAllCount++;
-			else if((*keyIter) == "|amount|")
+			else if(tmpKit == "|amount|")
 			{
 				//TODO: Should iterate through each word until a number or a new keyword is found.
-				int32_t amount = atoi((*lastWordMatchIter).c_str());
+				int32_t amount = atoi((*lastWordMatch).c_str());
 				if(amount > 0)
 					response->setAmount(amount);
 				else
@@ -2278,21 +2276,21 @@ uint32_t Npc::getMatchCount(NpcResponse* response, StringVec wordList,
 			}
 			else
 			{
-				StringVec::iterator wordIter = wordList.end();
-				for(wordIter = lastWordMatchIter; wordIter != wordList.end(); ++wordIter)
+				StringVec::iterator wit = wordList.end();
+				for(wit = lastWordMatch; wit != wordList.end(); ++wit)
 				{
-					size_t pos = (*wordIter).find_first_of("!\"#�%&/()=?`{[]}\\^*><,.-_'~");
+					size_t pos = (*wit).find_first_of("!\"#�%&/()=?`{[]}\\^*><,.-_~");
 					if(pos == std::string::npos)
 						pos = 0;
 
-					if((*wordIter).find((*keyIter), pos) == pos)
+					if((*wit).find((*kit), pos) == pos)
 						break;
 				}
 
-				if(wordIter == wordList.end())
+				if(wit == wordList.end())
 					continue;
 
-				lastWordMatchIter = wordIter + 1;
+				lastWordMatch = wit + 1;
 			}
 
 			++matchCount;
@@ -2302,7 +2300,7 @@ uint32_t Npc::getMatchCount(NpcResponse* response, StringVec wordList,
 				totalKeywordCount = keywordList.size();
 			}
 
-			if(lastWordMatchIter == wordList.end())
+			if(lastWordMatch == wordList.end())
 				break;
 		}
 	}
@@ -2485,7 +2483,7 @@ bool NpcScriptInterface::loadNpcLib(std::string file)
 
 	if(loadFile(file) == -1)
 	{
-		std::cout << "Warning: [NpcScriptInterface::loadNpcLib] Can not load " << file << std::endl;
+		std::cout << "Warning: [NpcScriptInterface::loadNpcLib] Cannot load " << file << std::endl;
 		return false;
 	}
 
@@ -2507,7 +2505,7 @@ void NpcScriptInterface::registerFunctions()
 	lua_register(m_luaState, "creatureGetName", NpcScriptInterface::luaCreatureGetName);
 	lua_register(m_luaState, "creatureGetName2", NpcScriptInterface::luaCreatureGetName2);
 	lua_register(m_luaState, "creatureGetPosition", NpcScriptInterface::luaCreatureGetPos);
-	lua_register(m_luaState, "getDistanceTo", NpcScriptInterface::luagetDistanceTo);
+	lua_register(m_luaState, "getDistanceTo", NpcScriptInterface::luaGetDistanceTo);
 	lua_register(m_luaState, "doNpcSetCreatureFocus", NpcScriptInterface::luaSetNpcFocus);
 	lua_register(m_luaState, "getNpcCid", NpcScriptInterface::luaGetNpcCid);
 	lua_register(m_luaState, "getNpcPos", NpcScriptInterface::luaGetNpcPos);
@@ -2602,12 +2600,9 @@ int32_t NpcScriptInterface::luaActionSay(lua_State* L)
 int32_t NpcScriptInterface::luaActionMove(lua_State* L)
 {
 	//selfMove(direction)
-	Direction dir = (Direction)popNumber(L);
 	ScriptEnviroment* env = getScriptEnv();
-
-	Npc* npc = env->getNpc();
-	if(npc)
-		npc->doMove(dir);
+	if(Npc* npc = env->getNpc())
+		npc->doMove((Direction)popNumber(L));
 
 	return 0;
 }
@@ -2615,15 +2610,14 @@ int32_t NpcScriptInterface::luaActionMove(lua_State* L)
 int32_t NpcScriptInterface::luaActionMoveTo(lua_State* L)
 {
 	//selfMoveTo(x,y,z)
-	Position target;
-	target.z = (uint8_t)popNumber(L);
-	target.y = (uint16_t)popNumber(L);
-	target.x = (uint16_t)popNumber(L);
+	Position pos;
+	pos.z = (uint8_t)popNumber(L);
+	pos.y = (uint16_t)popNumber(L);
+	pos.x = (uint16_t)popNumber(L);
 
 	ScriptEnviroment* env = getScriptEnv();
-	Npc* npc = env->getNpc();
-	if(npc)
-		npc->doMoveTo(target);
+	if(Npc* npc = env->getNpc())
+		npc->doMoveTo(pos);
 
 	return 0;
 }
@@ -2663,12 +2657,11 @@ int32_t NpcScriptInterface::luaActionFollow(lua_State* L)
 		return 1;
 	}
 
-	bool result = npc->setFollowCreature(player, true);
-	lua_pushboolean(L, result);
+	lua_pushboolean(L, npc->setFollowCreature(player, true));
 	return 1;
 }
 
-int32_t NpcScriptInterface::luagetDistanceTo(lua_State* L)
+int32_t NpcScriptInterface::luaGetDistanceTo(lua_State* L)
 {
 	//getDistanceTo(uid)
 	uint32_t uid = popNumber(L);
@@ -2701,14 +2694,12 @@ int32_t NpcScriptInterface::luagetDistanceTo(lua_State* L)
 int32_t NpcScriptInterface::luaSetNpcFocus(lua_State* L)
 {
 	//doNpcSetCreatureFocus(cid)
-	uint32_t cid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
 
 	Npc* npc = env->getNpc();
 	if(npc)
 	{
-		Creature* creature = env->getCreatureByUID(cid);
+		Creature* creature = env->getCreatureByUID(popNumber(L));
 		if(creature)
 			npc->hasScriptedFocus = true;
 		else
@@ -2741,10 +2732,9 @@ int32_t NpcScriptInterface::luaGetNpcPos(lua_State* L)
 int32_t NpcScriptInterface::luaGetNpcState(lua_State* L)
 {
 	//getNpcState(cid)
-	uint32_t cid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	const Player* player = env->getPlayerByUID(cid);
+
+	const Player* player = env->getPlayerByUID(popNumber(L));
 	if(!player)
 	{
 		lua_pushnil(L);
@@ -2766,10 +2756,9 @@ int32_t NpcScriptInterface::luaGetNpcState(lua_State* L)
 int32_t NpcScriptInterface::luaSetNpcState(lua_State* L)
 {
 	//setNpcState(state, cid)
-	uint32_t cid = popNumber(L);
-
 	ScriptEnviroment* env = getScriptEnv();
-	const Player* player = env->getPlayerByUID(cid);
+
+	const Player* player = env->getPlayerByUID(popNumber(L));
 	if(!player)
 	{
 		lua_pushnil(L);
@@ -2796,10 +2785,7 @@ int32_t NpcScriptInterface::luaGetNpcCid(lua_State* L)
 
 	Npc* npc = env->getNpc();
 	if(npc)
-	{
-		uint32_t cid = env->addThing(npc);
-		lua_pushnumber(L, cid);
-	}
+		lua_pushnumber(L, env->addThing(npc));
 	else
 		lua_pushnil(L);
 
@@ -2907,7 +2893,7 @@ int32_t NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 	if(!npc)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_CREATURE_NOT_FOUND));
-		lua_pushnumber(L, LUA_ERROR);
+		lua_pushboolean(L, LUA_ERROR);
 		return 1;
 	}
 
@@ -2926,7 +2912,7 @@ int32_t NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 	if(lua_istable(L, -1) == 0)
 	{
 		reportError(__FUNCTION__, "item list is not a table.");
-		lua_pushnumber(L, LUA_ERROR);
+		lua_pushboolean(L, LUA_ERROR);
 		return 1;
 	}
 	lua_pushnil(L);
@@ -2950,7 +2936,7 @@ int32_t NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 	if(!player)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_PLAYER_NOT_FOUND));
-		lua_pushnumber(L, LUA_ERROR);
+		lua_pushboolean(L, LUA_ERROR);
 		return 1;
 	}
 	player->closeShopWindow();
@@ -2959,7 +2945,7 @@ int32_t NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 	player->setShopOwner(npc, buyCallback, sellCallback, itemList);
 	player->openShopWindow();
 
-	lua_pushnumber(L, LUA_NO_ERROR);
+	lua_pushboolean(L, LUA_NO_ERROR);
 	return 1;
 }
 
@@ -2972,7 +2958,7 @@ int32_t NpcScriptInterface::luaCloseShopWindow(lua_State* L)
 	if(!player)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_PLAYER_NOT_FOUND));
-		lua_pushnumber(L, LUA_ERROR);
+		lua_pushboolean(L, LUA_ERROR);
 		return 1;
 	}
 
@@ -2980,7 +2966,7 @@ int32_t NpcScriptInterface::luaCloseShopWindow(lua_State* L)
 	if(!npc)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_CREATURE_NOT_FOUND));
-		lua_pushnumber(L, LUA_ERROR);
+		lua_pushboolean(L, LUA_ERROR);
 		return 1;
 	}
 
@@ -2998,11 +2984,6 @@ NpcEventsHandler::NpcEventsHandler(Npc* npc)
 	m_loaded = false;
 }
 
-NpcEventsHandler::~NpcEventsHandler()
-{
-	//
-}
-
 bool NpcEventsHandler::isLoaded()
 {
 	return m_loaded;
@@ -3015,7 +2996,7 @@ NpcScript::NpcScript(std::string file, Npc* npc) :
 
 	if(m_scriptInterface->loadFile(file, npc) == -1)
 	{
-		std::cout << "[Warning - NpcScript::NpcScript] Can not load script: " << file << std::endl;
+		std::cout << "[Warning - NpcScript::NpcScript] Cannot load script: " << file << std::endl;
 		std::cout << m_scriptInterface->getLastLuaError() << std::endl;
 		m_loaded = false;
 		return;
@@ -3029,11 +3010,6 @@ NpcScript::NpcScript(std::string file, Npc* npc) :
 	m_onPlayerEndTrade = m_scriptInterface->getEvent("onPlayerEndTrade");
 	m_onThink = m_scriptInterface->getEvent("onThink");
 	m_loaded = true;
-}
-
-NpcScript::~NpcScript()
-{
-	//
 }
 
 void NpcScript::onCreatureAppear(const Creature* creature)
@@ -3058,10 +3034,8 @@ void NpcScript::onCreatureAppear(const Creature* creature)
 		env->setRealPos(m_npc->getPosition());
 		env->setNpc(m_npc);
 
-		uint32_t cid = env->addThing(const_cast<Creature*>(creature));
-
 		m_scriptInterface->pushFunction(m_onCreatureAppear);
-		lua_pushnumber(L, cid);
+		lua_pushnumber(L, env->addThing(const_cast<Creature*>(creature)));
 		m_scriptInterface->callFunction(1);
 		m_scriptInterface->releaseScriptEnv();
 	}
@@ -3091,10 +3065,8 @@ void NpcScript::onCreatureDisappear(const Creature* creature)
 		env->setRealPos(m_npc->getPosition());
 		env->setNpc(m_npc);
 
-		uint32_t cid = env->addThing(const_cast<Creature*>(creature));
-
 		m_scriptInterface->pushFunction(m_onCreatureDisappear);
-		lua_pushnumber(L, cid);
+		lua_pushnumber(L, env->addThing(const_cast<Creature*>(creature)));
 		m_scriptInterface->callFunction(1);
 		m_scriptInterface->releaseScriptEnv();
 	}
@@ -3124,10 +3096,8 @@ void NpcScript::onCreatureMove(const Creature* creature, const Position& oldPos,
 		env->setRealPos(m_npc->getPosition());
 		env->setNpc(m_npc);
 
-		uint32_t cid = env->addThing(const_cast<Creature*>(creature));
-
 		m_scriptInterface->pushFunction(m_onCreatureMove);
-		lua_pushnumber(L, cid);
+		lua_pushnumber(L, env->addThing(const_cast<Creature*>(creature)));
 		LuaScriptInterface::pushPosition(L, oldPos, 0);
 		LuaScriptInterface::pushPosition(L, newPos, 0);
 		m_scriptInterface->callFunction(3);
@@ -3157,11 +3127,9 @@ void NpcScript::onCreatureSay(const Creature* creature, SpeakClasses type, const
 		env->setRealPos(m_npc->getPosition());
 		env->setNpc(m_npc);
 
-		uint32_t cid = env->addThing(const_cast<Creature*>(creature));
-
 		lua_State* L = m_scriptInterface->getLuaState();
 		m_scriptInterface->pushFunction(m_onCreatureSay);
-		lua_pushnumber(L, cid);
+		lua_pushnumber(L, env->addThing(const_cast<Creature*>(creature)));
 		lua_pushnumber(L, type);
 		lua_pushstring(L, text.c_str());
 		m_scriptInterface->callFunction(3);
@@ -3214,11 +3182,9 @@ void NpcScript::onPlayerCloseChannel(const Player* player)
 		env->setRealPos(m_npc->getPosition());
 		env->setNpc(m_npc);
 
-		uint32_t cid = env->addThing(const_cast<Player*>(player));
-
 		lua_State* L = m_scriptInterface->getLuaState();
 		m_scriptInterface->pushFunction(m_onPlayerCloseChannel);
-		lua_pushnumber(L, cid);
+		lua_pushnumber(L, env->addThing(const_cast<Player*>(player)));
 		m_scriptInterface->callFunction(1);
 		m_scriptInterface->releaseScriptEnv();
 	}
@@ -3239,11 +3205,9 @@ void NpcScript::onPlayerEndTrade(const Player* player)
 		env->setRealPos(m_npc->getPosition());
 		env->setNpc(m_npc);
 
-		uint32_t cid = env->addThing(const_cast<Player*>(player));
-
 		lua_State* L = m_scriptInterface->getLuaState();
 		m_scriptInterface->pushFunction(m_onPlayerEndTrade);
-		lua_pushnumber(L, cid);
+		lua_pushnumber(L, env->addThing(const_cast<Player*>(player)));
 		m_scriptInterface->callFunction(1);
 		m_scriptInterface->releaseScriptEnv();
 	}

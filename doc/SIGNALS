@@ -3,7 +3,7 @@
 		The Forgotten Server
 
 	Version
-		0.3.3
+		0.3.4
 
 	Codenamed
 		Crying Damson
@@ -41,6 +41,9 @@
 
 	TRAP
 		* Cleans map
+
+	CHLD
+		* Refreshes map
 
 	USR1
 		* Closes server

@@ -63,6 +63,7 @@ class ProtocolGame : public Protocol
 		enum {protocolId = 0x0A};
 		enum {isSingleSocket = true};
 		enum {hasChecksum = true};
+		static const char* protocolName() {return "game protocol";}
 
 		bool login(const std::string& name, uint32_t accnumber, const std::string& password,
 			OperatingSystem_t operatingSystem, bool gamemasterLogin);
@@ -82,7 +83,7 @@ class ProtocolGame : public Protocol
 		virtual void releaseProtocol();
 		virtual void deleteProtocolTask();
 
-		bool canSee(int16_t x, int16_t y, int8_t z) const;
+		bool canSee(uint16_t x, uint16_t y, uint16_t z) const;
 		bool canSee(const Creature*) const;
 		bool canSee(const Position& pos) const;
 
@@ -184,7 +185,7 @@ class ProtocolGame : public Protocol
 		void sendCreatureHealth(const Creature* creature);
 		void sendSkills();
 		void sendPing();
-		void sendCreatureTurn(const Creature* creature, uint8_t stackpos);
+		void sendCreatureTurn(const Creature* creature, int16_t stackpos);
 		void sendCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text, Position* pos = NULL);
 
 		void sendCancel(const std::string& message);
@@ -210,7 +211,7 @@ class ProtocolGame : public Protocol
 		void sendTradeItemRequest(const Player* player, const Item* item, bool ack);
 		void sendCloseTrade();
 
-		void sendTextWindow(uint32_t windowTextId, Item* item, uint16_t maxlen, bool canWrite);
+		void sendTextWindow(uint32_t windowTextId, Item* item, uint16_t maxLen, bool canWrite);
 		void sendTextWindow(uint32_t windowTextId, uint32_t itemId, const std::string& text);
 		void sendHouseWindow(uint32_t windowTextId, House* house, uint32_t listId, const std::string& text);
 		void sendOutfitWindow();
@@ -233,7 +234,7 @@ class ProtocolGame : public Protocol
 		void sendAddCreature(const Creature* creature, bool isLogin);
 		void sendRemoveCreature(const Creature* creature, const Position& pos, uint32_t stackpos, bool isLogout);
 		void sendMoveCreature(const Creature* creature, const Tile* newTile, const Position& newPos,
-			const Tile* oldTile, const Position& oldPos, uint32_t oldStackPos, bool teleport);
+			const Tile* oldTile, const Position& oldPos, uint32_t oldStackpos, bool teleport);
 
 		//containers
 		void sendAddContainerItem(uint8_t cid, const Item* item);
@@ -254,15 +255,15 @@ class ProtocolGame : public Protocol
 		void GetTileDescription(const Tile* tile, NetworkMessage_ptr msg);
 
 		// translate a floor to clientreadable format
-		void GetFloorDescription(NetworkMessage_ptr msg, int16_t x, int16_t y, int8_t z,
+		void GetFloorDescription(NetworkMessage_ptr msg, uint16_t x, uint16_t y, uint16_t z,
 			int32_t width, int32_t height, int32_t offset, int32_t& skip);
 
 		// translate a map area to clientreadable format
-		void GetMapDescription(uint16_t x, uint16_t y, uint8_t z,
-			uint16_t width, uint16_t height, NetworkMessage_ptr msg);
+		void GetMapDescription(uint16_t x, uint16_t y, uint16_t z,
+			int32_t width, int32_t height, NetworkMessage_ptr msg);
 
 		void AddMapDescription(NetworkMessage_ptr msg, const Position& pos);
-		void AddTextMessage(NetworkMessage_ptr msg,MessageClasses mclass, const std::string& message);
+		void AddTextMessage(NetworkMessage_ptr msg, MessageClasses mclass, const std::string& message);
 		void AddAnimatedText(NetworkMessage_ptr msg, const Position& pos, uint8_t color, const std::string& text);
 		void AddMagicEffect(NetworkMessage_ptr msg, const Position& pos, uint8_t type);
 		void AddDistanceShoot(NetworkMessage_ptr msg, const Position& from, const Position& to, uint8_t type);
@@ -284,9 +285,9 @@ class ProtocolGame : public Protocol
 		void RemoveTileItem(NetworkMessage_ptr msg, const Position& pos, uint32_t stackpos);
 
 		void MoveUpCreature(NetworkMessage_ptr msg, const Creature* creature,
-			const Position& newPos, const Position& oldPos, uint32_t oldStackPos);
+			const Position& newPos, const Position& oldPos, uint32_t oldStackpos);
 		void MoveDownCreature(NetworkMessage_ptr msg, const Creature* creature,
-			const Position& newPos, const Position& oldPos, uint32_t oldStackPos);
+			const Position& newPos, const Position& oldPos, uint32_t oldStackpos);
 
 		//container
 		void AddContainerItem(NetworkMessage_ptr msg, uint8_t cid, const Item* item);
@@ -303,8 +304,6 @@ class ProtocolGame : public Protocol
 
 		//shop
 		void AddShopItem(NetworkMessage_ptr msg, const ShopInfo item);
-
-		friend class Player;
 
 		template<class T1, class f1, class r>
 		void addGameTask(r (Game::*f)(f1), T1 p1);
@@ -338,14 +337,13 @@ class ProtocolGame : public Protocol
 		class f6, class f7, class f8, class r>
 		void addGameTask(r (Game::*f)(f1, f2, f3, f4, f5, f6, f7, f8), T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8);
 
+		friend class Player;
 		Player* player;
 
 		int64_t m_now, m_nextTask, m_nextPing, m_lastTaskCheck;
 		int32_t m_messageCount, m_rejectCount;
 		uint32_t eventConnect;
-
-		bool m_debugAssertSent;
-		bool m_acceptPackets;
+		bool m_debugAssertSent, m_acceptPackets;
 };
 
 #endif

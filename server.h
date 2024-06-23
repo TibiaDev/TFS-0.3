@@ -40,6 +40,7 @@ class ServiceBase : boost::noncopyable
 		virtual uint8_t getProtocolId() const = 0;
 		virtual bool isSingleSocket() const = 0;
 		virtual bool hasChecksum() const = 0;
+		virtual const char* getProtocolName() const = 0;
 };
 
 template <typename ProtocolType>
@@ -51,6 +52,7 @@ class Service : public ServiceBase
 		uint8_t getProtocolId() const {return ProtocolType::protocolId;}
 		bool isSingleSocket() const {return ProtocolType::isSingleSocket;}
 		bool hasChecksum() const {return ProtocolType::hasChecksum;}
+		const char* getProtocolName() const {return ProtocolType::protocolName();}
 };
 
 class ServicePort : boost::noncopyable, public boost::enable_shared_from_this<ServicePort>
@@ -65,7 +67,10 @@ class ServicePort : boost::noncopyable, public boost::enable_shared_from_this<Se
 		void open(uint16_t port);
 		void close();
 
-		void handle(Connection* connection, const boost::system::error_code& error);
+		void handle(boost::asio::ip::tcp::socket* socket, const boost::system::error_code& error);
+
+		bool isSingleSocket() const {return m_services.size() && m_services.front()->isSingleSocket();}
+		std::string getProtocolNames() const;
 
 		Protocol* makeProtocol(bool checksum, NetworkMessage& msg) const;
 
@@ -90,19 +95,24 @@ class ServiceManager : boost::noncopyable
 	ServiceManager(const ServiceManager&);
 
 	public:
-		ServiceManager(): m_io_service() {}
+		ServiceManager(): m_io_service(), deathTimer(m_io_service), running(false) {}
 		virtual ~ServiceManager() {stop();}
 
 		template <typename ProtocolType>
 		bool add(uint16_t port);
 
-		void run() {m_io_service.run();}
+		void run();
 		void stop();
 
+		bool isRunning() const {return !m_acceptors.empty();}
 		std::list<uint16_t> getPorts() const;
 
 	protected:
+		void die() {m_io_service.stop();}
+
 		boost::asio::io_service m_io_service;
+		boost::asio::deadline_timer deathTimer;
+		bool running;
 
 		typedef std::map<uint16_t, ServicePort_ptr> AcceptorsMap;
 		AcceptorsMap m_acceptors;
@@ -111,8 +121,13 @@ class ServiceManager : boost::noncopyable
 template <typename ProtocolType>
 bool ServiceManager::add(uint16_t port)
 {
-	ServicePort_ptr servicePort;
+	if(!port)
+	{
+		std::cout << "> ERROR: No port provided for service " << ProtocolType::protocolName() << ". Service disabled." << std::endl;
+		return false;
+	}
 
+	ServicePort_ptr servicePort;
 	AcceptorsMap::iterator it = m_acceptors.find(port);
 	if(it == m_acceptors.end())
 	{
@@ -121,7 +136,15 @@ bool ServiceManager::add(uint16_t port)
 		m_acceptors[port] = servicePort;
 	}
 	else
+	{
 		servicePort = it->second;
+		if(servicePort->isSingleSocket() || ProtocolType::isSingleSocket)
+		{
+			std::cout << "> ERROR: " << ProtocolType::protocolName() << " and " << servicePort->getProtocolNames();
+			std::cout << " cannot use the same port (" << port << ")." << std::endl;
+			return false;
+		}
+	}
 
 	return servicePort->add(Service_ptr(new Service<ProtocolType>()));
 }

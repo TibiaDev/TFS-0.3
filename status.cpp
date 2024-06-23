@@ -1,35 +1,33 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// Status
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
+#include "resources.h"
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 
 #include "status.h"
-#include "configmanager.h"
-#include "game.h"
+#include "tools.h"
+
 #include "connection.h"
 #include "networkmessage.h"
 #include "outputmessage.h"
-#include "tools.h"
-#include "resources.h"
+
+#include "configmanager.h"
+#include "game.h"
 
 #ifndef WIN32
 	#define SOCKET_ERROR -1
@@ -58,14 +56,18 @@ void ProtocolStatus::onRecvFirstMessage(NetworkMessage& msg)
 	{
 		case 0xFF:
 		{
-			if(msg.GetRaw() == "info")
+			if(msg.GetString(4) == "info")
 			{
 				if(OutputMessage_ptr output = OutputMessagePool::getInstance()->getOutputMessage(this, false))
 				{
 					TRACK_MESSAGE(output);
 					if(Status* status = Status::getInstance())
 					{
-						std::string str = status->getStatusString();
+						bool sendPlayers = false;
+						if(msg.getMessageLength() > msg.getReadPos())
+							sendPlayers = msg.GetByte() == 0x01;
+
+						std::string str = status->getStatusString(sendPlayers);
 						output->AddBytes(str.c_str(), str.size());
 					}
 
@@ -107,9 +109,8 @@ void ProtocolStatus::deleteProtocolTask()
 	Protocol::deleteProtocolTask();
 }
 
-std::string Status::getStatusString() const
+std::string Status::getStatusString(bool sendPlayers) const
 {
-	std::string xml;
 	char buffer[90];
 
 	xmlDocPtr doc;
@@ -147,6 +148,18 @@ std::string Status::getStatusString() const
 	xmlSetProp(p, (const xmlChar*)"max", (const xmlChar*)buffer);
 	sprintf(buffer, "%d", g_game.getLastPlayersRecord());
 	xmlSetProp(p, (const xmlChar*)"peak", (const xmlChar*)buffer);
+	if(sendPlayers)
+	{
+		std::stringstream ss;
+		for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
+		{
+			if(!it->second->isInGhostMode())
+			        ss << it->second->getName() << "," << it->second->getVocationId() << "," << it->second->getLevel() << ";";
+		}
+
+		xmlNodeSetContent(p, (const xmlChar*)ss.str().c_str());
+	}
+
 	xmlAddChild(root, p);
 
 	p = xmlNewNode(NULL,(const xmlChar*)"monsters");
@@ -167,6 +180,7 @@ std::string Status::getStatusString() const
 	sprintf(buffer, "%u", mapWidth);
 	xmlSetProp(p, (const xmlChar*)"width", (const xmlChar*)buffer);
 	sprintf(buffer, "%u", mapHeight);
+
 	xmlSetProp(p, (const xmlChar*)"height", (const xmlChar*)buffer);
 	xmlAddChild(root, p);
 
@@ -175,10 +189,9 @@ std::string Status::getStatusString() const
 	xmlChar* s = NULL;
 	int32_t len = 0;
 	xmlDocDumpMemory(doc, (xmlChar**)&s, &len);
+	std::string xml;
 	if(s)
 		xml = std::string((char*)s, len);
-	else
-		xml = "";
 
 	xmlFreeOTSERV(s);
 	xmlFreeDoc(doc);
@@ -240,11 +253,18 @@ void Status::getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMe
 	if(requestedInfo & REQUEST_EXT_PLAYERS_INFO)
 	{
 		output->AddByte(0x21);
-		output->AddU32(m_playersOnline);
+		std::list<std::pair<std::string, uint32_t> > players;
 		for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 		{
-			output->AddString(it->second->getName());
-			output->AddU32(it->second->getLevel());
+			if(!it->second->isInGhostMode())
+				players.push_back(std::make_pair(it->second->getName(), it->second->getLevel()));
+		}
+
+		output->AddU32(players.size());
+		for(std::list<std::pair<std::string, uint32_t> >::iterator it = players.begin(); it != players.end(); ++it)
+		{
+			output->AddString(it->first);
+			output->AddU32(it->second);
 		}
 	}
 
@@ -252,7 +272,9 @@ void Status::getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMe
 	{
 		output->AddByte(0x22);
 		const std::string name = msg.GetString();
-		if(g_game.getPlayerByName(name) != NULL)
+
+		Player* p = NULL;
+		if(g_game.getPlayerByNameWildcard(name, p) == RET_NOERROR && !p->isInGhostMode())
 			output->AddByte(0x01);
 		else
 			output->AddByte(0x00);

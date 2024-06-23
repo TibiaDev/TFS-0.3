@@ -27,8 +27,8 @@
 	-- Battle
 	-- NOTE: loginProtectionPeriod is the famous Tibia anti-magebomb system.
 	-- deathLostPercent set to nil enables manual mode.
+	-- showHealingDamageForMonsters inheritates from showHealingDamage.
 	worldType = "pvp"
-	hotkeyAimbotEnabled = "yes"
 	protectionLevel = 1
 	pvpTileIgnoreLevelAndVocationProtection = "yes"
 	killsToRedSkull = 3
@@ -44,12 +44,14 @@
 	noDamageToSameLookfeet = "no"
 	experienceByKillingPlayers = "no"
 	showHealingDamage = "no"
+	showHealingDamageForMonsters = "no"
 	fieldOwnershipDuration = 5 * 1000
 	stopAttackingAtExit = "no"
 	oldConditionAccuracy = "no"
 	loginProtectionPeriod = 10 * 1000
 	deathLostPercent = 10
 	stairhopDelay = 2 * 1000
+	gainExperienceColor = 215
 
 	-- Connection config
 	worldId = 0
@@ -68,7 +70,6 @@
 	allowClones = 0
 	serverName = "Forgotten"
 	loginMessage = "Welcome to the Forgotten Server!"
-	adminLogsEnabled = "no"
 	statusTimeout = 5 * 60 * 1000
 	replaceKickOnLogin = "yes"
 	forceSlowConnectionsToDisconnect = "no"
@@ -86,6 +87,7 @@
 	sqlFile = "forgottenserver.s3db"
 	sqlKeepAlive = 0
 	mysqlReadTimeout = 10
+	mysqlWriteTImeout = 10
 	passwordType = "plain"
 
 	-- Deathlist
@@ -116,6 +118,8 @@
 	-- Item usage
 	timeBetweenActions = 200
 	timeBetweenExActions = 1000
+	checkCorpseOwner = "yes"
+	hotkeyAimbotEnabled = "yes"
 
 	-- Map
 	-- NOTE: storeTrash costs more memory, but will perform alot faster cleaning.
@@ -128,16 +132,23 @@
 	cleanProtectedZones = "yes"
 
 	-- Startup
-	-- NOTE: defaultPriority works only on Windows
+	-- NOTE: defaultPriority works only on Windows and niceLevel on *nix
+	-- coresUsed are seperated by comma cores ids used by server process,
+	-- default is -1, so it stays untouched (automaticaly assigned by OS).
 	defaultPriority = "high"
+	niceLevel = 5
+	coresUsed = "-1"
 	optimizeDatabaseAtStartup = "yes"
 	removePremiumOnInit = "yes"
-	abortOnSocketFailure = "yes"
+
+	-- Muted buffer
+	maxMessageBuffer = 4
+	bufferMutedOnSpellFailure = "no"
 
 	-- Miscellaneous
 	-- NOTE: promptExceptionTracerErrorBox works only with precompiled support feature,
 	-- called "exception tracer" (__EXCEPTION_TRACER__ flag).
-	maxMessageBuffer = 4
+	dataDirectory = "data/"
 	kickIdlePlayerAfterMinutes = 15
 	allowChangeOutfit = "yes"
 	allowChangeColors = "yes"
@@ -145,6 +156,7 @@
 	disableOutfitsForPrivilegedPlayers = "no"
 	bankSystem = "yes"
 	saveGlobalStorage = "yes"
+	ghostModeInvisibleEffect = "no"
 	displaySkillLevelOnAdvance = "no"
 	spellNameInsteadOfWords = "no"
 	emoteSpells = "no"
@@ -158,9 +170,12 @@
 	premiumForPromotion = "yes"
 
 	-- Blessings
+	-- NOTE: blessingReduction* regards items/containers loss.
+	-- eachBlessReduction is how much each bless reduces the experience/magic/skills loss.
 	blessingsOnlyPremium = "yes"
 	blessingReductionBase = 30
 	blessingReductionDecreament = 5
+	eachBlessReduction = 8
 
 	-- Rates
 	-- NOTE: experienceStages configuration is located in data/XML/stages.xml.
@@ -168,7 +183,7 @@
 	rateExperience = 5.0
 	rateSkill = 3.0
 	rateMagic = 3.0
-	rateLoot = 2
+	rateLoot = 2.0
 	rateSpawn = 1
 
 	-- Stamina
@@ -227,7 +242,9 @@
 	-- Logs
 	-- NOTE: This kind of logging does not work in GUI version.
 	-- For such, please compile the software with __GUI_LOGS__ flag.
+	adminLogsEnabled = "no"
 	displayPlayersLogging = "yes"
+	prefixChannelLogs = ""
 	runeFile = ""
 	outLogName = ""
 	errorLogName = ""

@@ -1,35 +1,30 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
 
-#include <vector>
-#include <string>
-#include <algorithm>
-
 #include "monster.h"
+#include "spawn.h"
 #include "monsters.h"
-#include "game.h"
+
 #include "spells.h"
 #include "combat.h"
-#include "spawn.h"
+
 #include "configmanager.h"
+#include "game.h"
 
 extern Game g_game;
 extern ConfigManager g_config;
@@ -68,8 +63,8 @@ Creature()
 	currentOutfit = mType->outfit;
 
 	health = mType->health;
-	healthMax = mType->health_max;
-	baseSpeed = mType->base_speed;
+	healthMax = mType->healthMax;
+	baseSpeed = mType->baseSpeed;
 	internalLight.level = mType->lightLevel;
 	internalLight.color = mType->lightColor;
 	setSkull(mType->skull);
@@ -470,14 +465,8 @@ BlockType_t Monster::blockHit(Creature* attacker, CombatType_t combatType, int32
 
 bool Monster::isTarget(Creature* creature)
 {
-	if(creature->isRemoved() || !creature->isAttackable() ||
-		creature->getZone() == ZONE_PROTECTION || !canSeeCreature(creature))
-		return false;
-
-	if(creature->getPosition().z != getPosition().z)
-		return false;
-
-	return true;
+	return (!creature->isRemoved() && creature->isAttackable() && creature->getZone() != ZONE_PROTECTION
+		&& canSeeCreature(creature) && creature->getPosition().z == getPosition().z);
 }
 
 bool Monster::selectTarget(Creature* creature)
@@ -485,7 +474,6 @@ bool Monster::selectTarget(Creature* creature)
 #ifdef __DEBUG__
 	std::cout << "Selecting target... " << std::endl;
 #endif
-
 	if(!isTarget(creature))
 		return false;
 
@@ -892,22 +880,24 @@ bool Monster::pushItem(Item* item, int32_t radius)
 
 void Monster::pushItems(Tile* tile)
 {
-	uint32_t moveCount = 0, removeCount = 0;
-	//We can not use iterators here since we can push the item to another tile
+	if(!tile->downItems)
+		return;
+
+	//We cannot use iterators here since we can push the item to another tile
 	//which will invalidate the iterator.
 	//start from the end to minimize the amount of traffic
-	int32_t downItemSize = tile->downItems.size();
+	int32_t moveCount = 0, removeCount = 0, downItemSize = tile->downItems->size();
 	for(int32_t i = downItemSize - 1; i >= 0; --i)
 	{
-		assert(i >= 0 && i < (int32_t)tile->downItems.size());
-		Item* item = tile->downItems[i];
+		assert(i >= 0 && i < (int32_t)tile->downItems->size());
+		Item* item = tile->downItems->at(i);
 		if(item && item->hasProperty(MOVEABLE) && (item->hasProperty(BLOCKPATH)
 			|| item->hasProperty(BLOCKSOLID)))
 		{
-				if(moveCount < 20 && pushItem(item, 1))
-					moveCount++;
-				else if(g_game.internalRemoveItem(this, item) == RET_NOERROR)
-					++removeCount;
+			if(moveCount < 20 && pushItem(item, 1))
+				moveCount++;
+			else if(g_game.internalRemoveItem(this, item) == RET_NOERROR)
+				++removeCount;
 		}
 	}
 
@@ -928,7 +918,7 @@ bool Monster::pushCreature(Creature* creature)
 	for(DirVector::iterator it = dirVector.begin(); it != dirVector.end(); ++it)
 	{
 		const Position& tryPos = Spells::getCasterPosition(creature, *it);
-		Tile* toTile = g_game.getTile(tryPos.x, tryPos.y, tryPos.z);
+		Tile* toTile = g_game.getTile(tryPos);
 		if(toTile && !toTile->hasProperty(BLOCKPATH) && g_game.internalMoveCreature(creature, *it) == RET_NOERROR)
 			return true;
 	}
@@ -938,27 +928,32 @@ bool Monster::pushCreature(Creature* creature)
 
 void Monster::pushCreatures(Tile* tile)
 {
-	uint32_t removeCount = 0;
-	//We can not use iterators here since we can push a creature to another tile
-	//which will invalidate the iterator.
-	for(uint32_t i = 0; i < tile->creatures.size();)
+	if(!tile)
+		return;
+
+	CreatureVector* creatures = tile->creatures;
+	if(!creatures || creatures->empty())
+		return;
+
+	bool effect = false;
+	Monster* monster = NULL;
+	for(uint32_t i = 0; i < creatures->size();)
 	{
-		Monster* monster = tile->creatures[i]->getMonster();
-		if(monster && monster->isPushable())
+		if(creatures->at(i) && (monster = creatures->at(i)->getMonster()) && monster->isPushable())
 		{
 			if(pushCreature(monster))
 				continue;
-			else
-			{
-				monster->changeHealth(-monster->getHealth());
-				monster->setDropLoot(LOOT_DROP_NONE);
-				removeCount++;
-			}
+
+			monster->changeHealth(-monster->getHealth());
+			monster->setDropLoot(LOOT_DROP_NONE);
+			if(!effect)
+				effect = true;
 		}
+
 		++i;
 	}
 
-	if(removeCount > 0)
+	if(effect)
 		g_game.addMagicEffect(tile->getPosition(), NM_ME_BLOCKHIT);
 }
 
@@ -1141,17 +1136,11 @@ bool Monster::canWalkTo(Position pos, Direction dir)
 			break;
 	}
 
-	if(isInSpawnRange(pos))
-	{
-		if(getWalkCache(pos) == 0)
-			return false;
+	if(!isInSpawnRange(pos) || !getWalkCache(pos))
+		return false;
 
-		Tile* tile = g_game.getTile(pos.x, pos.y, pos.z);
-		if(tile && tile->__queryAdd(0, this, 1, FLAG_PATHFINDING) == RET_NOERROR)
-			return true;
-	}
-
-	return false;
+	Tile* tile = g_game.getTile(pos);
+	return tile && tile->__queryAdd(0, this, 1, FLAG_PATHFINDING) == RET_NOERROR;
 }
 
 bool Monster::onDeath()
@@ -1220,7 +1209,7 @@ bool Monster::despawn()
 
 bool Monster::getCombatValues(int32_t& min, int32_t& max)
 {
-	if(minCombatValue == 0 && maxCombatValue == 0)
+	if(!minCombatValue && !maxCombatValue)
 		return false;
 
 	min = minCombatValue;

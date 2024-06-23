@@ -26,12 +26,13 @@
 
 #include <libxml/parser.h>
 #include <boost/tokenizer.hpp>
-
 #include "position.h"
 
 typedef std::vector<std::string> StringVec;
 typedef std::vector<int32_t> IntegerVec;
+
 typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
+typedef std::map<int32_t, bool> VocationMap;
 
 enum DistributionType_t
 {
@@ -61,16 +62,17 @@ std::string asLowerCaseString(const std::string& source);
 std::string asUpperCaseString(const std::string& source);
 bool booleanString(std::string source);
 
-bool utf8ToLatin1(char* intext, std::string& outtext);
 bool readXMLInteger(xmlNodePtr node, const char* tag, int& value);
 #if (defined __WINDOWS__ || defined WIN32) && !defined __GNUC__
 bool readXMLInteger(xmlNodePtr node, const char* tag, int32_t& value);
 #endif
-bool readXMLInteger64(xmlNodePtr node, const char* tag, uint64_t& value);
+bool readXMLInteger64(xmlNodePtr node, const char* tag, int64_t& value);
 bool readXMLFloat(xmlNodePtr node, const char* tag, float& value);
 bool readXMLString(xmlNodePtr node, const char* tag, std::string& value);
 bool readXMLContentString(xmlNodePtr node, std::string& value);
 bool parseXMLContentString(xmlNodePtr node, std::string& value);
+std::string getLastXMLError();
+bool utf8ToLatin1(char* intext, std::string& outtext);
 
 StringVec explodeString(const std::string& string, const std::string& separator);
 IntegerVec vectorAtoi(StringVec stringVector);
@@ -98,7 +100,11 @@ int32_t round(float v);
 uint32_t rand24b();
 float box_muller(float m, float s);
 
+Skulls_t getSkull(std::string strValue);
+PartyShields_t getPartyShield(std::string strValue);
+
 Direction getDirection(std::string string);
+Direction getDirectionTo(Position pos1, Position pos2, bool extended = true);
 Direction getReverseDirection(Direction dir);
 Position getNextPosition(Direction direction, Position pos);
 
@@ -119,7 +125,10 @@ std::string getSkillName(uint16_t skillid, bool suffix = true);
 skills_t getSkillId(std::string param);
 
 std::string getReason(int32_t reasonId);
-std::string getAction(int32_t actionId, bool ipBanishment);
+std::string getAction(ViolationAction_t actionId, bool ipBanishment);
+
+std::string parseVocationString(StringVec vocStringVec);
+bool parseVocationNode(xmlNodePtr vocationNode, VocationMap& vocationMap, StringVec& vocStringMap, std::string& errorStr);
 
 bool fileExists(const char* filename);
 uint32_t adlerChecksum(uint8_t *data, size_t length);

@@ -1,33 +1,27 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
-
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
 #include <iostream>
-
 #include <boost/regex.hpp>
 
 #include "database.h"
 #include "databasesqlite.h"
 
 #include "tools.h"
-
 #include "configmanager.h"
 extern ConfigManager g_config;
 
@@ -36,8 +30,6 @@ extern ConfigManager g_config;
 #else
 #define OTSYS_SQLITE3_PREPARE sqlite3_prepare_v2
 #endif
-
-/** DatabaseSQLite definitions */
 
 DatabaseSQLite::DatabaseSQLite()
 {
@@ -59,11 +51,6 @@ DatabaseSQLite::DatabaseSQLite()
 		m_connected = true;
 }
 
-DatabaseSQLite::~DatabaseSQLite()
-{
-	sqlite3_close(m_handle);
-}
-
 bool DatabaseSQLite::getParam(DBParam_t param)
 {
 	switch(param)
@@ -74,21 +61,6 @@ bool DatabaseSQLite::getParam(DBParam_t param)
 	}
 
 	return false;
-}
-
-bool DatabaseSQLite::beginTransaction()
-{
-	return executeQuery("BEGIN");
-}
-
-bool DatabaseSQLite::rollback()
-{
-	return executeQuery("ROLLBACK");
-}
-
-bool DatabaseSQLite::commit()
-{
-	return executeQuery("COMMIT");
 }
 
 std::string DatabaseSQLite::_parse(const std::string &s)
@@ -214,13 +186,6 @@ std::string DatabaseSQLite::escapeBlob(const char* s, uint32_t length)
 	return buf;
 }
 
-void DatabaseSQLite::freeResult(DBResult* res)
-{
-	delete (SQLiteResult*)res;
-}
-
-/** SQLiteResult definitions */
-
 int32_t SQLiteResult::getDataInt(const std::string &s)
 {
 	listNames_t::iterator it = m_listNames.find(s);
@@ -268,14 +233,25 @@ const char* SQLiteResult::getDataStream(const std::string &s, uint64_t &size)
 	return NULL; // Failed
 }
 
-bool SQLiteResult::next()
+void SQLiteResult::free()
 {
-	// checks if after moving to next step we have a row result
-	return sqlite3_step(m_handle) == SQLITE_ROW;
+	if(m_handle)
+	{
+		sqlite3_finalize(m_handle);
+		delete this;
+	}
+	else
+		std::cout << "[Warning - SQLiteResult::free] Trying to free already freed result." << std::endl;
 }
 
 SQLiteResult::SQLiteResult(sqlite3_stmt* stmt)
 {
+	if(!stmt)
+	{
+		delete this;
+		return;
+	}
+
 	m_handle = stmt;
 	m_listNames.clear();
 

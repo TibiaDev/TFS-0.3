@@ -31,13 +31,13 @@ class DatabasePgSQL : public _Database
 {
 	public:
 		DatabasePgSQL();
-		DATABASE_VIRTUAL ~DatabasePgSQL();
+		DATABASE_VIRTUAL ~DatabasePgSQL() {PQfinish(m_handle);}
 
 		DATABASE_VIRTUAL bool getParam(DBParam_t param);
 
-		DATABASE_VIRTUAL bool beginTransaction();
-		DATABASE_VIRTUAL bool rollback();
-		DATABASE_VIRTUAL bool commit();
+		DATABASE_VIRTUAL bool beginTransaction() {return executeQuery("BEGIN");}
+		DATABASE_VIRTUAL bool rollback() {return executeQuery("ROLLBACK");}
+		DATABASE_VIRTUAL bool commit() {return executeQuery("COMMIT");}
 
 		DATABASE_VIRTUAL bool executeQuery(const std::string& query);
 		DATABASE_VIRTUAL DBResult* storeQuery(const std::string& query);
@@ -45,13 +45,10 @@ class DatabasePgSQL : public _Database
 		DATABASE_VIRTUAL std::string escapeString(const std::string& s);
 		DATABASE_VIRTUAL std::string escapeBlob(const char *s, uint32_t length);
 
-		DATABASE_VIRTUAL void freeResult(DBResult *res);
-
-		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() { return DATABASE_ENGINE_POSTGRESQL; }
+		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() {return DATABASE_ENGINE_POSTGRESQL;}
 
 	protected:
 		std::string _parse(const std::string& s);
-
 		PGconn* m_handle;
 };
 
@@ -60,16 +57,20 @@ class PgSQLResult : public _DBResult
 	friend class DatabasePgSQL;
 
 	public:
-		DATABASE_VIRTUAL int32_t getDataInt(const std::string& s);
-		DATABASE_VIRTUAL int64_t getDataLong(const std::string& s);
-		DATABASE_VIRTUAL std::string getDataString(const std::string& s);
+		DATABASE_VIRTUAL int32_t getDataInt(const std::string& s) {return atoi(
+			PQgetvalue(m_handle, m_cursor, PQfnumber(m_handle, s.c_str())));}
+		DATABASE_VIRTUAL int64_t getDataLong(const std::string& s) {return ATOI64(
+			PQgetvalue(m_handle, m_cursor, PQfnumber(m_handle, s.c_str())));}
+		DATABASE_VIRTUAL std::string getDataString(const std::string& s) {return std::string(
+			PQgetvalue(m_handle, m_cursor, PQfnumber(m_handle, s.c_str())));}
 		DATABASE_VIRTUAL const char* getDataStream(const std::string& s, uint64_t& size);
 
+		DATABASE_VIRTUAL void free();
 		DATABASE_VIRTUAL bool next();
 
 	protected:
 		PgSQLResult(PGresult* results);
-		DATABASE_VIRTUAL ~PgSQLResult() {PQclear(m_handle);}
+		DATABASE_VIRTUAL ~PgSQLResult() {}
 
 		PGresult* m_handle;
 		int32_t m_rows, m_cursor;

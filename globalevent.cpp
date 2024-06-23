@@ -1,30 +1,25 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
-#include "tools.h"
-
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 
 #include "globalevent.h"
+#include "tools.h"
 
 GlobalEvents::GlobalEvents() :
 m_scriptInterface("GlobalEvent Interface")
@@ -79,7 +74,7 @@ void GlobalEvents::onThink(uint32_t interval)
 		if(timeNow > (globalEvent->getLastExecution() + globalEvent->getInterval()))
 		{
 			globalEvent->setLastExecution(timeNow);
-			if(!globalEvent->executeThink(interval, timeNow))
+			if(!globalEvent->executeThink(globalEvent->getInterval(), timeNow, interval))
 				std::cout << "[Error - GlobalEvents::onThink] Couldn't execute event: " << globalEvent->getName() << std::endl;
 		}
 	}
@@ -116,9 +111,9 @@ bool GlobalEvent::configureEvent(xmlNodePtr p)
 	return true;
 }
 
-int32_t GlobalEvent::executeThink(uint32_t interval, uint32_t lastExecution)
+int32_t GlobalEvent::executeThink(uint32_t interval, uint32_t lastExecution, uint32_t thinkInterval)
 {
-	//onThink(interval, lastExecution)
+	//onThink(interval, lastExecution, thinkInterval)
 	if(m_scriptInterface->reserveScriptEnv())
 	{
 		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
@@ -127,6 +122,7 @@ int32_t GlobalEvent::executeThink(uint32_t interval, uint32_t lastExecution)
 			std::stringstream scriptstream;
 			scriptstream << "interval = " << interval << std::endl;
 			scriptstream << "lastExecution = " << lastExecution << std::endl;
+			scriptstream << "thinkInterval = " << thinkInterval << std::endl;
 
 			scriptstream << m_scriptData;
 			int32_t result = LUA_TRUE;
@@ -154,10 +150,10 @@ int32_t GlobalEvent::executeThink(uint32_t interval, uint32_t lastExecution)
 			m_scriptInterface->pushFunction(m_scriptId);
 			lua_pushnumber(L, interval);
 			lua_pushnumber(L, lastExecution);
+			lua_pushnumber(L, thinkInterval);
 
-			int32_t result = m_scriptInterface->callFunction(2);
+			int32_t result = m_scriptInterface->callFunction(3);
 			m_scriptInterface->releaseScriptEnv();
-
 			return (result == LUA_TRUE);
 		}
 	}

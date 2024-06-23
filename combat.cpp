@@ -1,33 +1,31 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
+#include "const.h"
 
 #include "combat.h"
+#include "tools.h"
 
 #include "game.h"
+#include "configmanager.h"
+
 #include "creature.h"
 #include "player.h"
-#include "const.h"
-#include "tools.h"
 #include "weapons.h"
-#include "configmanager.h"
 
 extern Game g_game;
 extern Weapons* g_weapons;
@@ -78,6 +76,25 @@ bool Combat::getMinMaxValues(Creature* creature, Creature* target, int32_t& min,
 			{
 				min = (int32_t)((player->getLevel() + player->getMagicLevel() * 4) * 1. * mina + minb);
 				max = (int32_t)((player->getLevel() + player->getMagicLevel() * 4) * 1. * maxa + maxb);
+
+				Vocation* vocation = player->getVocation();
+				if(max > 0) //Healing multipler
+				{
+					if(vocation && vocation->getMagicHealingMultiplier() != 1.0)
+					{
+						min *= (int32_t)vocation->getMagicHealingMultiplier();
+						max *= (int32_t)vocation->getMagicHealingMultiplier();
+					}
+				}
+				else //Attack multipler
+				{
+					if(vocation && vocation->getMagicMultiplier() != 1.0)
+					{
+						min *= (int32_t)vocation->getMagicMultiplier();
+						max *= (int32_t)vocation->getMagicMultiplier();
+					}
+				}
+
 				return true;
 			}
 
@@ -124,15 +141,15 @@ bool Combat::getMinMaxValues(Creature* creature, Creature* target, int32_t& min,
 
 void Combat::getCombatArea(const Position& centerPos, const Position& targetPos, const AreaCombat* area, std::list<Tile*>& list)
 {
+	uint16_t tmpX = targetPos.x, tmpY = targetPos.y;
 	if(area)
 		area->getList(centerPos, targetPos, list);
-	else if(targetPos.x >= 0 && targetPos.y >= 0 && targetPos.z >= 0 &&
-		targetPos.x <= 0xFFFF && targetPos.y <= 0xFFFF && targetPos.z < MAP_MAX_LAYERS)
+	else if(targetPos.z < MAP_MAX_LAYERS)
 	{
-		Tile* tile = g_game.getTile(targetPos);
+		Tile* tile = g_game.getTile(tmpX, tmpY, targetPos.z);
 		if(!tile)
 		{
-			tile = new Tile(targetPos.x, targetPos.y, targetPos.z);
+			tile = new Tile(tmpX, tmpY, targetPos.z);
 			g_game.setTile(tile);
 		}
 
@@ -273,7 +290,8 @@ ReturnValue Combat::canDoCombat(const Creature* attacker, const Creature* target
 			if((g_game.getWorldType() == WORLD_TYPE_NO_PVP && !Combat::isInPvpZone(attacker, target)) ||
 				isProtected(const_cast<Player*>(attackerPlayer), const_cast<Player*>(targetPlayer))
 				|| (g_config.getBool(ConfigManager::CANNOT_ATTACK_SAME_LOOKFEET) &&
-				attackerPlayer->getDefaultOutfit().lookFeet == targetPlayer->getDefaultOutfit().lookFeet))
+				attackerPlayer->getDefaultOutfit().lookFeet == targetPlayer->getDefaultOutfit().lookFeet)
+				|| (targetPlayer->isInGhostMode() && !attackerPlayer->canSeeGhost(targetPlayer)))
 				return RET_YOUMAYNOTATTACKTHISPLAYER;
 		}
 	}
@@ -605,8 +623,6 @@ void Combat::combatTileEffects(const SpectatorVec& list, Creature* caster, Tile*
 					case ITEM_ENERGYFIELD_PVP:
 						itemId = ITEM_ENERGYFIELD_NOPVP;
 						break;
-					default:
-						break;
 				}
 			}
 			else if(params.isAggressive && !Item::items[itemId].blockSolid)
@@ -703,30 +719,33 @@ void Combat::CombatFunc(Creature* caster, const Position& pos, const AreaCombat*
 		if(canDoCombat(caster, (*it), params.isAggressive) == RET_NOERROR)
 		{
 			bool skip = true;
-			for(CreatureVector::iterator cit = (*it)->creatures.begin(); skip && cit != (*it)->creatures.end(); ++cit)
+			if((*it)->creatures)
 			{
-				if(params.targetPlayersOrSummons && !(*cit)->getPlayer() && (!(*cit)->getMaster() || !(*cit)->getMaster()->getPlayer()))
-					continue;
-
-				if(params.targetCasterOrTopMost)
+				for(CreatureVector::iterator cit = (*it)->creatures->begin(); skip && cit != (*it)->creatures->end(); ++cit)
 				{
-					if(caster && caster->getTile() == (*it))
-					{
-						if((*cit) == caster)
-							skip = false;
-					}
-					else if((*cit) == (*it)->getTopCreature())
-						skip = false;
-
-					if(skip)
+					if(params.targetPlayersOrSummons && !(*cit)->getPlayer() && (!(*cit)->getMaster() || !(*cit)->getMaster()->getPlayer()))
 						continue;
-				}
 
-				if(!params.isAggressive || (caster != (*cit) && Combat::canDoCombat(caster, (*cit)) == RET_NOERROR))
-				{
-					func(caster, (*cit), params, data);
-					if(params.targetCallback)
-						params.targetCallback->onTargetCombat(caster, (*cit));
+					if(params.targetCasterOrTopMost)
+					{
+						if(caster && caster->getTile() == (*it))
+						{
+							if((*cit) == caster)
+								skip = false;
+						}
+						else if((*cit) == (*it)->getTopCreature())
+							skip = false;
+
+						if(skip)
+							continue;
+					}
+
+					if(!params.isAggressive || (caster != (*cit) && Combat::canDoCombat(caster, (*cit)) == RET_NOERROR))
+					{
+						func(caster, (*cit), params, data);
+						if(params.targetCallback)
+							params.targetCallback->onTargetCombat(caster, (*cit));
+					}
 				}
 			}
 
@@ -972,14 +991,10 @@ void TileCallback::onTileCombat(Creature* creature, Tile* tile) const
 		if(!env->setCallbackId(m_scriptId, m_scriptInterface))
 			return;
 
-		uint32_t cid = 0;
-		if(creature)
-			cid = env->addThing(creature);
-
 		m_scriptInterface->pushFunction(m_scriptId);
 		lua_State* L = m_scriptInterface->getLuaState();
 
-		lua_pushnumber(L, cid);
+		lua_pushnumber(L, creature ? env->addThing(creature) : 0);
 		m_scriptInterface->pushPosition(L, tile->getPosition(), 0);
 
 		m_scriptInterface->callFunction(2);
@@ -1023,7 +1038,7 @@ void TargetCallback::onTargetCombat(Creature* creature, Creature* target) const
 	}
 	else
 	{
-		std::cout << "[Error] Call stack overflow. TargetCallback::onTargetCombat" << std::endl;
+		std::cout << "[Error - TargetCallback::onTargetCombat] Call stack overflow." << std::endl;
 		return;
 	}
 }
@@ -1048,34 +1063,28 @@ AreaCombat::AreaCombat(const AreaCombat& rhs)
 bool AreaCombat::getList(const Position& centerPos, const Position& targetPos, std::list<Tile*>& list) const
 {
 	Tile* tile = g_game.getTile(targetPos);
-
 	const MatrixArea* area = getArea(centerPos, targetPos);
 	if(!area)
 		return false;
 
-	Position tmpPos = targetPos;
+	uint16_t tmpX = targetPos.x, tmpY = targetPos.y, centerY = 0, centerX = 0;
 	size_t cols = area->getCols(), rows = area->getRows();
-
-	uint32_t centerY, centerX;
 	area->getCenter(centerY, centerX);
 
-	tmpPos.x -= centerX;
-	tmpPos.y -= centerY;
-
+	tmpX -= centerX;
+	tmpY -= centerY;
 	for(size_t y = 0; y < rows; ++y)
 	{
 		for(size_t x = 0; x < cols; ++x)
 		{
 			if(area->getValue(y, x) != 0)
 			{
-				if(tmpPos.x >= 0 && tmpPos.y >= 0 && tmpPos.z >= 0 &&
-					tmpPos.x <= 0xFFFF && tmpPos.y <= 0xFFFF && tmpPos.z < MAP_MAX_LAYERS
-					&& g_game.isSightClear(targetPos, tmpPos, true))
+				if(targetPos.z < MAP_MAX_LAYERS && g_game.isSightClear(targetPos, Position(tmpX, tmpY, targetPos.z), true))
 				{
-					tile = g_game.getTile(tmpPos);
+					tile = g_game.getTile(tmpX, tmpY, targetPos.z);
 					if(!tile)
 					{
-						tile = new Tile(tmpPos.x, tmpPos.y, tmpPos.z);
+						tile = new Tile(tmpX, tmpY, targetPos.z);
 						g_game.setTile(tile);
 					}
 
@@ -1083,11 +1092,11 @@ bool AreaCombat::getList(const Position& centerPos, const Position& targetPos, s
 				}
 			}
 
-			tmpPos.x++;
+			tmpX++;
 		}
 
-		tmpPos.x -= cols;
-		tmpPos.y++;
+		tmpX -= cols;
+		tmpY++;
 	}
 
 	return true;
@@ -1095,7 +1104,7 @@ bool AreaCombat::getList(const Position& centerPos, const Position& targetPos, s
 
 void AreaCombat::copyArea(const MatrixArea* input, MatrixArea* output, MatrixOperation_t op) const
 {
-	uint32_t centerY, centerX;
+	uint16_t centerY, centerX;
 	input->getCenter(centerY, centerX);
 	if(op == MATRIXOPERATION_COPY)
 	{
@@ -1104,6 +1113,7 @@ void AreaCombat::copyArea(const MatrixArea* input, MatrixArea* output, MatrixOpe
 			for(uint32_t x = 0; x < input->getCols(); ++x)
 				(*output)[y][x] = (*input)[y][x];
 		}
+
 		output->setCenter(centerY, centerX);
 	}
 	else if(op == MATRIXOPERATION_MIRROR)
@@ -1114,6 +1124,7 @@ void AreaCombat::copyArea(const MatrixArea* input, MatrixArea* output, MatrixOpe
 			for(int32_t x = input->getCols() - 1; x >= 0; --x)
 				(*output)[y][rx++] = (*input)[y][x];
 		}
+
 		output->setCenter(centerY, (input->getRows() - 1) - centerX);
 	}
 	else if(op == MATRIXOPERATION_FLIP)
@@ -1124,12 +1135,13 @@ void AreaCombat::copyArea(const MatrixArea* input, MatrixArea* output, MatrixOpe
 			for(int32_t y = input->getRows() - 1; y >= 0; --y)
 				(*output)[ry++][x] = (*input)[y][x];
 		}
+
 		output->setCenter((input->getCols() - 1) - centerY, centerX);
 	}
 	//rotation
 	else
 	{
-		uint32_t centerX, centerY;
+		uint16_t centerX, centerY;
 		input->getCenter(centerY, centerX);
 
 		int32_t rotateCenterX = (output->getCols() / 2) - 1, rotateCenterY = (output->getRows() / 2) - 1, angle = 0;
@@ -1180,7 +1192,7 @@ MatrixArea* AreaCombat::createArea(const std::list<uint32_t>& list, uint32_t row
 	uint32_t cols = list.size() / rows;
 	MatrixArea* area = new MatrixArea(rows, cols);
 
-	uint32_t x = 0, y = 0;
+	uint16_t x = 0, y = 0;
 	for(std::list<uint32_t>::const_iterator it = list.begin(); it != list.end(); ++it)
 	{
 		if(*it == 1 || *it == 3)
@@ -1190,7 +1202,6 @@ MatrixArea* AreaCombat::createArea(const std::list<uint32_t>& list, uint32_t row
 			area->setCenter(y, x);
 
 		++x;
-
 		if(cols == x)
 		{
 			x = 0;
@@ -1330,36 +1341,36 @@ void MagicField::onStepInField(Creature* creature, bool purposeful/* = true*/)
 	}
 
 	const ItemType& it = items[getID()];
-	if(it.condition)
+	if(!it.condition)
+		return;
+
+	Condition* conditionCopy = it.condition->clone();
+	uint32_t owner = getOwner();
+	if(purposeful && owner != 0)
 	{
-		Condition* conditionCopy = it.condition->clone();
-		uint32_t owner = getOwner();
-		if(purposeful && owner != 0)
+		bool harmfulField = true;
+		if(g_game.getWorldType() == WORLD_TYPE_NO_PVP || getTile()->hasFlag(TILESTATE_NOPVPZONE))
 		{
-			bool harmfulField = true;
-			if(g_game.getWorldType() == WORLD_TYPE_NO_PVP || getTile()->hasFlag(TILESTATE_NOPVPZONE))
+			if(Creature* creature = g_game.getCreatureByID(owner))
 			{
-				if(Creature* creature = g_game.getCreatureByID(owner))
-				{
-					if(creature->getPlayer() || (creature->isSummon() && creature->getMaster()->getPlayer()))
-						harmfulField = false;
-				}
+				if(creature->getPlayer() || (creature->isSummon() && creature->getMaster()->getPlayer()))
+					harmfulField = false;
 			}
-
-			if(Player* targetPlayer = creature->getPlayer())
-			{
-				if(Player* attackerPlayer = g_game.getPlayerByID(owner))
-				{
-					if(Combat::isProtected(attackerPlayer, targetPlayer))
-						harmfulField = false;
-				}
-			}
-
-			if(!harmfulField || (OTSYS_TIME() - createTime) <= (uint32_t)g_config.getNumber(ConfigManager::FIELD_OWNERSHIP)
-				|| creature->hasBeenAttacked(owner))
-				conditionCopy->setParam(CONDITIONPARAM_OWNER, owner);
 		}
 
-		creature->addCondition(conditionCopy);
+		if(Player* targetPlayer = creature->getPlayer())
+		{
+			if(Player* attackerPlayer = g_game.getPlayerByID(owner))
+			{
+				if(Combat::isProtected(attackerPlayer, targetPlayer))
+					harmfulField = false;
+			}
+		}
+
+		if(!harmfulField || (OTSYS_TIME() - createTime) <= (uint32_t)g_config.getNumber(ConfigManager::FIELD_OWNERSHIP)
+			|| creature->hasBeenAttacked(owner))
+			conditionCopy->setParam(CONDITIONPARAM_OWNER, owner);
 	}
+
+	creature->addCondition(conditionCopy);
 }

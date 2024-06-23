@@ -134,9 +134,9 @@ class Creature : public AutoID, virtual public Thing
 		void setID()
 		{
 			/*
-			 * 0x20000000 - Player
-			 * 0x30000000 - NPC
+			 * 0x10000000 - Player
 			 * 0x40000000 - Monster
+			 * 0x80000000 - NPC
 			 */
 			if(this->id == 0)
 				this->id = auto_id | this->idRange();
@@ -197,16 +197,19 @@ class Creature : public AutoID, virtual public Thing
 		const Outfit_t getCurrentOutfit() const {return currentOutfit;}
 		const void setCurrentOutfit(Outfit_t outfit) {currentOutfit = outfit;}
 		const Outfit_t getDefaultOutfit() const {return defaultOutfit;}
+
 		bool isInvisible() const {return hasCondition(CONDITION_INVISIBLE);}
 		ZoneType_t getZone() const
 		{
-			const Tile* tile = getTile();
-			if(tile->hasFlag(TILESTATE_PROTECTIONZONE))
-				return ZONE_PROTECTION;
-			else if(tile->hasFlag(TILESTATE_NOPVPZONE))
-				return ZONE_NOPVP;
-			else if(tile->hasFlag(TILESTATE_PVPZONE))
-				return ZONE_PVP;
+			if(const Tile* tile = getTile())
+			{
+				if(tile->hasFlag(TILESTATE_PROTECTIONZONE))
+					return ZONE_PROTECTION;
+				else if(tile->hasFlag(TILESTATE_NOPVPZONE))
+					return ZONE_NOPVP;
+				else if(tile->hasFlag(TILESTATE_PVPZONE))
+					return ZONE_PVP;
+			}
 
 			return ZONE_NORMAL;
 		}

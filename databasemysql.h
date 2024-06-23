@@ -33,33 +33,34 @@
 #include <sstream>
 #include <map>
 
-#define MAX_RECONNECT_ATTEMPTS 3
+#define MAX_RECONNECT_ATTEMPTS 10
+#define MAX_REFETCH_ATTEMPTS 3
 
 class DatabaseMySQL : public _Database
 {
 	public:
 		DatabaseMySQL();
-		DATABASE_VIRTUAL ~DatabaseMySQL();
+		DATABASE_VIRTUAL ~DatabaseMySQL() {mysql_close(&m_handle);}
 
 		DATABASE_VIRTUAL bool getParam(DBParam_t param);
 
-		DATABASE_VIRTUAL bool beginTransaction();
+		DATABASE_VIRTUAL bool beginTransaction() {return executeQuery("BEGIN");}
 		DATABASE_VIRTUAL bool rollback();
 		DATABASE_VIRTUAL bool commit();
 
 		DATABASE_VIRTUAL bool executeQuery(const std::string &query);
 		DATABASE_VIRTUAL DBResult* storeQuery(const std::string &query);
 
-		DATABASE_VIRTUAL std::string escapeString(const std::string &s);
+		DATABASE_VIRTUAL std::string escapeString(const std::string &s) {return escapeBlob(s.c_str(), s.length());}
 		DATABASE_VIRTUAL std::string escapeBlob(const char* s, uint32_t length);
-
-		DATABASE_VIRTUAL void freeResult(DBResult *res);
 
 		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() {return DATABASE_ENGINE_MYSQL;}
 
 	protected:
 		DATABASE_VIRTUAL void keepAlive();
-		DATABASE_VIRTUAL bool reconnect();
+
+		bool connect();
+		bool reconnect();
 
 		MYSQL m_handle;
 		uint32_t m_attempts;
@@ -75,17 +76,22 @@ class MySQLResult : public _DBResult
 		DATABASE_VIRTUAL std::string getDataString(const std::string &s);
 		DATABASE_VIRTUAL const char* getDataStream(const std::string &s, uint64_t &size);
 
+		DATABASE_VIRTUAL void free();
 		DATABASE_VIRTUAL bool next();
 
 	protected:
-		MySQLResult(MYSQL_RES* res);
-		DATABASE_VIRTUAL ~MySQLResult() {mysql_free_result(m_handle);}
+		MySQLResult(MYSQL_RES* result);
+		DATABASE_VIRTUAL ~MySQLResult() {}
+
+		void fetch();
+		bool refetch();
 
 		typedef std::map<const std::string, uint32_t> listNames_t;
 		listNames_t m_listNames;
 
 		MYSQL_RES* m_handle;
 		MYSQL_ROW m_row;
+		uint32_t m_attempts;
 };
 
 #endif

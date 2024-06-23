@@ -1,29 +1,23 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
-#include "scriptmanager.h"
-#include "luascript.h"
-
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
+#include "scriptmanager.h"
 
 #include "actions.h"
 #include "talkaction.h"
@@ -33,6 +27,7 @@
 #include "creatureevent.h"
 #include "globalevent.h"
 
+#include "luascript.h"
 #ifndef __CONSOLE__
 #include "gui.h"
 #endif
@@ -45,25 +40,6 @@ MoveEvents* g_moveEvents = NULL;
 Weapons* g_weapons = NULL;
 GlobalEvents* g_globalEvents = NULL;
 
-ScriptingManager* ScriptingManager::_instance = NULL;
-
-ScriptingManager::ScriptingManager()
-{
-	//
-}
-
-ScriptingManager::~ScriptingManager()
-{
-	//
-}
-
-ScriptingManager* ScriptingManager::getInstance()
-{
-	if(_instance == NULL)
-		_instance = new ScriptingManager();
-	return _instance;
-}
-
 bool ScriptingManager::loadScriptSystems()
 {
 	g_weapons = new Weapons();
@@ -72,8 +48,8 @@ bool ScriptingManager::loadScriptSystems()
 		std::cout << "> ERROR: Unable to load Weapons!" << std::endl;
 		return false;
 	}
-	g_weapons->loadDefaults();
 
+	g_weapons->loadDefaults();
 	g_spells = new Spells();
 	if(!g_spells->loadFromXml())
 	{
@@ -115,5 +91,6 @@ bool ScriptingManager::loadScriptSystems()
 		std::cout << "> ERROR: Unable to load GlobalEvents!" << std::endl;
 		return false;
 	}
+
 	return true;
 }

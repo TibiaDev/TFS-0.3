@@ -1,32 +1,30 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
-#include "creatureevent.h"
-#include "tools.h"
-#include "player.h"
 #ifdef __DEBUG_LUASCRIPTS__
 #include <sstream>
 #endif
 
-CreatureEvents::CreatureEvents() :
+#include "creatureevent.h"
+#include "tools.h"
+
+#include "player.h"
+
+CreatureEvents::CreatureEvents():
 m_scriptInterface("CreatureScript Interface")
 {
 	m_scriptInterface.initState();
@@ -121,7 +119,7 @@ uint32_t CreatureEvents::playerLogout(Player* player)
 
 /////////////////////////////////////
 
-CreatureEvent::CreatureEvent(LuaScriptInterface* _interface) :
+CreatureEvent::CreatureEvent(LuaScriptInterface* _interface):
 Event(_interface)
 {
 	m_type = CREATURE_EVENT_NONE;
@@ -140,7 +138,7 @@ bool CreatureEvent::configureEvent(xmlNodePtr p)
 	m_eventName = str;
 	if(!readXMLString(p, "type", str))
 	{
-		std::cout << "[Error - CreatureEvent::configureEvent] No type for creature event."  << std::endl;
+		std::cout << "[Error - CreatureEvent::configureEvent] No type for creature event." << std::endl;
 		return false;
 	}
 
@@ -157,6 +155,8 @@ bool CreatureEvent::configureEvent(xmlNodePtr p)
 		m_type = CREATURE_EVENT_ADVANCE;
 	else if(tmpStr == "sendmail")
 		m_type = CREATURE_EVENT_MAIL_SEND;
+	else if(tmpStr == "textedit")
+		m_type = CREATURE_EVENT_TEXTEDIT;
 	else if(tmpStr == "receivemail")
 		m_type = CREATURE_EVENT_MAIL_RECEIVE;
 	else if(tmpStr == "look")
@@ -179,6 +179,7 @@ bool CreatureEvent::configureEvent(xmlNodePtr p)
 		m_type = CREATURE_EVENT_DEATH;
 	else if(tmpStr == "preparedeath")
 		m_type = CREATURE_EVENT_PREPAREDEATH;
+
 	else
 	{
 		std::cout << "[Error - CreatureEvent::configureEvent] No valid type for creature event." << str << std::endl;
@@ -211,6 +212,8 @@ std::string CreatureEvent::getScriptEventName() const
 			return "onSendMail";
 		case CREATURE_EVENT_MAIL_RECEIVE:
 			return "onReceiveMail";
+		case CREATURE_EVENT_TEXTEDIT:
+			return "onTextEdit";
 		case CREATURE_EVENT_STATSCHANGE:
 			return "onStatsChange";
 		case CREATURE_EVENT_COMBAT_AREA:
@@ -227,6 +230,7 @@ std::string CreatureEvent::getScriptEventName() const
 			return "onDeath";
 		case CREATURE_EVENT_PREPAREDEATH:
 			return "onPrepareDeath";
+
 		case CREATURE_EVENT_NONE:
 		default:
 			break;
@@ -248,11 +252,13 @@ std::string CreatureEvent::getScriptEventParams() const
 		case CREATURE_EVENT_ADVANCE:
 			return "cid, skill, oldLevel, newLevel";
 		case CREATURE_EVENT_LOOK:
-			return "cid, position";
+			return "cid, thing, position, lookDistance";
 		case CREATURE_EVENT_MAIL_SEND:
 			return "cid, receiver, item, openBox";
 		case CREATURE_EVENT_MAIL_RECEIVE:
 			return "cid, sender, item, openBox";
+		case CREATURE_EVENT_TEXTEDIT:
+			return "cid, item, newText";
 		case CREATURE_EVENT_THINK:
 			return "cid, interval";
 		case CREATURE_EVENT_STATSCHANGE:
@@ -396,7 +402,7 @@ uint32_t CreatureEvent::executeLogout(Player* player)
 	}
 }
 
-uint32_t CreatureEvent::executeChannelJoin(Player* player, uint16_t channelId, UsersList usersList)
+uint32_t CreatureEvent::executeChannelJoin(Player* player, uint16_t channelId, UsersMap usersMap)
 {
 	//onJoinChannel(cid, channel, users)
 	if(m_scriptInterface->reserveScriptEnv())
@@ -410,8 +416,8 @@ uint32_t CreatureEvent::executeChannelJoin(Player* player, uint16_t channelId, U
 			scriptstream << "cid = " << env->addThing(player) << std::endl;
 			scriptstream << "channel = " << channelId << std::endl;
 			scriptstream << "users = {}" << std::endl;
-			for(UsersList::iterator it = usersList.begin(); it != usersList.end(); ++it)
-				scriptstream << "table.insert(users, " << (*it) << ")" << std::endl;
+			for(UsersMap::iterator it = usersMap.begin(); it != usersMap.end(); ++it)
+				scriptstream << "table.insert(users, " << env->addThing(it->second) << ")" << std::endl;
 
 			scriptstream << m_scriptData;
 			int32_t result = LUA_NO_ERROR;
@@ -440,13 +446,13 @@ uint32_t CreatureEvent::executeChannelJoin(Player* player, uint16_t channelId, U
 
 			lua_pushnumber(L, env->addThing(player));
 			lua_pushnumber(L, channelId);
-			UsersList::iterator it = usersList.begin();
+			UsersMap::iterator it = usersMap.begin();
 
 			lua_newtable(L);
-			for(int32_t i = 1; it != usersList.end(); ++it, ++i)
+			for(int32_t i = 1; it != usersMap.end(); ++it, ++i)
 			{
 				lua_pushnumber(L, i);
-				lua_pushnumber(L, (*it));
+				lua_pushnumber(L, env->addThing(it->second));
 				lua_settable(L, -3);
 			}
 
@@ -462,7 +468,7 @@ uint32_t CreatureEvent::executeChannelJoin(Player* player, uint16_t channelId, U
 	}
 }
 
-uint32_t CreatureEvent::executeChannelLeave(Player* player, uint16_t channelId, UsersList usersList)
+uint32_t CreatureEvent::executeChannelLeave(Player* player, uint16_t channelId, UsersMap usersMap)
 {
 	//onLeaveChannel(cid, channel, users)
 	if(m_scriptInterface->reserveScriptEnv())
@@ -476,8 +482,8 @@ uint32_t CreatureEvent::executeChannelLeave(Player* player, uint16_t channelId, 
 			scriptstream << "cid = " << env->addThing(player) << std::endl;
 			scriptstream << "channel = " << channelId << std::endl;
 			scriptstream << "users = {}" << std::endl;
-			for(UsersList::iterator it = usersList.begin(); it != usersList.end(); ++it)
-				scriptstream << "table.insert(users, " << (*it) << ")" << std::endl;
+			for(UsersMap::iterator it = usersMap.begin(); it != usersMap.end(); ++it)
+				scriptstream << "table.insert(users, " << env->addThing(it->second) << ")" << std::endl;
 
 			scriptstream << m_scriptData;
 			int32_t result = LUA_NO_ERROR;
@@ -506,13 +512,13 @@ uint32_t CreatureEvent::executeChannelLeave(Player* player, uint16_t channelId, 
 
 			lua_pushnumber(L, env->addThing(player));
 			lua_pushnumber(L, channelId);
-			UsersList::iterator it = usersList.begin();
+			UsersMap::iterator it = usersMap.begin();
 
 			lua_newtable(L);
-			for(int32_t i = 1; it != usersList.end(); ++it, ++i)
+			for(int32_t i = 1; it != usersMap.end(); ++it, ++i)
 			{
 				lua_pushnumber(L, i);
-				lua_pushnumber(L, (*it));
+				lua_pushnumber(L, env->addThing(it->second));
 				lua_settable(L, -3);
 			}
 
@@ -702,9 +708,9 @@ uint32_t CreatureEvent::executeMailReceive(Player* player, Player* sender, Item*
 	}
 }
 
-uint32_t CreatureEvent::executeLook(Player* player, const Position& position, uint8_t stackpos)
+uint32_t CreatureEvent::executeLook(Player* player, Thing* thing, const Position& position, int16_t stackpos, int32_t lookDistance)
 {
-	//onLook(cid, position)
+	//onLook(cid, thing, position, lookDistance)
 	if(m_scriptInterface->reserveScriptEnv())
 	{
 		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
@@ -714,6 +720,7 @@ uint32_t CreatureEvent::executeLook(Player* player, const Position& position, ui
 
 			std::stringstream scriptstream;
 			scriptstream << "cid = " << env->addThing(player) << std::endl;
+			scriptstream << "thing = " << env->addThing(thing) << std::endl;
 			env->streamPosition(scriptstream, "position", position, stackpos);
 
 			scriptstream << m_scriptData;
@@ -742,9 +749,11 @@ uint32_t CreatureEvent::executeLook(Player* player, const Position& position, ui
 			m_scriptInterface->pushFunction(m_scriptId);
 
 			lua_pushnumber(L, env->addThing(player));
+			LuaScriptInterface::pushThing(L, thing, env->addThing(thing));
 			LuaScriptInterface::pushPosition(L, position, stackpos);
+			lua_pushnumber(L, lookDistance);
 
-			int32_t result = m_scriptInterface->callFunction(2);
+			int32_t result = m_scriptInterface->callFunction(4);
 			m_scriptInterface->releaseScriptEnv();
 			return (result == LUA_TRUE);
 		}
@@ -1198,7 +1207,6 @@ uint32_t CreatureEvent::executeDeath(Creature* creature, Item* corpse, Creature*
 			m_scriptInterface->releaseScriptEnv();
 			return (result == LUA_TRUE);
 		}
-
 	}
 	else
 	{
@@ -1260,6 +1268,62 @@ uint32_t CreatureEvent::executePrepareDeath(Creature* creature, Creature* lastHi
 	else
 	{
 		std::cout << "[Error - CreatureEvent::executePrepareDeath] Call stack overflow." << std::endl;
+		return 0;
+	}
+}
+
+uint32_t CreatureEvent::executeTextEdit(Player* player, Item* item, std::string newText)
+{
+	//onTextEdit(cid, item, newText)
+	if(m_scriptInterface->reserveScriptEnv())
+	{
+		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
+		if(m_scripted == EVENT_SCRIPT_BUFFER)
+		{
+			env->setRealPos(player->getPosition());
+
+			std::stringstream scriptstream;
+			scriptstream << "cid = " << env->addThing(player) << std::endl;
+			env->streamThing(scriptstream, "item", item, env->addThing(item));
+			scriptstream << "newText = " << newText.c_str() << std::endl;
+
+			scriptstream << m_scriptData;
+			int32_t result = LUA_NO_ERROR;
+			if(m_scriptInterface->loadBuffer(scriptstream.str()) != -1)
+			{
+				lua_State* L = m_scriptInterface->getLuaState();
+				result = m_scriptInterface->getField(L, "_result");
+			}
+
+			m_scriptInterface->releaseScriptEnv();
+			return (result == LUA_TRUE);
+		}
+		else
+		{
+			#ifdef __DEBUG_LUASCRIPTS__
+			char desc[35];
+			sprintf(desc, "%s", player->getName().c_str());
+			env->setEventDesc(desc);
+			#endif
+
+			env->setScriptId(m_scriptId, m_scriptInterface);
+			env->setRealPos(player->getPosition());
+
+			lua_State* L = m_scriptInterface->getLuaState();
+			m_scriptInterface->pushFunction(m_scriptId);
+
+			lua_pushnumber(L, env->addThing(player));
+			LuaScriptInterface::pushThing(L, item, env->addThing(item));
+			lua_pushstring(L, newText.c_str());
+
+			int32_t result = m_scriptInterface->callFunction(3);
+			m_scriptInterface->releaseScriptEnv();
+			return (result == LUA_TRUE);
+		}
+	}
+	else
+	{
+		std::cout << "[Error - CreatureEvent::executeTextEdit] Call stack overflow." << std::endl;
 		return 0;
 	}
 }

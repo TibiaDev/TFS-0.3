@@ -1,33 +1,29 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
 #include "tasks.h"
+
 #include "outputmessage.h"
-#include "game.h"
-
-extern Game g_game;
-
 #if defined __EXCEPTION_TRACER__
 #include "exception.h"
 #endif
+
+#include "game.h"
+extern Game g_game;
 
 Dispatcher::DispatcherState Dispatcher::m_threadState = Dispatcher::STATE_TERMINATED;
 
@@ -48,16 +44,14 @@ OTSYS_THREAD_RETURN Dispatcher::dispatcherThread(void* p)
 	#endif
 	srand((uint32_t)OTSYS_TIME());
 
+	OutputMessagePool* outputPool = NULL;
 	while(Dispatcher::m_threadState != Dispatcher::STATE_TERMINATED)
 	{
 		Task* task = NULL;
 		// check if there are tasks waiting
-		OTSYS_THREAD_LOCK(getDispatcher().m_taskLock, "")
-		if(getDispatcher().m_taskList.empty())
-		{
-			//if the list is empty wait for signal
+		OTSYS_THREAD_LOCK(getDispatcher().m_taskLock, "");
+		if(getDispatcher().m_taskList.empty()) //if the list is empty wait for signal
 			OTSYS_THREAD_WAITSIGNAL(getDispatcher().m_taskSignal, getDispatcher().m_taskLock);
-		}
 
 		if(!getDispatcher().m_taskList.empty() && Dispatcher::m_threadState != Dispatcher::STATE_TERMINATED)
 		{
@@ -68,20 +62,25 @@ OTSYS_THREAD_RETURN Dispatcher::dispatcherThread(void* p)
 
 		OTSYS_THREAD_UNLOCK(getDispatcher().m_taskLock, "");
 		// finally execute the task...
-		if(task)
-		{
-			OutputMessagePool::getInstance()->startExecutionFrame();
-			(*task)();
-			delete task;
-			OutputMessagePool::getInstance()->sendAll();
-			g_game.clearSpectatorCache();
-		}
+		if(!task)
+			continue;
+
+		outputPool = OutputMessagePool::getInstance();
+		if(outputPool)
+			outputPool->startExecutionFrame();
+
+		(*task)();
+		delete task;
+		if(outputPool)
+			outputPool->sendAll();
+
+		g_game.clearSpectatorCache();
 	}
 
 	#if defined __EXCEPTION_TRACER__
 	dispatcherExceptionHandler.RemoveHandler();
 	#endif
-	#if not defined(__USE_BOOST_THREAD__) && not defined(WIN32)
+	#if not defined(WIN32)
 	return NULL;
 	#endif
 }
@@ -93,6 +92,7 @@ void Dispatcher::addTask(Task* task)
 	{
 		OTSYS_THREAD_LOCK(m_taskLock, "");
 		signal = m_taskList.empty();
+
 		m_taskList.push_back(task);
 		OTSYS_THREAD_UNLOCK(m_taskLock, "");
 	}
@@ -109,13 +109,19 @@ void Dispatcher::addTask(Task* task)
 void Dispatcher::flush()
 {
 	Task* task = NULL;
+	OutputMessagePool* outputPool = NULL;
 	while(!m_taskList.empty())
 	{
 		task = getDispatcher().m_taskList.front();
 		m_taskList.pop_front();
+
 		(*task)();
 		delete task;
-		OutputMessagePool::getInstance()->sendAll();
+
+		outputPool = OutputMessagePool::getInstance();
+		if(outputPool)
+			outputPool->sendAll();
+
 		g_game.clearSpectatorCache();
 	}
 }

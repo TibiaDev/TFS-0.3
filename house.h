@@ -126,13 +126,13 @@ class HouseTransferItem : public Item
 	public:
 		static HouseTransferItem* createHouseTransferItem(House* house);
 
-		HouseTransferItem(House* _house) : Item(0) {house = _house;}
+		HouseTransferItem(House* _house): Item(0) {house = _house;}
 		virtual ~HouseTransferItem() {}
 
-		virtual bool onTradeEvent(TradeEvents_t event, Player* owner);
+		virtual bool onTradeEvent(TradeEvents_t event, Player* owner, Player* seller);
+		virtual bool canTransform() const {return false;}
 
 		House* getHouse() {return house;}
-		virtual bool canTransform() const {return false;}
 
 	protected:
 		House* house;
@@ -141,8 +141,9 @@ class HouseTransferItem : public Item
 class House
 {
 	public:
+		virtual ~House() {}
+
 		House(uint32_t _houseid);
-		virtual ~House();
 		uint32_t getHouseId() const {return houseid;}
 
 		void setEntryPos(const Position& pos) {posEntry = pos;}
@@ -151,11 +152,11 @@ class House
 		void setName(const std::string& _houseName) {houseName = _houseName;}
 		const std::string& getName() const {return houseName;}
 
-		void setHouseOwner(uint32_t guid, bool cleaned = true);
+		void setHouseOwner(uint32_t guid, bool _clean = true);
 		uint32_t getHouseOwner() const {return houseOwner;}
 
-		void setPaidUntil(uint32_t paid) {paidUntil = paid;}
-		uint32_t getPaidUntil() const {return paidUntil;}
+		void setPaidUntil(time_t paid) {paidUntil = paid;}
+		time_t getPaidUntil() const {return paidUntil;}
 
 		void setRent(uint32_t _rent) {rent = _rent;}
 		uint32_t getRent() const {return rent;}
@@ -163,8 +164,8 @@ class House
 		void setPrice(uint32_t _price, bool update = false);
 		uint32_t getPrice() const {return price;}
 
-		void setLastWarning(uint32_t _lastWarning) {lastWarning = _lastWarning;}
-		uint32_t getLastWarning() {return lastWarning;}
+		void setLastWarning(time_t _lastWarning) {lastWarning = _lastWarning;}
+		time_t getLastWarning() {return lastWarning;}
 
 		void setPayRentWarnings(uint32_t warnings) {rentWarnings = warnings;}
 		uint32_t getPayRentWarnings() const {return rentWarnings;}
@@ -182,14 +183,10 @@ class House
 		Door* getDoorByNumber(uint32_t doorId) const;
 		Door* getDoorByPosition(const Position& pos);
 
-		HouseTransferItem* getTransferItem();
-		void resetTransferItem();
-		bool executeTransfer(HouseTransferItem* item, Player* player);
-
-		bool kickPlayer(Player* player, Player* target);
-		bool isInvited(const Player* player);
 		AccessHouseLevel_t getHouseAccessLevel(const Player* player);
 		uint32_t getHouseTileSize() {return houseTiles.size();}
+		bool isInvited(const Player* player);
+		bool kickPlayer(Player* player, Player* target);
 		void updateDoorDescription(std::string name = "");
 		void clean();
 
@@ -212,22 +209,20 @@ class House
 		void removePlayers(bool ignoreInvites);
 
 		bool isLoaded;
+		uint32_t houseid, houseOwner, rentWarnings, rent, price, townid, size;
+		time_t paidUntil, lastWarning;
 		std::string houseName;
-		uint32_t houseid, houseOwner, paidUntil, rentWarnings, lastWarning, rent, price, townid, size;
-		AccessList guestList, subOwnerList;
 		Position posEntry;
+
+		AccessList guestList, subOwnerList;
 		HouseTileList houseTiles;
 		HouseDoorList doorList;
 		HouseBedItemList bedsList;
-
-		HouseTransferItem* transferItem;
-		Container transferContainer;
 };
 
 class Houses
 {
 	public:
-		Houses();
 		virtual ~Houses() {}
 		static Houses& getInstance()
 		{
@@ -237,19 +232,25 @@ class Houses
 
 		bool loadFromXml(std::string filename);
 		bool reloadPrices();
-		bool payHouses();
 
-		House* getHouse(uint32_t houseid, bool add = false);
+		void payHouses();
+		bool payRent(Player* player, House* house, time_t _time = 0);
+
 		HouseMap::iterator getHouseBegin() {return houseMap.begin();}
 		HouseMap::iterator getHouseEnd() {return houseMap.end();}
 
+		House* getHouse(uint32_t houseid, bool add = false);
 		House* getHouseByPlayer(Player* player);
 		House* getHouseByPlayerId(uint32_t playerId);
+
 		uint32_t getHousesCount(uint32_t accId);
 
 	private:
-		RentPeriod_t rentPeriod;
+		Houses();
+		bool payHouse(House* house, time_t _time);
+
 		HouseMap houseMap;
+		RentPeriod_t rentPeriod;
 };
 
 #endif
