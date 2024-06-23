@@ -288,8 +288,8 @@ class Game
 		void addCreatureCheck(Creature* creature);
 		void removeCreatureCheck(Creature* creature);
 
-		bool violationWindow(uint32_t playerId, std::string targetPlayerName, int32_t reasonId, int32_t actionId,
-			std::string banComment, std::string statement, bool IPBanishment);
+		bool violationWindow(uint32_t playerId, std::string targetName, int32_t reason, int32_t action,
+			std::string comment, std::string statement, uint16_t channelId, bool ipBanishment);
 
 		uint32_t getPlayersOnline() {return (uint32_t)Player::listPlayer.list.size();}
 		uint32_t getMonstersOnline() {return (uint32_t)Monster::listMonster.list.size();}
@@ -414,7 +414,6 @@ class Game
 		void loadPlayersRecord();
 		void checkPlayersRecord();
 
-		void sendGuildMotd(uint32_t playerId, uint32_t guildId);
 		void kickPlayer(uint32_t playerId, bool displayEffect);
 		bool playerReportBug(uint32_t playerId, std::string bug);
 
