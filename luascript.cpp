@@ -41,6 +41,7 @@
 #include "vocation.h"
 #include "teleport.h"
 #include "ioban.h"
+#include "raids.h"
 
 extern Game g_game;
 extern Monsters g_monsters;
@@ -1894,6 +1895,9 @@ void LuaScriptInterface::registerFunctions()
 
 	//getConfigFile()
 	lua_register(m_luaState, "getConfigFile", LuaScriptInterface::luaGetConfigFile);
+
+	//executeRaid(name)
+	lua_register(m_luaState, "executeRaid", LuaScriptInterface::luaExecuteRaid);
 
 	//saveServer()
 	lua_register(m_luaState, "saveServer", LuaScriptInterface::luaSaveServer);
@@ -7625,7 +7629,7 @@ int32_t LuaScriptInterface::luaGetPlayerBlessing(lua_State* L)
 int32_t LuaScriptInterface::luaDoPlayerAddBlessing(lua_State* L)
 {
 	//doPlayerAddBlessing(cid, blessing)
-	int32_t blessing = popNumber(L);
+	int32_t blessing = popNumber(L) - 1;
 	uint32_t cid = popNumber(L);
 	ScriptEnviroment* env = getScriptEnv();
 	Player* player = env->getPlayerByUID(cid);
@@ -7633,8 +7637,8 @@ int32_t LuaScriptInterface::luaDoPlayerAddBlessing(lua_State* L)
 	{
 		if(!player->hasBlessing(blessing))
 		{
-			blessing = 1 << (blessing - 1);
-			player->addBlessing(player->blessings + blessing);
+			blessing = 1 << blessing;
+			player->addBlessing(blessing);
 			lua_pushboolean(L, true);
 		}
 		else
@@ -8102,6 +8106,47 @@ int32_t LuaScriptInterface::luaGetSpectators(lua_State *L)
 		lua_settable(L, -3);
 	}
 
+	return 1;
+}
+
+int32_t LuaScriptInterface::luaExecuteRaid(lua_State* L)
+{
+	//executeRaid(name)
+	std::string name = popString(L);
+
+	Raid* raid = Raids::getInstance()->getRaidByName(name);
+	if(!raid || !raid->isLoaded())
+	{
+		reportErrorFunc("Such raid does not exists.");
+		lua_pushnumber(L, LUA_NULL);
+		return 1;
+	}
+
+	if(Raids::getInstance()->getRunning())
+	{
+		lua_pushnumber(L, LUA_FALSE);
+		return 1;
+	}
+
+	Raids::getInstance()->setRunning(raid);
+	RaidEvent* event = raid->getNextRaidEvent();
+	if(!event)
+	{
+		lua_pushnumber(L, LUA_FALSE);
+		return 1;
+	}
+
+	raid->setState(RAIDSTATE_EXECUTING);
+
+	uint32_t ticks = event->getDelay();
+	if(ticks > 0)
+		Scheduler::getScheduler().addEvent(createSchedulerTask(ticks,
+			boost::bind(&Raid::executeRaidEvent, raid, event)));
+	else
+		Dispatcher::getDispatcher().addTask(createTask(
+			boost::bind(&Raid::executeRaidEvent, raid, event)));
+
+	lua_pushnumber(L, LUA_TRUE);
 	return 1;
 }
 

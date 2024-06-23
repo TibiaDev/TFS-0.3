@@ -3107,6 +3107,7 @@ void Player::postRemoveNotification(Thing* thing, int32_t index, bool isComplete
 
 void Player::postUpdateGoods(uint32_t itemId)
 {
+	uint32_t amount = 0;
 	for(ShopInfoList::iterator it = shopOffer.begin(); it != shopOffer.end(); ++it)
 	{
 		if((*it).itemId == itemId)
@@ -3116,10 +3117,13 @@ void Player::postUpdateGoods(uint32_t itemId)
 				goodsMap[(*it).itemId] = itemCount;
 			else
 				goodsMap.erase((*it).itemId);
+
+			amount++;
 		}
 	}
 
-	sendGoods();
+	if(amount > 0)
+		sendGoods();
 }
 
 void Player::__internalAddThing(Thing* thing)
@@ -3850,18 +3854,18 @@ void Player::checkRedSkullTicks(int32_t ticks)
 void Player::setPromotionLevel(uint32_t pLevel)
 {
 	uint32_t tmpLevel = 0, currentVoc = vocation_id;
-	for(uint32_t i = 1; i <= pLevel; i++)
+	for(uint32_t i = promotionLevel; i < pLevel; i++)
 	{
 		currentVoc = g_vocations.getPromotedVocation(currentVoc);
 		if(currentVoc == 0)
 			break;
 
+		tmpLevel++;
 		Vocation *voc = g_vocations.getVocation(currentVoc);
 		if(voc->isPremiumNeeded() && !isPremium() && g_config.getBool(ConfigManager::PREMIUM_FOR_PROMOTION))
 			continue;
 
 		vocation_id = currentVoc;
-		tmpLevel++;
 	}
 
 	setVocation(vocation_id);

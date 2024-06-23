@@ -774,7 +774,7 @@ bool IOLoginData::savePlayer(Player* player, bool preSave)
 
 	ItemBlockList itemList;
 	Item* item;
-	for(int32_t slotId = 1; slotId <= 10; ++slotId)
+	for(int32_t slotId = 0; slotId < 10; ++slotId)
 	{
 		if((item = player->inventory[slotId]))
 			itemList.push_back(itemBlock(slotId, item));
@@ -877,12 +877,11 @@ bool IOLoginData::saveItems(const Player* player, const ItemBlockList& itemList,
 		++runningId;
 
 		uint32_t attributesSize;
-
 		PropWriteStream propWriteStream;
 		item->serializeAttr(propWriteStream);
 		const char* attributes = propWriteStream.getStream(attributesSize);
 
-		char buffer[attributesSize * 3 + 100]; //MUST be (size * 2), else people can crash server when filling letter with ¥ŒÆÑÓ£
+		char buffer[attributesSize * 3 + 100]; //MUST be (size * 2), else people can crash server when filling writable with native characters
 		sprintf(buffer, "%d, %d, %d, %d, %d, %s", player->getGUID(), pid, runningId, item->getID(), (int32_t)item->getSubType(), db->escapeBlob(attributes, attributesSize).c_str());
 		if(!query_insert.addRow(buffer))
 			return false;
@@ -910,7 +909,7 @@ bool IOLoginData::saveItems(const Player* player, const ItemBlockList& itemList,
 			item->serializeAttr(propWriteStream);
 			const char* attributes = propWriteStream.getStream(attributesSize);
 
-			char buffer[attributesSize * 3 + 100]; //MUST be (size * 2), else people can crash server when filling letter with ¥ŒÆÑÓ£
+			char buffer[attributesSize * 3 + 100]; //MUST be (size * 2), else people can crash server when filling writable with native characters
 			sprintf(buffer, "%d, %d, %d, %d, %d, %s", player->getGUID(), parentId, runningId, item->getID(), (int32_t)item->getSubType(), db->escapeBlob(attributes, attributesSize).c_str());
 			if(!query_insert.addRow(buffer))
 				return false;
