@@ -20,23 +20,20 @@
 #include "protocol.h"
 
 class NetworkMessage;
-class OutputMessage;
-
 class ProtocolHTTP : public Protocol
 {
 	public:
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 		static uint32_t protocolHTTPCount;
 #endif
-		virtual void onRecvFirstMessage(NetworkMessage& msg) {parseFirstPacket(msg);}
+		virtual void onRecvFirstMessage(NetworkMessage& msg);
 
-		ProtocolHTTP(Connection* connection) : Protocol(connection)
+		ProtocolHTTP(Connection_ptr connection) : Protocol(connection)
 		{
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 			protocolHTTPCount++;
 #endif
-			disableXTEAEncryption();
-			disableChecksum();
+			setRawMessages(true);
 		}
 		virtual ~ProtocolHTTP()
 		{
@@ -48,12 +45,12 @@ class ProtocolHTTP : public Protocol
 		enum {protocolId = 0x00};
 		enum {isSingleSocket = true};
 		enum {hasChecksum = false};
+
 		static const char* protocolName() {return "http protocol";}
 
+#ifdef __DEBUG_NET_DETAIL__
 	protected:
 		virtual void deleteProtocolTask();
-
-		void disconnectClient();
-		bool parseFirstPacket(NetworkMessage& msg);
+#endif
 };
 #endif
