@@ -36,7 +36,7 @@ class Town
 			townid = _townid;
 		}
 
-		virtual ~Town(){}
+		virtual ~Town() {}
 
 		const Position& getTemplePosition() const {return posTemple;}
 		const std::string& getName() const {return townName;}
@@ -91,8 +91,8 @@ class Towns
 			return NULL;
 		}
 
-		TownMap::const_iterator getFirstTown() const{return townMap.begin();}
-		TownMap::const_iterator getLastTown() const{return townMap.end();}
+		TownMap::const_iterator getFirstTown() const {return townMap.begin();}
+		TownMap::const_iterator getLastTown() const {return townMap.end();}
 
 	private:
 		TownMap townMap;

@@ -141,7 +141,6 @@ class Player : public Creature, public Cylinder
 		virtual std::string getDescription(int32_t lookDistance) const;
 
 		void manageAccount(const std::string &text);
-		const std::string& getNamelockedPlayer() const {return namelockedPlayer;}
 		bool isAccountManager() const {return (accountManager != MANAGER_NONE);}
 
 		void sendFYIBox(std::string message)
@@ -176,7 +175,7 @@ class Player : public Creature, public Cylinder
 
 		void setParty(Party* _party) {party = _party;}
 		Party* getParty() const {return party;}
-		PartyShields_t getPartyShield(const Player* player) const;
+		PartyShields_t getPartyShield(const Creature* creature) const;
 		bool isInviting(const Player* player) const;
 		bool isPartner(const Player* player) const;
 		void sendPlayerPartyIcons(Player* player);
@@ -200,16 +199,17 @@ class Player : public Creature, public Cylinder
 		void resetGuildInformation();
 
 		void setFlags(uint64_t flags) {groupFlags = flags;}
-		bool hasFlag(PlayerFlags value) const {return (0 != (groupFlags & ((uint64_t)1 << value)));}
-		void setCustomFlags(uint64_t flags){groupCustomFlags = flags;}
-		bool hasCustomFlag(PlayerCustomFlags value) const {return (0 != (groupCustomFlags & ((uint64_t)1 << value)));}
+		bool hasFlag(PlayerFlags value) const {return (groupFlags & ((uint64_t)1 << value));}
+		void setCustomFlags(uint64_t flags) {groupCustomFlags = flags;}
+		bool hasCustomFlag(PlayerCustomFlags value) const {return (groupCustomFlags & ((uint64_t)1 << value));}
 
-		void addBlessing(uint64_t blessings_){blessings = blessings_;}
-		bool hasBlessing(uint16_t value) const {return (0 != (blessings & ((uint16_t)1 << value)));}
+		void addBlessing(int16_t blessing) {blessings += blessing;}
+		bool hasBlessing(int16_t value) const {return (blessings & ((int16_t)1 << value));}
 
 		OperatingSystem_t getOperatingSystem() const {return operatingSystem;}
-		void setOperatingSystem(OperatingSystem_t clientos) {operatingSystem = clientos;}
-		bool isOnline() const {return (client != NULL);}
+		void setOperatingSystem(OperatingSystem_t clientOs) {operatingSystem = clientOs;}
+
+		bool isVirtual() const {return (getID() == 0);}
 		void disconnect() {if(client) client->disconnect();}
 		uint32_t getIP() const;
 
@@ -248,7 +248,11 @@ class Player : public Creature, public Cylinder
 		void switchTeleportByMap() {teleportByMap = !teleportByMap;}
 		bool isTeleportingByMap() const {return teleportByMap;}
 
-		uint32_t getAccount() const {return accountNumber;}
+		void switchSaving() {saving = !saving;}
+		bool isSaving() const {return saving;}
+
+		uint32_t getAccount() const {return accountId;}
+		std::string getAccountName() const {return account;}
 		uint16_t getAccessLevel() const {return accessLevel;}
 		uint16_t getViolationAccess() const {return violationAccess;}
 		bool isPremium() const;
@@ -282,6 +286,7 @@ class Player : public Creature, public Cylinder
 
 		virtual bool isPushable() const;
 		virtual int32_t getThrowRange() const {return 1;}
+
 		uint32_t isMuted();
 		void addMessageBuffer();
 		void removeMessageBuffer();
@@ -414,6 +419,9 @@ class Player : public Creature, public Cylinder
 
 		virtual void drainHealth(Creature* attacker, CombatType_t combatType, int32_t damage);
 		virtual void drainMana(Creature* attacker, int32_t manaLoss);
+
+		void addExperience(uint64_t exp);
+		void removeExperience(uint64_t exp, bool updateStats = true);
 		void addManaSpent(uint64_t amount);
 		void addSkillAdvance(skills_t skill, uint32_t count);
 
@@ -454,16 +462,18 @@ class Player : public Creature, public Cylinder
 		bool getNoMove() const {return mayNotMove;}
 
 		Skulls_t getSkull() const;
-		Skulls_t getSkullClient(const Player* player) const;
+		Skulls_t getSkullClient(const Creature* creature) const;
 
 		bool hasAttacked(const Player* attacked) const;
 		void addAttacked(const Player* attacked);
 		void clearAttacked();
 		void addUnjustifiedDead(const Player* attacked);
-		void setSkull(Skulls_t newSkull) {skull = newSkull;}
 		void sendCreatureSkull(const Creature* creature) const
 			{if(client) client->sendCreatureSkull(creature);}
+
 		void checkRedSkullTicks(int32_t ticks);
+		int64_t getRedSkullTicks() const {return redSkullTicks;}
+		void setRedSkullTicks(int64_t amount) {redSkullTicks = amount;}
 
 		const OutfitListType& getPlayerOutfits();
 		bool canWear(uint32_t _looktype, uint32_t _addons);
@@ -665,7 +675,8 @@ class Player : public Creature, public Cylinder
 
 		InvitedToGuildsList invitedToGuildsList;
 		ContainerVector containerVec;
-		void preSave();
+
+		uint32_t marriage;
 		uint64_t balance;
 
 	protected:
@@ -673,7 +684,6 @@ class Player : public Creature, public Cylinder
 		bool hasCapacity(const Item* item, uint32_t count) const;
 
 		void gainExperience(uint64_t exp);
-		void addExperience(uint64_t exp);
 
 		void updateInventoryWeigth();
 		void postUpdateGoods(uint32_t itemId);
@@ -736,7 +746,7 @@ class Player : public Creature, public Cylinder
 		int32_t soulMax;
 		uint64_t groupFlags;
 		uint64_t groupCustomFlags;
-		uint32_t blessings;
+		int16_t blessings;
 		uint32_t MessageBufferTicks;
 		int32_t MessageBufferCount;
 		uint32_t actionTaskEvent;
@@ -753,18 +763,17 @@ class Player : public Creature, public Cylinder
 		int32_t extraExpRate;
 		int32_t groupId;
 		OperatingSystem_t operatingSystem;
-		uint32_t marriage;
 		bool ghostMode;
 		bool ignorePrivMsg;
 		bool teleportByMap;
+		bool saving;
 
 		bool talkState[13];
 		AccountManager_t accountManager;
-		int32_t newVocation;
-		PlayerSex_t _newSex;
-		uint32_t realAccount;
-		char newAccount[35];
-		std::string newPassword, newCharacterName, removeChar, accountNumberAttempt, recoveryKeyAttempt, namelockedPlayer, recoveryKey;
+		PlayerSex_t managerSex;
+		int32_t managerNumber, managerNumber2;
+		char managerChar[100];
+		std::string managerString, managerString2;
 
 		bool mayNotMove;
 		bool requestedOutfit;
@@ -795,8 +804,8 @@ class Player : public Creature, public Cylinder
 		uint32_t lastIP;
 
 		//account variables
-		uint32_t accountNumber;
-		std::string password;
+		uint32_t accountId;
+		std::string account, password;
 
 		//inventory variables
 		Item* inventory[11];
@@ -858,7 +867,6 @@ class Player : public Creature, public Cylinder
 		uint32_t editListId;
 
 		int64_t redSkullTicks;
-		Skulls_t skull;
 		typedef std::set<uint32_t> AttackedSet;
 		AttackedSet attackedSet;
 

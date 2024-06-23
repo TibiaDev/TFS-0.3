@@ -40,7 +40,6 @@ class Creature;
 class Monster;
 class Npc;
 class CombatInfo;
-class Commands;
 
 enum stackPosType_t
 {
@@ -145,7 +144,7 @@ class Game
 
 		void setWorldType(WorldType_t type);
 		WorldType_t getWorldType() const {return worldType;}
-		int32_t getInFightTicks() {return inFightTicks;}
+		int32_t getInFightTicks() const {return inFightTicks;}
 
 		Cylinder* internalGetCylinder(Player* player, const Position& pos);
 		Thing* internalGetThing(Player* player, const Position& pos, int32_t index,
@@ -244,6 +243,7 @@ class Game
 		  * \param forced If true, placing the creature will not fail because of obstacles (creatures/items)
 		  */
 		bool placeCreature(Creature* creature, const Position& pos, bool force = false);
+		ReturnValue placeSummon(Creature* creature, const std::string& name);
 
 		/**
 		  * Remove Creature from the map.
@@ -269,7 +269,7 @@ class Game
 			int32_t minRangeX = 0, int32_t maxRangeX = 0,
 			int32_t minRangeY = 0, int32_t maxRangeY = 0)
 		{
-			map->getSpectators(list, centerPos, checkforduplicate, multifloor, minRangeX, maxRangeY, minRangeY, maxRangeY);
+			map->getSpectators(list, centerPos, checkforduplicate, multifloor, minRangeX, maxRangeX, minRangeY, maxRangeY);
 		}
 
 		const SpectatorVec& getSpectators(const Position& centerPos) {return map->getSpectators(centerPos);}
@@ -371,6 +371,7 @@ class Game
 		bool internalCreatureSay(Creature* creature, SpeakClasses type, const std::string& text);
 
 		Position getClosestFreeTile(Creature* creature, Position toPos);
+		std::string getSearchString(const Position lookPos, const Position searchPos, bool player = false);
 
 		int32_t getMotdNum();
 		void loadMotd();
@@ -472,7 +473,7 @@ class Game
 		void internalCreatureChangeOutfit(Creature* creature, const Outfit_t& oufit);
 		void internalCreatureChangeVisible(Creature* creature, bool visible);
 		void changeLight(const Creature* creature);
-		void updateCreatureSkull(Player* player);
+		void updateCreatureSkull(Creature* creature);
 
 		void sendPublicSquare(Player* sender, SquareColor_t color);
 
@@ -498,10 +499,8 @@ class Game
 		//animation help functions
 		void addCreatureHealth(const Creature* target);
 		void addCreatureHealth(const SpectatorVec& list, const Creature* target);
-		void addAnimatedText(const Position& pos, uint8_t textColor,
-			const std::string& text);
-		void addAnimatedText(const SpectatorVec& list, const Position& pos, uint8_t textColor,
-			const std::string& text);
+		void addAnimatedText(const Position& pos, uint8_t textColor, const std::string& text);
+		void addAnimatedText(const SpectatorVec& list, const Position& pos, uint8_t textColor, const std::string& text);
 		void addMagicEffect(const Position& pos, uint8_t effect, bool ghostMode = false);
 		void addMagicEffect(const SpectatorVec& list, const Position& pos, uint8_t effect, bool ghostMode = false);
 		void addDistanceEffect(const Position& fromPos, const Position& toPos,
@@ -512,10 +511,7 @@ class Game
 		Map* getMap() {return map;}
 		const Map* getMap() const {return map;}
 
-		int getLightHour() {return light_hour;}
-
-		void addCommandTag(std::string tag);
-		void resetCommandTag();
+		int32_t getLightHour() {return light_hour;}
 
 		void npcSpeakToPlayer(Npc* npc, Player* player, const std::string& text, bool publicize);
 
@@ -530,9 +526,6 @@ class Game
 		bool getGlobalSaveMessage(int16_t key) const {return globalSaveMessage[key];}
 
 	protected:
-		bool playerSayCommand(Player* player, SpeakClasses type, const std::string& text);
-		bool playerSayTalkAction(Player* player, SpeakClasses type, const std::string& text);
-		bool playerSaySpell(Player* player, SpeakClasses type, const std::string& text);
 		bool playerWhisper(Player* player, const std::string& text);
 		bool playerYell(Player* player, const std::string& text);
 		bool playerSpeakTo(Player* player, SpeakClasses type, const std::string& receiver, const std::string& text);
@@ -599,7 +592,5 @@ class Game
 		bool stagesEnabled;
 		uint32_t lastStageLevel;
 		bool useLastStageLevel;
-
-		std::vector<std::string> commandTags;
 };
 #endif

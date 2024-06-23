@@ -48,11 +48,14 @@ extern CreatureEvents* g_creatureEvents;
 Creature::Creature() :
 	isInternalRemoved(false)
 {
+	id = 0;
 	_tile = NULL;
 	direction = SOUTH;
 	master = NULL;
 	lootDrop = true;
 	skillLoss = true;
+	skull = SKULL_NONE;
+	partyShield = SHIELD_NONE;
 
 	health     = 1000;
 	healthMax  = 1000;
@@ -1105,23 +1108,30 @@ uint32_t Creature::getStaminaRatio(Creature* attacker) const
 uint64_t Creature::getGainedExperience(Creature* attacker) const
 {
 	uint64_t baseExperience = (uint64_t)std::floor(getDamageRatio(attacker) * getLostExperience());
-	if(Player* player = attacker->getPlayer())
+
+	Player* player = attacker->getPlayer();
+	if(!player && attacker->getMaster())
+		player = attacker->getMaster()->getPlayer();
+
+	if(player)
 	{
-		baseExperience = (uint64_t)std::floor(baseExperience * (g_game.getExperienceStage(player->getLevel()) + player->getExtraExpRate()));
-		if(!player->hasFlag(PlayerFlag_NotGainExperience) && !player->hasCustomFlag(PlayerCustomFlag_HasInfiniteStamina))
+		if(player->hasFlag(PlayerFlag_NotGainExperience))
+			return 0;
+
+		baseExperience *= uint64_t(g_game.getExperienceStage(player->getLevel()) + player->getExtraExpRate());
+		if(!player->hasCustomFlag(PlayerCustomFlag_HasInfiniteStamina))
 		{
 			player->useStamina((int64_t)getStaminaRatio(attacker), true);
 			if(player->getStaminaMinutes() <= 840 && player->getStaminaMinutes() > 0)
 				baseExperience = (uint64_t)std::floor(baseExperience / 2);
-
-			if(player->getStaminaMinutes() == 0)
+			else if(!player->getStaminaMinutes())
 				baseExperience = 0;
 		}
 
 		return baseExperience;
 	}
-	else
-		return (uint64_t)std::floor(baseExperience * g_config.getNumber(ConfigManager::RATE_EXPERIENCE));
+
+	return uint64_t(baseExperience * g_config.getNumber(ConfigManager::RATE_EXPERIENCE));
 }
 
 void Creature::addDamagePoints(Creature* attacker, int32_t damagePoints)
@@ -1421,6 +1431,25 @@ void Creature::removeCondition(Condition* condition)
 		it = conditions.erase(it);
 
 		condition->endCondition(this, CONDITIONEND_ABORT);
+		onEndCondition(condition->getType());
+		delete condition;
+	}
+}
+
+void Creature::removeConditions(ConditionEnd_t reason, bool onlyPersistent/* = true*/)
+{
+	for(ConditionList::iterator it = conditions.begin(); it != conditions.end();)
+	{
+		if(onlyPersistent && !(*it)->isPersistent())
+		{
+			++it;
+			continue;
+		}
+
+		Condition* condition = *it;
+		it = conditions.erase(it);
+
+		condition->endCondition(this, reason);
 		onEndCondition(condition->getType());
 		delete condition;
 	}

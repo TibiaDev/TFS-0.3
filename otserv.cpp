@@ -39,7 +39,6 @@
 
 #include "status.h"
 #include "monsters.h"
-#include "commands.h"
 #include "outfit.h"
 #include "vocation.h"
 #include "scriptmanager.h"
@@ -84,15 +83,13 @@
 #endif
 
 IPList serverIPs;
-
+extern GlobalEvents* g_globalEvents;
 extern AdminProtocolConfig* g_adminConfig;
 Game g_game;
-Commands commands;
 Npcs g_npcs;
 ConfigManager g_config;
 Monsters g_monsters;
 Vocations g_vocations;
-extern GlobalEvents* g_globalEvents;
 
 #ifndef __CONSOLE__
 #ifdef WIN32
@@ -182,7 +179,7 @@ int main(int argc, char *argv[])
 	OTSYS_THREAD_WAITSIGNAL(g_loaderSignal, g_loaderLock);
 
 	Server server(INADDR_ANY, g_config.getNumber(ConfigManager::PORT));
-	std::cout << ">> " << g_config.getString(ConfigManager::SERVER_NAME) << " Server Online!" << std::endl << std::endl;
+	std::cout << ">> " << g_config.getString(ConfigManager::SERVER_NAME) << " server Online!" << std::endl << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Status: Online!");
 	GUI::getInstance()->m_connections = true;
@@ -252,7 +249,6 @@ void mainLoader()
 
 	std::cout << std::endl;
 
-	// read global config
 	std::cout << ">> Loading config" << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading config");
@@ -287,7 +283,6 @@ void mainLoader()
 		std::cout << "> Using plaintext passwords" << std::endl;
 	}
 
-	//load RSA key
 	std::cout << ">> Loading RSA key" << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading RSA Key");
@@ -330,7 +325,6 @@ void mainLoader()
 			std::cout << "> No tables were optimized." << std::endl;
 	}
 
-	//load vocations
 	std::cout << ">> Loading vocations" << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading vocations");
@@ -338,15 +332,6 @@ void mainLoader()
 	if(!g_vocations.loadFromXml())
 		startupErrorMessage("Unable to load vocations!");
 
-	//load commands
-	std::cout << ">> Loading commands" << std::endl;
-	#ifndef __CONSOLE__
-	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading commands");
-	#endif
-	if(!commands.loadFromXml())
-		startupErrorMessage("Unable to load commands!");
-
-	// load item data
 	std::cout << ">> Loading items" << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading items");
@@ -390,7 +375,7 @@ void mainLoader()
 		startupErrorMessage("Unable to load outfits!");
 
 	g_adminConfig = new AdminProtocolConfig();
-	std::cout << ">> Loading admin protocol config" << std::endl;
+	std::cout << ">> Loading administration protocol config" << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading admin protocol config");
 	#endif
@@ -414,30 +399,30 @@ void mainLoader()
 		g_game.setWorldType(WORLD_TYPE_PVP_ENFORCED);
 	else
 	{
-		std::cout << std::endl << "> ERROR: Unknown world type: " << g_config.getString(ConfigManager::WORLD_TYPE) << std::endl;
-		startupErrorMessage("");
+		std::cout << std::endl;
+		startupErrorMessage("Unknown world type: " + g_config.getString(ConfigManager::WORLD_TYPE));
 	}
 	std::cout << asUpperCaseString(worldType) << std::endl;
+
+	std::cout << ">> Loading map and spawns..." << std::endl;
+	#ifndef __CONSOLE__
+	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading map and spawns...");
+	#endif
+	if(!g_game.loadMap(g_config.getString(ConfigManager::MAP_NAME)))
+		startupErrorMessage("");
 
 	Status* status = Status::getInstance();
 	status->setMaxPlayersOnline(g_config.getNumber(ConfigManager::MAX_PLAYERS));
 	status->setMapAuthor(g_config.getString(ConfigManager::MAP_AUTHOR));
 	status->setMapName(g_config.getString(ConfigManager::MAP_NAME));
 
-	std::cout << ">> Loading map" << std::endl;
+	std::cout << ">> All modules were loaded, server starting up..." << std::endl;
 	#ifndef __CONSOLE__
-	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading map");
-	#endif
-	if(!g_game.loadMap(g_config.getString(ConfigManager::MAP_NAME)))
-		startupErrorMessage("");
-
-	std::cout << ">> Setting initialization gamestate modules." << std::endl;
-	#ifndef __CONSOLE__
-	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Setting initialization gamestate modules.");
+	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> All modules were loaded, server starting up...");
 	#endif
 	g_game.setGameState(GAME_STATE_INIT);
 
-	if(g_config.getBool(ConfigManager::GLOBALSAVE_ENABLED) && g_config.getNumber(ConfigManager::GLOBALSAVE_H) >= 0 && g_config.getNumber(ConfigManager::GLOBALSAVE_H) <= 24)
+	if(g_config.getBool(ConfigManager::GLOBALSAVE_ENABLED) && g_config.getNumber(ConfigManager::GLOBALSAVE_H) >= 1 && g_config.getNumber(ConfigManager::GLOBALSAVE_H) <= 24)
 	{
 		int32_t prepareGlobalSaveHour = g_config.getNumber(ConfigManager::GLOBALSAVE_H) - 1;
 		int32_t hoursLeft = 0, minutesLeft = 0, minutesToRemove = 0;
@@ -483,8 +468,6 @@ void mainLoader()
 			Scheduler::getScheduler().addEvent(createSchedulerTask(hoursLeftInMS + minutesLeftInMS, boost::bind(&Game::prepareGlobalSave, &g_game)));
 	}
 
-	std::cout << ">> All modules has been loaded, server starting up..." << std::endl;
-
 	serverIPs.push_back(std::make_pair(inet_addr("127.0.0.1"), 0xFFFFFFFF));
 	char hostName[128];
 	if(gethostname(hostName, 128) == 0)
@@ -509,10 +492,7 @@ void mainLoader()
 		if(host != 0)
 			resolvedIp = *(uint32_t*)host->h_addr;
 		else
-		{
-			std::cout << "ERROR: Cannot resolve " << ip << "!" << std::endl;
-			startupErrorMessage("");
-		}
+			startupErrorMessage("Cannot resolve " + ip + "!");
 	}
 
 	serverIPs.push_back(std::make_pair(resolvedIp, 0));
@@ -522,9 +502,8 @@ void mainLoader()
 		std::cout << "> WARNING: " << STATUS_SERVER_NAME << " has been executed as root user! It is recommended to execute as a normal user." << std::endl;
 	#endif
 
-	IOLoginData::getInstance()->resetOnlineStatus();
+	g_globalEvents->startup();
 	g_game.setGameState(GAME_STATE_NORMAL);
-	g_globalEvents->onThink(1000);
 	OTSYS_THREAD_SIGNAL_SEND(g_loaderSignal);
 }
 
@@ -739,15 +718,6 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 							std::cout << "Failed to reload actions." << std::endl;
 					}
 					break;
-				case ID_MENU_RELOAD_COMMANDS:
-					if(g_game.getGameState() != GAME_STATE_STARTUP)
-					{
-						if(commands.reload())
-							std::cout << "Reloaded commands." << std::endl;
-						else
-							std::cout << "Failed to reload commands." << std::endl;
-					}
-					break;
 				case ID_MENU_RELOAD_CONFIG:
 					if(g_game.getGameState() != GAME_STATE_STARTUP)
 					{
@@ -858,73 +828,48 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 				{
 					if(g_game.getGameState() != GAME_STATE_STARTUP)
 					{
-						if(g_monsters.reload())
-						{
-							if(commands.reload())
-							{
-								if(Quests::getInstance()->reload())
-								{
-									if(g_game.reloadHighscores())
-									{
-										if(g_config.reload())
-										{
-											if(g_actions->reload())
-											{
-												if(g_moveEvents->reload())
-												{
-													if(g_talkActions->reload())
-													{
-														if(g_spells->reload())
-														{
-															if(g_creatureEvents->reload())
-															{
-																if(g_globalEvents->reload())
-																{
-																	if(Raids::getInstance()->reload() && Raids::getInstance()->startup())
-																	{
-																		if(Houses::getInstance().reloadPrices())
-																		{
-																			g_npcs.reload();
-																			std::cout << "Reloaded all." << std::endl;
-																		}
-																		else
-																			std::cout << "Failed to reload house prices." << std::endl;
-																	}
-																	else
-																		std::cout << "Failed to reload raids." << std::endl;
-																}
-																else
-																	std::cout << "Failed to reload global events." << std::endl;
-															}
-															else
-																std::cout << "Failed to reload creature events." << std::endl;
-														}
-														else
-															std::cout << "Failed to reload spells." << std::endl;
-													}
-													else
-														std::cout << "Failed to reload talk actions." << std::endl;
-												}
-												else
-													std::cout << "Failed to reload movements." << std::endl;
-											}
-											else
-												std::cout << "Failed to reload actions." << std::endl;
-										}
-										else
-											std::cout << "Failed to reload config." << std::endl;
-									}
-									else
-										std::cout << "Failed to reload highscores." << std::endl;
-								}
-								else
-									std::cout << "Failed to reload quests." << std::endl;
-							}
-							else
-								std::cout << "Failed to reload commands." << std::endl;
-						}
+						std::stringstream ss;
+						if(!g_monsters.reload())
+							ss << "monsters, ";
+
+						if(!Quests::getInstance()->reload())
+							ss << "quests, ";
+
+						if(!g_game.reloadHighscores())
+							ss << "highscores, ";
+
+						if(!g_config.reload())
+							ss << "config, ";
+
+						if(!g_actions->reload())
+							ss << "actions, ";
+
+						if(!g_moveEvents->reload())
+							ss << "move events, ";
+
+						if(!g_talkActions->reload())
+							ss << "talk actions, ";
+
+						if(!g_spells->reload())
+							ss << "spells, ";
+
+						if(!g_creatureEvents->reload())
+							ss << "creature events, ";
+
+						if(!g_globalEvents->reload())
+							ss << "global events, ";
+
+						if(!Raids::getInstance()->reload() || !Raids::getInstance()->startup())
+							ss << "raids, ";
+
+						if(!Houses::getInstance().reloadPrices())
+							ss << "house prices, ";
+
+						g_npcs.reload();
+						if(!ss.str().length())
+							std::cout << "Reloaded all." << std::endl;
 						else
-							std::cout << "Failed to reload monsters." << std::endl;
+							std::cout << "Failed to reload: " << ss.str() << " ..." << std::endl;
 					}
 					break;
 				}

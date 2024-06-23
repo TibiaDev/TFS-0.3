@@ -3,7 +3,7 @@
 		The Forgotten Server
 
 	Version
-		0.3 Alpha 3
+		0.3 Alpha 4
 
 	Codenamed
 		\
@@ -15,13 +15,15 @@
 		http://otland.net/
 ]
 
-[ LIST
+[ FEATURES
+	Multiworld system (revmultisys methods + custom config path from argv)
+		Assigned to: Elf, Kiper
+]
+
+[ TASKS
 	Make more constant values configurable
-		Assigned to: Talaturen, Elf
+		Assigned to: *
 
-	Multiworld system (patch the methods from revmultisys + custom config path from argv)
-		Assigned to: Elf, Talaturen
-
-	(Fix?) Guilds on house lists
+	Deprecate guild management system from Chat class and rewrite in TalkActions
 		Assigned to: Elf
 ]

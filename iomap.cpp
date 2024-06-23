@@ -61,8 +61,6 @@ extern Game g_game;
 
 bool IOMap::loadMap(Map* map, const std::string& identifier)
 {
-	int64_t start = OTSYS_TIME();
-
 	FileLoader f;
 	if(!f.openFile(identifier.c_str(), false, true))
 	{
@@ -144,7 +142,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 		return false;
 	}
 
-	unsigned char attribute;
+	uint8_t attribute;
 	std::string mapDescription;
 	std::string tmp;
 	while(propStream.GET_UCHAR(attribute))
@@ -231,7 +229,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 						return false;
 					}
 
-					unsigned short px, py, pz;
+					uint16_t px, py, pz;
 					OTBM_Tile_coords* tile_coord;
 					if(!propStream.GET_STRUCT(tile_coord))
 					{
@@ -276,7 +274,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 					map->setTile(px, py, pz, tile);
 
 					//read tile attributes
-					unsigned char attribute;
+					uint8_t attribute;
 					while(propStream.GET_UCHAR(attribute))
 					{
 						switch(attribute)
@@ -465,7 +463,5 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 
 		nodeMapData = f.getNextNode(nodeMapData, type);
 	}
-
-	std::cout << "> Map loading time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
 	return true;
 }

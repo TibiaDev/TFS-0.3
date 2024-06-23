@@ -79,6 +79,8 @@ void MonsterType::reset()
 
 	lightLevel = 0;
 	lightColor = 0;
+	skull = SKULL_NONE;
+	partyShield = SHIELD_NONE;
 
 	manaCost = 0;
 	summonList.clear();
@@ -174,6 +176,9 @@ Item* MonsterType::createLootItem(const LootBlock& lootBlock)
 
 		if(lootBlock.actionId != -1)
 			tmpItem->setActionId(lootBlock.actionId);
+
+		if(lootBlock.uniqueId != -1)
+			tmpItem->setUniqueId(lootBlock.uniqueId);
 
 		if(lootBlock.text != "")
 			tmpItem->setText(lootBlock.text);
@@ -363,10 +368,17 @@ bool Monsters::deserializeSpell(xmlNodePtr node, spellBlock_t& sb, const std::st
 		combatSpell = new CombatSpell(NULL, needTarget, needDirection);
 
 		if(!combatSpell->loadScript(getFilePath(FILE_TYPE_OTHER, g_spells->getScriptBaseName() + "/scripts/" + scriptName)))
+		{
+			delete combatSpell;
 			return false;
+		}
 
 		if(!combatSpell->loadScriptCombat())
+		{
+			delete combatSpell;
 			return false;
+
+		}
 
 		combatSpell->getCombat()->setPlayerCombatValues(FORMULA_VALUE, sb.minCombatValue, 0, sb.maxCombatValue, 0);
 	}
@@ -894,6 +906,48 @@ bool Monsters::loadMonster(const std::string& file, const std::string& monster_n
 
 						if(readXMLInteger(tmpNode, "runonhealth", intValue))
 							mType->runAwayHealth = intValue;
+
+						if(readXMLString(tmpNode, "skull", strValue))
+						{
+							std::string tmpStrValue = asLowerCaseString(strValue);
+							if(tmpStrValue == "red" || tmpStrValue == "4")
+								mType->skull = SKULL_RED;
+							else if(tmpStrValue == "white" || tmpStrValue == "3")
+								mType->skull = SKULL_WHITE;
+							else if(tmpStrValue == "green" || tmpStrValue == "2")
+								mType->skull = SKULL_GREEN;
+							else if(tmpStrValue == "yellow" || tmpStrValue == "1")
+								mType->skull = SKULL_YELLOW;
+							else
+								mType->skull = SKULL_NONE;
+						}
+
+						if(readXMLString(tmpNode, "shield", strValue))
+						{
+							std::string tmpStrValue = asLowerCaseString(strValue);
+							if(tmpStrValue == "whitenoshareoff" || tmpStrValue == "10")
+								mType->partyShield = SHIELD_YELLOW_NOSHAREDEXP;
+							else if(tmpStrValue == "blueshareoff" || tmpStrValue == "9")
+								mType->partyShield = SHIELD_BLUE_NOSHAREDEXP;
+							else if(tmpStrValue == "yellowshareblink" || tmpStrValue == "8")
+								mType->partyShield = SHIELD_YELLOW_NOSHAREDEXP_BLINK;
+							else if(tmpStrValue == "blueshareblink" || tmpStrValue == "7")
+								mType->partyShield = SHIELD_BLUE_NOSHAREDEXP_BLINK;
+							else if(tmpStrValue == "yellowshareon" || tmpStrValue == "6")
+								mType->partyShield = SHIELD_YELLOW_SHAREDEXP;
+							else if(tmpStrValue == "blueshareon" || tmpStrValue == "5")
+								mType->partyShield = SHIELD_BLUE_SHAREDEXP;
+							else if(tmpStrValue == "yellow" || tmpStrValue == "4")
+								mType->partyShield = SHIELD_YELLOW;
+							else if(tmpStrValue == "blue" || tmpStrValue == "3")
+								mType->partyShield = SHIELD_BLUE;
+							else if(tmpStrValue == "whiteyellow" || tmpStrValue == "2")
+								mType->partyShield = SHIELD_WHITEYELLOW;
+							else if(tmpStrValue == "whiteblue" || tmpStrValue == "1")
+								mType->partyShield = SHIELD_WHITEBLUE;
+							else
+								mType->partyShield = SHIELD_NONE;
+						}
 					}
 					tmpNode = tmpNode->next;
 				}
@@ -1362,6 +1416,9 @@ bool Monsters::loadLootItem(xmlNodePtr node, LootBlock& lootBlock)
 
 	if(readXMLInteger(node, "actionId", intValue))
 		lootBlock.actionId = intValue;
+
+	if(readXMLInteger(node, "uniqueId", intValue))
+		lootBlock.uniqueId = intValue;
 
 	if(readXMLString(node, "text", strValue))
 		lootBlock.text = strValue;

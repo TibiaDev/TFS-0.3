@@ -17,7 +17,6 @@ local newPosition =
 -- Do not modify the declaration lines below.
 local player = {0, 0, 0, 0}
 local failed = TRUE
-local count = 0
 
 function onUse(cid, item, fromPosition, itemEx, toPosition)
 	if item.itemid == 1945 then
@@ -28,7 +27,6 @@ function onUse(cid, item, fromPosition, itemEx, toPosition)
 					if getPlayerStorageValue(player[i].uid, 30015) == -1 then
 						if getPlayerLevel(player[i].uid) >= 100 then
 							failed = FALSE
-							count = count + 1
 						end
 					end
 				end
@@ -38,11 +36,8 @@ function onUse(cid, item, fromPosition, itemEx, toPosition)
 				doPlayerSendCancel(cid, "Sorry, not possible.")
 				return TRUE
 			end
-		end
 
-		if count < 4 then
-			doPlayerSendCancel(cid, "Sorry, not possible.")
-			return TRUE
+			failed = TRUE
 		end
 
 		for i = 1, 4 do

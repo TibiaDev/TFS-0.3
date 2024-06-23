@@ -21,7 +21,6 @@
 #ifndef __OTSERV_TOOLS_H__
 #define __OTSERV_TOOLS_H__
 
-#include "definitions.h"
 #include "otsystem.h"
 #include "position.h"
 #include "const.h"
@@ -31,8 +30,8 @@
 #include <algorithm>
 
 #include <libxml/parser.h>
-
 #include <boost/tokenizer.hpp>
+
 typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
 typedef std::list<std::string> STRING_LIST;
 
@@ -85,7 +84,7 @@ bool isPasswordCharacter(char character);
 
 bool isValidAccountName(std::string text);
 bool isValidPassword(std::string text);
-bool isValidName(std::string text);
+bool isValidName(std::string text, bool forceUppercaseOnFirstLetter = true);
 bool isNumbers(std::string text);
 
 char upchar(char character);
@@ -117,13 +116,10 @@ std::string getSkillName(uint16_t skillid);
 skills_t getSkillId(std::string param);
 
 std::string getReason(int32_t reasonId);
-std::string getAction(int32_t actionId, bool IPBanishment);
+std::string getAction(int32_t actionId, bool ipBanishment);
 
 bool fileExists(const char* filename);
 uint32_t adlerChecksum(uint8_t *data, size_t length);
-
-bool operator<(const ShopInfo& left, const ShopInfo& right);
-void sortItems(std::list<ShopInfo>& itemList);
 
 std::string getFilePath(FileType_t filetype, std::string filename);
 #endif

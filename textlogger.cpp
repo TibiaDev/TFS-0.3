@@ -40,6 +40,26 @@ TextLogger::~TextLogger()
 
 int32_t TextLogger::overflow(int32_t c)
 {
+	#ifdef __GUI_LOGS__
+	char buf[21], buffer[85], date[21];
+	#else
+	char date[21];
+	#endif
+	formatDate(time(NULL), date);
+	#ifdef __GUI_LOGS__
+	formatDate2(time(NULL), buf);
+	sprintf(buffer, "%s%s.log", getFilePath(FILE_TYPE_LOG, "server/").c_str(), buf);
+
+	if(FILE* file = fopen(buffer, "a"))
+	{
+		if(displayDate)
+			fprintf(file, "[%s] ", date);
+
+		fprintf(file, "%c", c);
+		fclose(file);
+	}
+	#endif
+
 	if(c == '\n')
 	{
 		GUI::getInstance()->m_logText += "\r\n";
@@ -52,8 +72,6 @@ int32_t TextLogger::overflow(int32_t c)
 	{
 		if(displayDate)
 		{
-			char date[21];
-			formatDate(time(NULL), date);
 			GUI::getInstance()->m_logText += "[";
 			GUI::getInstance()->m_logText += date;
 			GUI::getInstance()->m_logText += "] ";
@@ -62,19 +80,6 @@ int32_t TextLogger::overflow(int32_t c)
 		GUI::getInstance()->m_logText += (char)c;
 	}
 
-	#ifdef __GUI_LOGS__
-	char buf[21], buffer[85];
-	formatDate2(time(NULL), buf);
-	buffer = getFilePath(FILE_TYPE_LOG,"server/" + buf + ".log");
-
-	FILE* file = fopen(buffer, "a");
-	if(file)
-	{
-		fprintf(file, "%c", c);
-		fclose(file);
-	}
-	#endif
-
-	return(c);
+	return c;
 }
 #endif

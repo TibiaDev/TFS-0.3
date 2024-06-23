@@ -63,6 +63,7 @@ Map::~Map()
 
 bool Map::loadMap(const std::string& identifier)
 {
+	int64_t start = OTSYS_TIME();
 	IOMap* loader = new IOMap();
 	if(!loader->loadMap(this, identifier))
 	{
@@ -70,16 +71,23 @@ bool Map::loadMap(const std::string& identifier)
 		return false;
 	}
 
+	std::cout << "> Map loading time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
+	start = OTSYS_TIME();
+
 	if(!loader->loadSpawns(this))
-		std::cout << "WARNING: could not load spawn data." << std::endl;
+		std::cout << "WARNING: Could not load spawn data." << std::endl;
 
 	if(!loader->loadHouses(this))
-		std::cout << "WARNING: could not load house data." << std::endl;
+		std::cout << "WARNING: Could not load house data." << std::endl;
 
 	delete loader;
+	std::cout << "> Data loading time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
+	start = OTSYS_TIME();
 
 	IOMapSerialize.loadHouseInfo(this);
 	IOMapSerialize.loadMap(this);
+
+	std::cout << "> Serialization loading time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
 	return true;
 }
 
@@ -114,7 +122,6 @@ Tile* Map::getTile(uint16_t x, uint16_t y, uint8_t z)
 {
 	if(z < MAP_MAX_LAYERS)
 	{
-		//QTreeLeafNode* leaf = getLeaf(x, y);
 		QTreeLeafNode* leaf = QTreeNode::getLeafStatic(&root, x, y);
 		if(leaf)
 		{
@@ -504,45 +511,42 @@ bool Map::canThrowObjectTo(const Position& fromPos, const Position& toPos, bool 
 	return isSightClear(fromPos, toPos, false);
 }
 
-bool Map::isSightClear(const Position& fromPos, const Position& toPos, bool floorCheck)
+bool Map::checkSightLine(const Position& fromPos, const Position& toPos) const
 {
-	if(floorCheck && fromPos.z != toPos.z)
-		return false;
-
 	Position start = fromPos;
 	Position end = toPos;
 
-	int32_t deltax, deltay, deltaz;
-	deltax = abs(start.x - end.x);
-	deltay = abs(start.y - end.y);
-	deltaz = abs(start.z - end.z);
+	int32_t x, y, z;
+	int32_t dx, dy, dz;
+	int32_t sx, sy, sz;
+	int32_t ey, ez;
 
-	int32_t max = deltax, dir = 0;
-	if(deltay > max)
+	dx = abs(start.x - end.x);
+	dy = abs(start.y - end.y);
+	dz = abs(start.z - end.z);
+
+	int32_t max = dx, dir = 0;
+	if(dy > max)
 	{
-		max = deltay;
+		max = dy;
 		dir = 1;
 	}
-	if(deltaz > max)
+
+	if(dz > max)
 	{
-		max = deltaz;
+		max = dz;
 		dir = 2;
 	}
 
 	switch(dir)
 	{
-		case 0:
-			//x -> x
-			//y -> y
-			//z -> z
-			break;
 		case 1:
 			//x -> y
 			//y -> x
 			//z -> z
 			std::swap(start.x, start.y);
 			std::swap(end.x, end.y);
-			std::swap(deltax, deltay);
+			std::swap(dx, dy);
 			break;
 		case 2:
 			//x -> z
@@ -550,24 +554,26 @@ bool Map::isSightClear(const Position& fromPos, const Position& toPos, bool floo
 			//z -> x
 			std::swap(start.x, start.z);
 			std::swap(end.x, end.z);
-			std::swap(deltax, deltaz);
+			std::swap(dx, dz);
+			break;
+		default:
+			//x -> x
+			//y -> y
+			//z -> z
 			break;
 	}
 
-	int32_t stepx = ((start.x < end.x) ? 1 : -1);
-	int32_t stepy = ((start.y < end.y) ? 1 : -1);
-	int32_t stepz = ((start.z < end.z) ? 1 : -1);
+	sx = ((start.x < end.x) ? 1 : -1);
+	sy = ((start.y < end.y) ? 1 : -1);
+	sz = ((start.z < end.z) ? 1 : -1);
 
-	int32_t x, y, z;
-	int32_t errory = 0, errorz = 0;
+	ey = ez = 0;
 	x = start.x;
 	y = start.y;
 	z = start.z;
 
 	int32_t lastrx = x, lastry = y, lastrz = z;
-	int32_t ax = 0, ay = 0, az = 0;
-
-	for( ; x != end.x + stepx; x += stepx)
+	for(; x != end.x + sx; x += sx)
 	{
 		int32_t rx, ry, rz;
 		switch(dir)
@@ -578,57 +584,46 @@ bool Map::isSightClear(const Position& fromPos, const Position& toPos, bool floo
 			case 2:
 				rx = z; ry = y; rz = x;
 				break;
-			default: //0
+			default:
 				rx = x; ry = y; rz = z;
 				break;
 		}
 
-		if(!(toPos.x == rx && toPos.y == ry && toPos.z == rz) &&
-		  !(fromPos.x == rx && fromPos.y == ry && fromPos.z == rz))
+		if(!(toPos.x == rx && toPos.y == ry && toPos.z == rz) && !(fromPos.x == rx && fromPos.y == ry && fromPos.z == rz))
 		{
-			if(lastrz != rz)
-			{
-				if(getTile(lastrx, lastry, std::min(lastrz, rz)))
-					return false;
-			}
+			if(lastrz != rz && const_cast<Map*>(this)->getTile(lastrx, lastry, std::min(lastrz, rz)))
+				return false;
+
 			lastrx = rx; lastry = ry; lastrz = rz;
-
-			Tile* tile = getTile(rx, ry, rz);
+			const Tile* tile = const_cast<Map*>(this)->getTile(rx, ry, rz);
 			if(tile && tile->hasProperty(BLOCKPROJECTILE))
-			{
-				if(ax != 0 || ay != 0 || az != 0)
-				{
-					tile = getTile(rx + ax, ry + ay, rz + az);
-					if(tile && tile->hasProperty(BLOCKPROJECTILE))
-						return false;
-				}
-				else
-					return false;
-			}
-			ax = ay = az = 0;
+				return false;
 		}
 
-		errory += deltay;
-		errorz += deltaz;
-		if(2 * errory >= deltax)
+		ey += dy;
+		ez += dz;
+		if(2 * ey >= dx)
 		{
-			y += stepy;
-			if(std::abs(deltax) != std::abs(deltay))
-			{
-				if(dir == 0)
-					ay = -stepy;
-				else
-					ax = -stepy;
-			}
-			errory -= deltax;
+			y  += sy;
+			ey -= dx;
 		}
-		if(2 * errorz >= deltax)
+
+		if(2 * ez >= dx)
 		{
-			z += stepz;
-			errorz -= deltax;
+			z  += sz;
+			ez -= dx;
 		}
 	}
 	return true;
+}
+
+bool Map::isSightClear(const Position& fromPos, const Position& toPos, bool floorCheck) const
+{
+	if(floorCheck && fromPos.z != toPos.z)
+		return false;
+
+	// Cast two converging rays and see if either yields a result.
+	return checkSightLine(fromPos, toPos) || checkSightLine(toPos, fromPos);
 }
 
 const Tile* Map::canWalkTo(const Creature* creature, const Position& pos)
@@ -737,7 +732,6 @@ bool Map::getPathTo(const Creature* creature, const Position& destPos,
 
 					//Check if the node is already in the closed/open list
 					//If it exists and the nodes already on them has a lower cost (g) then we can ignore this neighbour node
-
 					AStarNode* neighbourNode = nodes.getNodeInList(pos.x, pos.y);
 					if(neighbourNode)
 					{
@@ -903,7 +897,6 @@ bool Map::getPathMatching(const Creature* creature, std::list<Direction>& dirLis
 
 				//Check if the node is already in the closed/open list
 				//If it exists and the nodes already on them has a lower cost (g) then we can ignore this neighbour node
-
 				AStarNode* neighbourNode = nodes.getNodeInList(pos.x, pos.y);
 				if(neighbourNode)
 				{
@@ -1007,22 +1000,22 @@ AStarNode* AStarNodes::getBestNode()
 	if(curNode == 0)
 		return NULL;
 
-	int32_t best_node_f = 100000;
-	uint32_t best_node = 0;
+	int32_t bestNodeF = 100000;
+	uint32_t bestNode = 0;
 	bool found = false;
 
 	for(uint32_t i = 0; i < curNode; i++)
 	{
-		if(nodes[i].f < best_node_f && openNodes[i] == 1)
+		if(nodes[i].f < bestNodeF && openNodes[i] == 1)
 		{
 			found = true;
-			best_node_f = nodes[i].f;
-			best_node = i;
+			bestNodeF = nodes[i].f;
+			bestNode = i;
 		}
 	}
 
 	if(found)
-		return &nodes[best_node];
+		return &nodes[bestNode];
 
 	return NULL;
 }
@@ -1129,11 +1122,10 @@ int32_t AStarNodes::getTileWalkCost(const Creature* creature, const Tile* tile)
 
 int32_t AStarNodes::getEstimatedDistance(int32_t x, int32_t y, int32_t xGoal, int32_t yGoal)
 {
-	int32_t h_diagonal = std::min(std::abs(x - xGoal), std::abs(y - yGoal));
-	int32_t h_straight = (std::abs(x - xGoal) + std::abs(y - yGoal));
+	int32_t diagonal = std::min(std::abs(x - xGoal), std::abs(y - yGoal));
+	int32_t straight = (std::abs(x - xGoal) + std::abs(y - yGoal));
 
-	return MAP_DIAGONALWALKCOST * h_diagonal + MAP_NORMALWALKCOST * (h_straight - 2 * h_diagonal);
-	//return (std::abs(x - xGoal) + std::abs(y - yGoal)) * MAP_NORMALWALKCOST;
+	return MAP_DIAGONALWALKCOST * diagonal + MAP_NORMALWALKCOST * (straight - 2 * diagonal);
 }
 
 //*********** Floor constructor **************
@@ -1306,11 +1298,13 @@ uint32_t Map::clean()
 			else
 				leafE = getLeaf(nx + FLOOR_SIZE, ny);
 		}
+
 		if(leafS)
 			leafS = leafS->stepSouth();
 		else
 			leafS = getLeaf(0, ny + FLOOR_SIZE);
 	}
+
 	std::cout << "> Cleaning time: " << (OTSYS_TIME() - start) / (1000.) << " seconds, collected " << count << " item" << (count != 1 ? "s" : "") << "." << std::endl;
 	return count;
 }
