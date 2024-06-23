@@ -64,12 +64,9 @@ bool DatabaseManager::optimizeTables()
 			{
 				do
 				{
-					if(result->getDataInt("DATA_FREE") > 0)
-					{
-						query.str("");
-						std::cout << "> Optimizing table: " << result->getDataString("TABLE_NAME") << std::endl;
-						query << "OPTIMIZE TABLE `" << result->getDataString("TABLE_NAME") << "`;";
-					}
+					query.str("");
+					std::cout << "> Optimizing table: " << result->getDataString("TABLE_NAME") << std::endl;
+					query << "OPTIMIZE TABLE `" << result->getDataString("TABLE_NAME") << "`;";
 				}
 				while(result->next());
 				db->freeResult(result);
@@ -114,12 +111,11 @@ bool DatabaseManager::tableExists(std::string table)
 	else
 		query << "SELECT `TABLE_NAME` FROM `information_schema`.`tables` WHERE `TABLE_SCHEMA` = " << db->escapeString(g_config.getString(ConfigManager::SQL_DB)) << " AND `TABLE_NAME` = " << db->escapeString(table) << ";";
 
-	if((result = db->storeQuery(query.str())))
-	{
-		db->freeResult(result);
-		return true;
-	}
-	return false;
+	if(!(result = db->storeQuery(query.str())))
+		return false;
+
+	db->freeResult(result);
+	return true;
 }
 
 bool DatabaseManager::isDatabaseSetup()
@@ -158,45 +154,14 @@ int32_t DatabaseManager::getDatabaseVersion()
 	return 0;
 }
 
-int32_t DatabaseManager::updateDatabase()
+uint32_t DatabaseManager::updateDatabase()
 {
-	if(!isDatabaseSetup())
-	{
-		/**
-		 * TODO: Setup database tables.
-		 * Using SOURCE schema.mysql; won't work (only a CLI command), and obviously
-		 * parsing the file and executing the lines one by one won't work (possibly if
-		 * we use a multi_query function), and executing the whole whole file content
-		 * as a query doesn't work either.
-		 *
-		 * std::cout << "> Database is empty, creating default tables...";
-		 * Database* db = Database::getInstance();
-		 * DBQuery query;
-		 * query << "SOURCE schema.mysql;";
-		 * if(db->executeQuery(query.str()))
-		 * 	std::cout << " success." << std::endl;
-		 * else
-		 * 	std::cout << " failed, make sure schema.mysql is in the same directory as the server." << std::endl;
-		*/
-		return -2;
-	}
-
-	Database* db = Database::getInstance();
-	/**
-	 * Until we are sure that PostgreSQL and the ODBC layer
-	 * works fine in this update process they will remain
-	 * disabled.
-	 */
-	if(db->getDatabaseEngine() == DATABASE_ENGINE_POSTGRESQL
-		|| db->getDatabaseEngine() == DATABASE_ENGINE_ODBC)
-	{
-		return -1;
-	}
-
 	switch(getDatabaseVersion())
 	{
 		case 0:
 		{
+			Database* db = Database::getInstance();
+
 			DBQuery query;
 			DBResult* result;
 
@@ -216,7 +181,7 @@ int32_t DatabaseManager::updateDatabase()
 			if(db->getDatabaseEngine() == DATABASE_ENGINE_SQLITE)
 			{
 				//Updating from 0.2 with SQLite is not supported yet, so we'll stop here.
-				return -1;
+				return 1;
 			}
 
 			if(!tableExists("server_motd"))
@@ -262,103 +227,100 @@ int32_t DatabaseManager::updateDatabase()
 				 * //db->executeQuery(query.str());
 				 */
 
-				bool imported[6] = {false, false, false, false, false, false};
-				bool groupWarn = false;
+				bool imported[7] = {false, false, false, false, false, false, false};
 				query.str("");
 				query << "SELECT `id` FROM `groups`;";
 				if((result = db->storeQuery(query.str())))
 				{
 					do
 					{
-						int32_t type = result->getDataInt("id");
+						uint32_t type = result->getDataInt("id");
 						if(type >= 1 && type <= 6)
-							imported[type - 1] = true;
-						else if(!groupWarn)
-							groupWarn = true;
+							imported[type] = true;
+						else if(!imported[0])
+							imported[0] = true;
 
 						query.str("");
-						bool execQuery = true;
 						switch(type)
 						{
 							case 1:
-								query << "UPDATE `groups` SET `name` = 'Player', `flags` = 0, `access` = 0, `maxdepotitems` = 0, `maxviplist` = 0 WHERE `id` = " << type << ";";
+								query << "UPDATE `groups` SET `name` = 'Player', `flags` = 0, `access` = 0, `maxdepotitems` = 0, `maxviplist` = 0 WHERE `id` = 1;";
 								break;
 
 							case 2:
-								query << "UPDATE `groups` SET `name` = 'Tutor', `flags` = 16809984, `customflags` = 1, `access` = 1, `maxdepotitems` = 0, `maxviplist` = 0 WHERE `id` = " << type << ";";
+								query << "UPDATE `groups` SET `name` = 'Tutor', `flags` = 16809984, `customflags` = 1, `access` = 1, `maxdepotitems` = 0, `maxviplist` = 0 WHERE `id` = 2;";
 								break;
 
 							case 3:
-								query << "UPDATE `groups` SET `name` = 'Senior Tutor', `flags` = 68736352256, `customflags` = 3, `access` = 2, `violationaccess` = 1, `maxdepotitems` = 0, `maxviplist` = 0 WHERE `id` = " << type << ";";
+								query << "UPDATE `groups` SET `name` = 'Senior Tutor', `flags` = 68736352256, `customflags` = 3, `access` = 2, `violationaccess` = 1, `maxdepotitems` = 0, `maxviplist` = 0 WHERE `id` = 3;";
 								break;
 
 							case 4:
-								query << "UPDATE `groups` SET `name` = 'Game Master', `flags` = 492842123151, `customflags` = 63, `access` = 3, `violationaccess` = 2, `maxdepotitems` = 4000, `maxviplist` = 200 WHERE `id` = " << type << ";";
+								query << "UPDATE `groups` SET `name` = 'Game Master', `flags` = 492842123151, `customflags` = 63, `access` = 3, `violationaccess` = 2, `maxdepotitems` = 4000, `maxviplist` = 200 WHERE `id` = 4;";
 								break;
 
 							case 5:
-								query << "UPDATE `groups` SET `name` = 'Community Manager', `flags` = 542239465466, `customflags` = 1279, `access` = 4, `violationaccess` = 3, `maxdepotitems` = 6000, `maxviplist` = 300 WHERE `id` = " << type << ";";
+								query << "UPDATE `groups` SET `name` = 'Community Manager', `flags` = 542239465466, `customflags` = 1279, `access` = 4, `violationaccess` = 3, `maxdepotitems` = 6000, `maxviplist` = 300 WHERE `id` = 5;";
 								break;
 
 							case 6:
-								query << "UPDATE `groups` SET `name` = 'God', `flags` = 546534563834, `customflags` = 2047, `access` = 5, `violationaccess` = 3, `maxdepotitems` = 8000, `maxviplist` = 400 WHERE `id` = " << type << ";";
+								query << "UPDATE `groups` SET `name` = 'God', `flags` = 546534563834, `customflags` = 2047, `access` = 5, `violationaccess` = 3, `maxdepotitems` = 8000, `maxviplist` = 400 WHERE `id` = 6;";
 								break;
 
 							default:
-								execQuery = false;
+								continue;
 								break;
 						}
-
-						if(execQuery)
-							db->executeQuery(query.str());
+						db->executeQuery(query.str());
 					}
 					while(result->next());
+					db->freeResult(result);
 				}
 
-				if(!imported[0])
+				if(!imported[1])
 				{
 					query.str("");
 					query << "INSERT INTO `groups` VALUES (1, 'Player', 0, 0, 0, 0, 0, 0);";
 					db->executeQuery(query.str());
 				}
 
-				if(!imported[1])
+				if(!imported[2])
 				{
 					query.str("");
 					query << "INSERT INTO `groups` VALUES (2, 'Tutor', 16809984, 1, 1, 0, 0, 0);";
 					db->executeQuery(query.str());
 				}
 
-				if(!imported[2])
+				if(!imported[3])
 				{
 					query.str("");
 					query << "INSERT INTO `groups` VALUES (3, 'Senior Tutor', 68736352256, 3, 2, 1, 0, 0);";
 					db->executeQuery(query.str());
 				}
 
-				if(!imported[3])
+				if(!imported[4])
 				{
 					query.str("");
 					query << "INSERT INTO `groups` VALUES (4, 'Game Master', 492842123151, 63, 3, 2, 4000, 200);";
 					db->executeQuery(query.str());
 				}
 
-				if(!imported[4])
+				if(!imported[5])
 				{
 					query.str("");
 					query << "INSERT INTO `groups` VALUES (5, 'Community Manager', 542239465466, 1279, 4, 3, 6000, 300);";
 					db->executeQuery(query.str());
 				}
 
-				if(!imported[5])
+				if(!imported[6])
 				{
 					query.str("");
 					query << "INSERT INTO `groups` VALUES (6, 'God', 546534563834, 2047, 5, 3, 8000, 400);";
 					db->executeQuery(query.str());
 				}
 
-				if(groupWarn)
-					std::cout << "WARNING: It appears that you have more than 6 groups, there is nothing wrong with that you have more than 6 groups, but we didn't update them with the new settings from 0.3 which you might want to do!" << std::endl;
+				if(imported[0])
+					std::cout << "WARNING: It appears that you have more than 6 groups, there is nothing wrong with that you have more than 6 groups, but they weren't updated with the new settings from 0.3 which you might want to do!" << std::endl;
 
 				//Update players table
 				query.str("");
@@ -406,7 +368,6 @@ int32_t DatabaseManager::updateDatabase()
 
 				//Update bans table
 				query.str("");
-
 				query << "CREATE TABLE IF NOT EXISTS `bans2` ( `id` INT UNSIGNED NOT NULL auto_increment, `type` TINYINT(1) NOT NULL COMMENT 'this field defines if its ip, account, player, or any else ban', `value` INT UNSIGNED NOT NULL COMMENT 'ip, player guid, account number', `param` INT UNSIGNED NOT NULL DEFAULT 4294967295 COMMENT 'mask', `active` TINYINT(1) NOT NULL DEFAULT TRUE, `expires` INT UNSIGNED NOT NULL, `added` INT UNSIGNED NOT NULL, `admin_id` INT UNSIGNED NOT NULL DEFAULT 0, `comment` TEXT NOT NULL DEFAULT '', `reason` INT UNSIGNED NOT NULL DEFAULT 0, `action` INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY  (`id`), KEY `type` (`type`, `value`) ) ENGINE = InnoDB;";
 				if(db->executeQuery(query.str()))
 				{
@@ -417,7 +378,6 @@ int32_t DatabaseManager::updateDatabase()
 						do
 						{
 							query.str("");
-							bool execQuery = false;
 							switch(result->getDataInt("type"))
 							{
 								case 1:
@@ -438,12 +398,10 @@ int32_t DatabaseManager::updateDatabase()
 									break;
 
 								default:
-									execQuery = false;
+									continue;
 									break;
 							}
-
-							if(execQuery)
-								db->executeQuery(query.str());
+							db->executeQuery(query.str());
 						}
 						while(result->next());
 						db->freeResult(result);
@@ -473,14 +431,138 @@ int32_t DatabaseManager::updateDatabase()
 				query << "CREATE TRIGGER `ondelete_players` BEFORE DELETE ON `players` FOR EACH ROW BEGIN DELETE FROM `bans` WHERE `type` = 2 AND `value` = OLD.`id`; UPDATE `houses` SET `owner` = 0 WHERE `owner` = OLD.`id`; END;";
 				db->executeQuery(query.str());
 			}
+
+			query.str("");
 			return 1;
+			break;
+		}
+
+		case 1:
+		{
+			Database* db = Database::getInstance();
+
+			DBQuery query;
+			DBResult* result;
+
+			std::cout << "> Updating database to version: 2..." << std::endl;
+
+			if(db->getDatabaseEngine() == DATABASE_ENGINE_SQLITE)
+				query << "ALTER TABLE `players` ADD `promotion` INTEGER NOT NULL DEFAULT 0;";
+			else
+				query << "ALTER TABLE `players` ADD `promotion` INT NOT NULL DEFAULT 0;";
+			db->executeQuery(query.str());
+
+			query.str("");
+			query << "SELECT `player_id`, `value` FROM `player_storage` WHERE `key` = 30018 AND `value` > 0";
+			if((result = db->storeQuery(query.str())))
+			{
+				do
+				{
+					query.str("");
+					query << "UPDATE `players` SET `promotion` = " << result->getDataLong("value") << " WHERE `id` = " << result->getDataInt("player_id") << ";";
+					db->executeQuery(query.str());
+				}
+				while(result->next());
+				db->freeResult(result);
+			}
+
+			query.str("");
+			query << "DELETE FROM `player_storage` WHERE `key` = 30018;";
+			db->executeQuery(query.str());
+
+			query.str("");
+			query << "ALTER TABLE `accounts` ADD `name` VARCHAR(32) NOT NULL DEFAULT '';";
+			db->executeQuery(query.str());
+
+			query.str("");
+			query << "SELECT `id` FROM `accounts`;";
+			if((result = db->storeQuery(query.str())))
+			{
+				do
+				{
+					query.str("");
+					query << "UPDATE `accounts` SET `name` = '" << result->getDataInt("id") << "' WHERE `id` = " << result->getDataInt("id") << ";";
+					db->executeQuery(query.str());
+				}
+				while(result->next());
+				db->freeResult(result);
+			}
+
+			query.str("");
+			if(db->getDatabaseEngine() == DATABASE_ENGINE_SQLITE)
+			{
+				query << "ALTER TABLE `groups` ADD `outfit` INTEGER NOT NULL DEFAULT 0;";
+				db->executeQuery(query.str());
+
+				query.str("");
+				query << "ALTER TABLE `players` ADD `deleted` BOOLEAN NOT NULL DEFAULT 0;";
+			}
+			else
+			{
+				query << "ALTER TABLE `groups` ADD `outfit` INT NOT NULL DEFAULT 0;";
+				db->executeQuery(query.str());
+
+				query.str("");
+				query << "ALTER TABLE `players` ADD `deleted` TINYINT(1) NOT NULL DEFAULT 0;";
+			}
+			db->executeQuery(query.str());
+
+			query.str("");
+			query << "SELECT `id` FROM `groups`;";
+			if((result = db->storeQuery(query.str())))
+			{
+				do
+				{
+					query.str("");
+					switch(result->getDataInt("id"))
+					{
+						case 2:
+							query << "UPDATE `groups` SET `customflags` = 524291 WHERE `id` = 2;";
+							break;
+
+						case 3:
+							query << "UPDATE `groups` SET `customflags` = 524303 WHERE `id` = 3;";
+							break;
+
+						case 4:
+							query << "UPDATE `groups` SET `name` = 'Gamemaster', `flags` = 510024081247, `customflags` = 4189375, `outfit` = 75 WHERE `id` = 4;";
+							break;
+
+						case 5:
+							query << "UPDATE `groups` SET `customflags` = 4189695, `outfit` = 266 WHERE `id` = 5;";
+							break;
+
+						case 6:
+							query << "UPDATE `groups` SET `customflags` = 4194303, `outfit` = 302 WHERE `id` = 6;";
+							break;
+
+						default:
+							continue;
+							break;
+					}
+					db->executeQuery(query.str());
+				}
+				while(result->next());
+				db->freeResult(result);
+			}
+
+			query.str("");
+			if(db->getDatabaseEngine() == DATABASE_ENGINE_MYSQL)
+			{
+				query << "ALTER TABLE `player_items` CHANGE `attributes` `attributes` BLOB NOT NULL;";
+				db->executeQuery(query.str());
+				query.str("");
+			}
+
+			registerDatabaseConfig("db_version", 2);
+			return 2;
 			break;
 		}
 
 		default:
 			break;
 	}
-	return -1;
+	return 0;
 }
 
 bool DatabaseManager::getDatabaseConfig(std::string config, int32_t &value)
@@ -517,17 +599,17 @@ void DatabaseManager::registerDatabaseConfig(std::string config, int32_t value)
 
 void DatabaseManager::checkPasswordType()
 {
-	PasswordType_t value = PASSWORD_TYPE_PLAIN;
 	PasswordType_t newValue = (PasswordType_t)g_config.getNumber(ConfigManager::PASSWORDTYPE);
-	if(getDatabaseConfig("password_type", (int32_t&)value))
+	int32_t value = (int32_t)PASSWORD_TYPE_PLAIN;
+	if(getDatabaseConfig("password_type", value))
 	{
-		if(value != newValue)
+		if(newValue != (PasswordType_t)value)
 		{
 			switch(newValue)
 			{
 				case PASSWORD_TYPE_MD5:
 				{
-					if(value != PASSWORD_TYPE_PLAIN)
+					if((PasswordType_t)value != PASSWORD_TYPE_PLAIN)
 					{
 						std::cout << "> WARNING: You can not change the passwordType to MD5, change it back in config.lua to \"sha1\"." << std::endl;
 						return;
@@ -564,7 +646,7 @@ void DatabaseManager::checkPasswordType()
 
 				case PASSWORD_TYPE_SHA1:
 				{
-					if(value != PASSWORD_TYPE_PLAIN)
+					if((PasswordType_t)value != PASSWORD_TYPE_PLAIN)
 					{
 						std::cout << "> WARNING: You can not change the passwordType to SHA1, change it back in config.lua to \"md5\"." << std::endl;
 						return;

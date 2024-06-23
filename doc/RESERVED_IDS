@@ -3,7 +3,7 @@
 		The Forgotten Server
 
 	Version
-		0.3 Alpha 2
+		0.3 Alpha 3
 
 	Codenamed
 		\
@@ -83,13 +83,6 @@
 
 		1
 			Annihilator Quest reward is taken.
-
-	30018
-		-1
-			Player is not promoted.
-
-		1
-			Player is promoted.
 
 	30031
 		-1, 0, 1, 2, 3, 4, 5, 6

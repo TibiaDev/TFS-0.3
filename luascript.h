@@ -214,6 +214,7 @@ enum PlayerInfo_t
 	PlayerInfoMagLevel,
 	PlayerInfoVocation,
 	PlayerInfoTown,
+	PlayerInfoPromotionLevel,
 	PlayerInfoSoul,
 	PlayerInfoFreeCap,
 	PlayerInfoGuildId,
@@ -233,7 +234,8 @@ enum PlayerInfo_t
 	PlayerInfoExtraExpRate,
 	PlayerInfoLossSkill,
 	PlayerInfoNoMove,
-	PlayerInfoMarriage
+	PlayerInfoMarriage,
+	PlayerInfoPzLock
 };
 
 #define reportErrorFunc(a)  reportError(__FUNCTION__, a)
@@ -320,7 +322,7 @@ class LuaScriptInterface
 		static LuaVariant popVariant(lua_State* L);
 		static void popPosition(lua_State* L, PositionEx& position);
 		static void popPosition(lua_State* L, Position& position, uint32_t& stackpos);
-		static uint32_t popNumber(lua_State* L);
+		static uint64_t popNumber(lua_State* L);
 		static double popFloatNumber(lua_State* L);
 		static const char* popString(lua_State* L);
 		static int32_t popCallback(lua_State* L);
@@ -405,7 +407,7 @@ class LuaScriptInterface
 		static int32_t luaGetPlayerSkullType(lua_State* L);
 
 		//queries
-		static int32_t luaGetPlayerByName(lua_State* L);
+		static int32_t luaGetCreatureByName(lua_State* L);
 		static int32_t luaGetPlayerGUIDByName(lua_State* L);
 		static int32_t luaGetPlayerNameByGUID(lua_State* L);
 		static int32_t luaGetPlayersByAccountNumber(lua_State *L);
@@ -495,6 +497,8 @@ class LuaScriptInterface
 		static int32_t luaGetPlayerCustomFlagValue(lua_State* L);
 		static int32_t luaGetCreatureCondition(lua_State* L);
 
+		static int32_t luaGetPlayerPromotionLevel(lua_State* L);
+		static int32_t luaSetPlayerPromotionLevel(lua_State* L);
 		static int32_t luaGetPlayerGroupId(lua_State* L);
 		static int32_t luaSetPlayerGroupId(lua_State* L);
 
@@ -535,6 +539,7 @@ class LuaScriptInterface
 
 		//type validation
 		static int32_t luaIsPlayer(lua_State* L);
+		static int32_t luaIsPlayerPzLocked(lua_State* L);
 		static int32_t luaIsPlayerGhost(lua_State* L);
 		static int32_t luaIsCreature(lua_State* L);
 		static int32_t luaIsContainer(lua_State* L);

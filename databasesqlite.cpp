@@ -193,6 +193,9 @@ std::string DatabaseSQLite::escapeString(const std::string &s)
 	//escape % and _ because we are using LIKE operator.
 	r = boost::regex_replace(r, boost::regex("%"), "\\%");
 	r = boost::regex_replace(r, boost::regex("_"), "\\_");
+
+	if(r[r.length() - 1] != '\'')
+		r += "'";
 	return r;
 }
 
@@ -254,7 +257,7 @@ std::string SQLiteResult::getDataString(const std::string &s)
 	return std::string(""); // Failed
 }
 
-const char* SQLiteResult::getDataStream(const std::string &s, unsigned long &size)
+const char* SQLiteResult::getDataStream(const std::string &s, uint64_t &size)
 {
 	listNames_t::iterator it = m_listNames.find(s);
 	if(it != m_listNames.end())

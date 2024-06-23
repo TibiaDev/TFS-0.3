@@ -124,7 +124,7 @@ MonsterType::~MonsterType()
 
 uint32_t Monsters::getLootRandom()
 {
-	return random_range(0, MAX_LOOTCHANCE)/g_config.getNumber(ConfigManager::RATE_LOOT);
+	return random_range(0, MAX_LOOTCHANCE) / g_config.getNumber(ConfigManager::RATE_LOOT);
 }
 
 void MonsterType::createLoot(Container* corpse)
@@ -137,11 +137,10 @@ void MonsterType::createLoot(Container* corpse)
 			//check containers
 			if(Container* container = tmpItem->getContainer())
 			{
-				createLootContainer(container, *it);
-				if(container->size() == 0)
-					delete container;
-				else
+				if(createLootContainer(container, *it))
 					corpse->__internalAddThing(tmpItem);
+				else
+					delete container;
 			}
 			else
 				corpse->__internalAddThing(tmpItem);
@@ -185,11 +184,14 @@ Item* MonsterType::createLootItem(const LootBlock& lootBlock)
 	return NULL;
 }
 
-void MonsterType::createLootContainer(Container* parent, const LootBlock& lootblock)
+bool MonsterType::createLootContainer(Container* parent, const LootBlock& lootblock)
 {
 	if(parent->size() < parent->capacity())
 	{
 		LootItems::const_iterator it;
+		if(it == lootblock.childLoot.end())
+			return true;
+
 		for(it = lootblock.childLoot.begin(); it != lootblock.childLoot.end(); it++)
 		{
 			Item* tmpItem = createLootItem(*it);
@@ -197,17 +199,21 @@ void MonsterType::createLootContainer(Container* parent, const LootBlock& lootbl
 			{
 				if(Container* container = tmpItem->getContainer())
 				{
-					createLootContainer(container, *it);
-					if(container->size() == 0)
-						delete container;
-					else
+					if(createLootContainer(container, *it))
 						parent->__internalAddThing(container);
+					else
+						delete container;
 				}
 				else
 					parent->__internalAddThing(tmpItem);
 			}
 		}
 	}
+
+	if(parent->size() == 0)
+		return false;
+
+	return true;
 }
 
 Monsters::Monsters()
@@ -218,7 +224,7 @@ Monsters::Monsters()
 bool Monsters::loadFromXml(bool reloading /*= false*/)
 {
 	loaded = false;
-	std::string filename = "data/monster/monsters.xml";
+	std::string filename = getFilePath(FILE_TYPE_OTHER, "monster/monsters.xml");
 
 	xmlDocPtr doc = xmlParseFile(filename.c_str());
 	if(doc)
@@ -250,7 +256,7 @@ bool Monsters::loadFromXml(bool reloading /*= false*/)
 
 				if(readXMLString(p, "file", file) && readXMLString(p, "name", name))
 				{
-					file = "data/monster/" + file;
+					file = getFilePath(FILE_TYPE_OTHER, "monster/" + file);
 					loadMonster(file, name, reloading);
 				}
 			}
@@ -356,7 +362,7 @@ bool Monsters::deserializeSpell(xmlNodePtr node, spellBlock_t& sb, const std::st
 
 		combatSpell = new CombatSpell(NULL, needTarget, needDirection);
 
-		if(!combatSpell->loadScript("data/" + g_spells->getScriptBaseName() + "/scripts/" + scriptName))
+		if(!combatSpell->loadScript(getFilePath(FILE_TYPE_OTHER, g_spells->getScriptBaseName() + "/scripts/" + scriptName)))
 			return false;
 
 		if(!combatSpell->loadScriptCombat())
@@ -1210,49 +1216,21 @@ bool Monsters::loadMonster(const std::string& file, const std::string& monster_n
 				{
 					if(xmlStrcmp(tmpNode->name, (const xmlChar*)"element") == 0)
 					{
-						CombatType_t type = COMBAT_NONE;
-						int32_t percent = 0;
-
 						if(readXMLInteger(tmpNode, "physicalPercent", intValue))
-						{
-							type = COMBAT_PHYSICALDAMAGE;
-							percent = intValue;
-						}
-
-						if(readXMLInteger(tmpNode, "icePercent", intValue))
-						{
-							type = COMBAT_ICEDAMAGE;
-							percent = intValue;
-						}
+							mType->elementMap[COMBAT_PHYSICALDAMAGE] = intValue;
+						else if(readXMLInteger(tmpNode, "icePercent", intValue))
+							mType->elementMap[COMBAT_ICEDAMAGE] = intValue;
 						else if(readXMLInteger(tmpNode, "poisonPercent", intValue) ||
 							readXMLInteger(tmpNode, "earthPercent", intValue))
-						{
-							type = COMBAT_EARTHDAMAGE;
-							percent = intValue;
-						}
+							mType->elementMap[COMBAT_EARTHDAMAGE] = intValue;
 						else if(readXMLInteger(tmpNode, "firePercent", intValue))
-						{
-							type = COMBAT_FIREDAMAGE;
-							percent = intValue;
-						}
+							mType->elementMap[COMBAT_FIREDAMAGE] = intValue;
 						else if(readXMLInteger(tmpNode, "energyPercent", intValue))
-						{
-							type = COMBAT_ENERGYDAMAGE;
-							percent = intValue;
-						}
+							mType->elementMap[COMBAT_ENERGYDAMAGE] = intValue;
 						else if(readXMLInteger(tmpNode, "holyPercent", intValue))
-						{
-							type = COMBAT_HOLYDAMAGE;
-							percent = intValue;
-						}
+							mType->elementMap[COMBAT_HOLYDAMAGE] = intValue;
 						else if(readXMLInteger(tmpNode, "deathPercent", intValue))
-						{
-							type = COMBAT_DEATHDAMAGE;
-							percent = intValue;
-						}
-
-						if(percent != 0 && type != COMBAT_NONE)
-							mType->elementMap[type] = percent;
+							mType->elementMap[COMBAT_DEATHDAMAGE] = intValue;
 					}
 					tmpNode = tmpNode->next;
 				}

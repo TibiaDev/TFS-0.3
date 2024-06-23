@@ -976,8 +976,12 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 		if(it.weaponType == WEAPON_DIST && it.ammoType != AMMO_NONE)
 		{
 			s << " (Range:" << it.shootRange;
-			if(it.attack != 0 || (item && item->getAttack() != 0))
-				s << ", Atk:" << std::showpos << (item ? item->getAttack() : it.attack) << std::noshowpos;
+			if(it.attack != 0 || it.extraAttack != 0 || (item && (item->getAttack() != 0 || item->getExtraAttack() != 0)))
+			{
+				s << "Atk:" << int32_t(item ? item->getAttack() : it.attack);
+				if(it.extraAttack != 0 || (item && item->getExtraAttack() != 0))
+					s << " " << std::showpos << int32_t(item ? item->getExtraAttack() : it.extraAttack) << std::noshowpos;
+			}
 
 			if(it.hitChance > 0 || (item && item->getHitChance() > 0))
 				s << ", Hit%" << std::showpos << (item ? item->getHitChance() : it.hitChance) << std::noshowpos;
@@ -1024,7 +1028,7 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 	{
 		s << " (Arm:" << (item ? item->getArmor() : it.armor);
 
-		if(it.abilities.absorbPercentAll != 0 || it.abilities.absorbPercentDeath != 0 ||
+		if(it.abilities.absorbPercentOther != 0 || it.abilities.absorbPercentDeath != 0 ||
 			it.abilities.absorbPercentDrown != 0 || it.abilities.absorbPercentEarth != 0 ||
 			it.abilities.absorbPercentEnergy != 0 || it.abilities.absorbPercentFire != 0 ||
 			it.abilities.absorbPercentHoly != 0 || it.abilities.absorbPercentIce != 0 ||
@@ -1033,9 +1037,9 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 		{
 			bool isBegin = true;
 			s << ", protection";
-			if(it.abilities.absorbPercentAll != 0)
+			if(it.abilities.absorbPercentOther != 0)
 			{
-				s << " all " << std::showpos << it.abilities.absorbPercentAll << std::noshowpos << "%";
+				s << " other " << std::showpos << it.abilities.absorbPercentOther << std::noshowpos << "%";
 				isBegin = false;
 			}
 

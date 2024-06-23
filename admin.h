@@ -139,7 +139,7 @@ class AdminProtocolConfig
 {
 	public:
 		AdminProtocolConfig();
-		~AdminProtocolConfig();
+		virtual ~AdminProtocolConfig();
 
 		bool loadXMLConfig();
 
@@ -184,6 +184,8 @@ class ProtocolAdmin : public Protocol
 #endif
 		ProtocolAdmin(Connection* connection);
 		virtual ~ProtocolAdmin();
+
+		virtual int32_t getProtocolId() {return 0xFE;}
 
 		virtual void parsePacket(NetworkMessage& msg);
 

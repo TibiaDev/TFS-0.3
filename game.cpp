@@ -78,7 +78,6 @@ Game::Game()
 		globalSaveMessage[i] = false;
 
 	OTSYS_THREAD_LOCKVARINIT(AutoID::autoIDLock);
-
 	#ifdef __EXCEPTION_TRACER__
 	OTSYS_THREAD_LOCKVARINIT(maploadlock);
 	#endif
@@ -97,6 +96,7 @@ Game::Game()
 	Scheduler::getScheduler().addEvent(createSchedulerTask(EVENT_CREATURE_THINK_INTERVAL,
 		boost::bind(&Game::checkCreatures, this)));
 
+	lastBucket = 0;
 	Scheduler::getScheduler().addEvent(createSchedulerTask(EVENT_DECAYINTERVAL,
 		boost::bind(&Game::checkDecay, this)));
 }
@@ -231,7 +231,7 @@ int32_t Game::loadMap(std::string filename)
 	Player::maxMessageBuffer = g_config.getNumber(ConfigManager::MAX_MESSAGEBUFFER);
 	Monster::despawnRange = g_config.getNumber(ConfigManager::DEFAULT_DESPAWNRANGE);
 	Monster::despawnRadius = g_config.getNumber(ConfigManager::DEFAULT_DESPAWNRADIUS);
-	return map->loadMap("data/world/" + filename + ".otbm");
+	return map->loadMap(getFilePath(FILE_TYPE_OTHER, std::string("world/" + filename + ".otbm")));
 }
 
 void Game::refreshMap()
@@ -596,14 +596,14 @@ PlayerVector Game::getPlayersByAccount(uint32_t acc)
 	return players;
 }
 
-PlayerVector Game::getPlayersByIP(uint32_t ipadress, uint32_t mask)
+PlayerVector Game::getPlayersByIP(uint32_t ip, uint32_t mask)
 {
 	PlayerVector players;
 	for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 	{
 		if(!it->second->isRemoved())
 		{
-			if((it->second->getIP() & mask) == (ipadress & mask))
+			if((it->second->getIP() & mask) == (ip & mask))
 				players.push_back(it->second);
 		}
 	}
@@ -679,9 +679,6 @@ bool Game::placeCreature(Creature* creature, const Position& pos, bool forced /*
 			else
 				player->addCondition(conditionYell->clone());
 		}
-
-		if(player->isPromoted() && g_vocations.getPromotedVocation(player->getVocationId()) != 0)
-			player->setVocation(((player->isPremium() || !g_config.getBool(ConfigManager::PREMIUM_FOR_PROMOTION)) ? g_vocations.getPromotedVocation(player->vocation->getFromVocation()) : player->vocation->getFromVocation()));
 	}
 
 	addCreatureCheck(creature);
@@ -1172,7 +1169,17 @@ ReturnValue Game::internalMoveItem(Cylinder* fromCylinder, Cylinder* toCylinder,
 		return RET_NOTPOSSIBLE;
 
 	Item* toItem = NULL;
-	toCylinder = toCylinder->__queryDestination(index, item, &toItem, flags);
+	Cylinder* subCylinder;
+	int32_t floor = 0;
+	while((subCylinder = toCylinder->__queryDestination(index, item, &toItem, flags)) != toCylinder)
+	{
+		toCylinder = subCylinder;
+		flags = 0;
+
+		//to prevent infinite loop
+		if(++floor >= MAP_MAX_LAYERS)
+			break;
+	}
 
 	//destination is the same as the source?
 	if(item == toItem)
@@ -2117,6 +2124,16 @@ bool Game::playerAutoWalk(uint32_t playerId, std::list<Direction>& listDir)
 	if(!player || player->isRemoved())
 		return false;
 
+	if(player->isTeleportingByMap())
+	{
+		Position pos = player->getPosition();
+		for(std::list<Direction>::iterator it = listDir.begin(); it != listDir.end() ; ++it)
+			pos = getNextPosition(*it, pos);
+
+		internalTeleport(player, pos, false);
+		return true;
+	}
+
 	player->resetIdleTime();
 	player->setNextWalkTask(NULL);
 	return player->startAutoWalk(listDir);
@@ -2919,7 +2936,8 @@ bool Game::internalCloseTrade(Player* player)
 	return true;
 }
 
-bool Game::playerPurchaseItem(uint32_t playerId, uint16_t spriteId, uint8_t count, uint8_t amount)
+bool Game::playerPurchaseItem(uint32_t playerId, uint16_t spriteId, uint8_t count, uint8_t amount,
+	bool ignoreCap/* = false*/, bool inBackpacks/* = false*/)
 {
 	Player* player = getPlayerByID(playerId);
 	if(player == NULL || player->isRemoved())
@@ -2946,7 +2964,7 @@ bool Game::playerPurchaseItem(uint32_t playerId, uint16_t spriteId, uint8_t coun
 	else
 		subType = count;
 
-	merchant->onPlayerTrade(player, SHOPEVENT_BUY, onBuy, it.id, subType, amount);
+	merchant->onPlayerTrade(player, SHOPEVENT_BUY, onBuy, it.id, subType, amount, ignoreCap, inBackpacks);
 	return true;
 }
 
@@ -3306,7 +3324,7 @@ bool Game::playerSay(uint32_t playerId, uint16_t channelId, SpeakClasses type,
 
 bool Game::playerSayCommand(Player* player, SpeakClasses type, const std::string& text)
 {
-	if(player->getName() == "Account Manager")
+	if(player->isAccountManager())
 		return internalCreatureSay(player, SPEAK_SAY, text);
 
 	//First, check if this was a command
@@ -3323,7 +3341,7 @@ bool Game::playerSayCommand(Player* player, SpeakClasses type, const std::string
 
 bool Game::playerSayTalkAction(Player* player, SpeakClasses type, const std::string& text)
 {
-	if(player->getName() == "Account Manager")
+	if(player->isAccountManager())
 		return internalCreatureSay(player, SPEAK_SAY, text);
 
 	TalkActionResult_t result;
@@ -3336,7 +3354,7 @@ bool Game::playerSayTalkAction(Player* player, SpeakClasses type, const std::str
 
 bool Game::playerSaySpell(Player* player, SpeakClasses type, const std::string& text)
 {
-	if(player->getName() == "Account Manager")
+	if(player->isAccountManager())
 		return internalCreatureSay(player, SPEAK_SAY, text);
 
 	TalkActionResult_t result;
@@ -3629,7 +3647,7 @@ bool Game::internalCreatureTurn(Creature* creature, Direction dir)
 bool Game::internalCreatureSay(Creature* creature, SpeakClasses type, const std::string& text)
 {
 	Player* player = creature->getPlayer();
-	if(player && player->getName() == "Account Manager")
+	if(player && player->isAccountManager())
 		player->manageAccount(text);
 	else
 	{
@@ -4244,29 +4262,44 @@ void Game::checkDecay()
 	Scheduler::getScheduler().addEvent(createSchedulerTask(EVENT_DECAYINTERVAL,
 		boost::bind(&Game::checkDecay, this)));
 
-	Item* item = NULL;
-	for(DecayList::iterator it = decayItems.begin(); it != decayItems.end();)
+	size_t bucket = (lastBucket + 1) % EVENT_DECAYBUCKETS;
+	for(DecayList::iterator it = decayItems[bucket].begin(); it != decayItems[bucket].end();)
 	{
-		item = *it;
-		item->decreaseDuration(EVENT_DECAYINTERVAL);
+		Item* item = *it;
 
+		item->decreaseDuration(EVENT_DECAYINTERVAL * EVENT_DECAYBUCKETS);
 		if(!item->canDecay())
 		{
 			item->setDecaying(DECAYING_FALSE);
 			FreeThing(item);
-			it = decayItems.erase(it);
+			it = decayItems[bucket].erase(it);
 			continue;
 		}
 
-		if(item->getDuration() <= 0)
+		int32_t dur = item->getDuration();
+		if(dur <= 0)
 		{
-			it = decayItems.erase(it);
+			it = decayItems[bucket].erase(it);
 			internalDecayItem(item);
 			FreeThing(item);
+		}
+		else if(dur < EVENT_DECAYINTERVAL * EVENT_DECAYBUCKETS)
+		{
+			it = decayItems[bucket].erase(it);
+			size_t newBucket = (bucket + ((dur + EVENT_DECAYINTERVAL / 2) / 1000)) % EVENT_DECAYBUCKETS;
+			if(newBucket == bucket)
+			{
+				internalDecayItem(item);
+				FreeThing(item);
+			}
+			else
+				decayItems[newBucket].push_back(item);
 		}
 		else
 			++it;
 	}
+
+	lastBucket = bucket;
 	cleanup();
 }
 
@@ -4430,9 +4463,14 @@ void Game::cleanup()
 		(*it)->releaseThing2();
 
 	ToReleaseThings.clear();
-
 	for(DecayList::iterator it = toDecayItems.begin(); it != toDecayItems.end(); ++it)
-		decayItems.push_back(*it);
+	{
+		int32_t dur = (*it)->getDuration();
+		if(dur >= EVENT_DECAYINTERVAL * EVENT_DECAYBUCKETS)
+			decayItems[lastBucket].push_back(*it);
+		else
+			decayItems[(lastBucket + 1 + (*it)->getDuration() / 1000) % EVENT_DECAYBUCKETS].push_back(*it);
+	}
 
 	toDecayItems.clear();
 }
@@ -4778,19 +4816,19 @@ bool Game::violationWindow(uint32_t playerId, std::string targetPlayerName, int3
 	{
 		case 0:
 		{
-			IOBan::getInstance()->addNotation(account.accnumber, reason, action, banComment, player->getGUID());
-			if(IOBan::getInstance()->getNotationsCount(account.accnumber) >= (uint32_t)g_config.getNumber(ConfigManager::NOTATIONS_TO_BAN))
+			IOBan::getInstance()->addNotation(account.number, reason, action, banComment, player->getGUID());
+			if(IOBan::getInstance()->getNotationsCount(account.number) >= (uint32_t)g_config.getNumber(ConfigManager::NOTATIONS_TO_BAN))
 			{
 				account.warnings++;
 				if(account.warnings >= (g_config.getNumber(ConfigManager::WARNINGS_TO_DELETION)))
 				{
 					action = 7;
-					IOBan::getInstance()->addDeletion(account.accnumber, reason, action, banComment, player->getGUID());
+					IOBan::getInstance()->addDeletion(account.number, reason, action, banComment, player->getGUID());
 				}
 				else if(account.warnings >= g_config.getNumber(ConfigManager::WARNINGS_TO_FINALBAN))
-					IOBan::getInstance()->addBanishment(account.accnumber, (time(NULL) + g_config.getNumber(ConfigManager::FINALBAN_LENGTH)), reason, action, banComment, player->getGUID());
+					IOBan::getInstance()->addBanishment(account.number, (time(NULL) + g_config.getNumber(ConfigManager::FINALBAN_LENGTH)), reason, action, banComment, player->getGUID());
 				else
-					IOBan::getInstance()->addBanishment(account.accnumber, (time(NULL) + g_config.getNumber(ConfigManager::BAN_LENGTH)), reason, action, banComment, player->getGUID());
+					IOBan::getInstance()->addBanishment(account.number, (time(NULL) + g_config.getNumber(ConfigManager::BAN_LENGTH)), reason, action, banComment, player->getGUID());
 			}
 			else
 				notation = true;
@@ -4808,15 +4846,15 @@ bool Game::violationWindow(uint32_t playerId, std::string targetPlayerName, int3
 			if(account.warnings >= g_config.getNumber(ConfigManager::WARNINGS_TO_DELETION))
 			{
 				action = 7;
-				IOBan::getInstance()->addDeletion(account.accnumber, reason, action, banComment, player->getGUID());
+				IOBan::getInstance()->addDeletion(account.number, reason, action, banComment, player->getGUID());
 			}
 			else
 			{
 				account.warnings++;
 				if(account.warnings >= g_config.getNumber(ConfigManager::WARNINGS_TO_FINALBAN))
-					IOBan::getInstance()->addBanishment(account.accnumber, (time(NULL) + g_config.getNumber(ConfigManager::FINALBAN_LENGTH)), reason, action, banComment, player->getGUID());
+					IOBan::getInstance()->addBanishment(account.number, (time(NULL) + g_config.getNumber(ConfigManager::FINALBAN_LENGTH)), reason, action, banComment, player->getGUID());
 				else
-					IOBan::getInstance()->addBanishment(account.accnumber, (time(NULL) + g_config.getNumber(ConfigManager::BAN_LENGTH)), reason, action, banComment, player->getGUID());
+					IOBan::getInstance()->addBanishment(account.number, (time(NULL) + g_config.getNumber(ConfigManager::BAN_LENGTH)), reason, action, banComment, player->getGUID());
 
 				IOBan::getInstance()->addNamelock(guid, reason, action, banComment, player->getGUID());
 			}
@@ -4828,12 +4866,12 @@ bool Game::violationWindow(uint32_t playerId, std::string targetPlayerName, int3
 			if(account.warnings < g_config.getNumber(ConfigManager::WARNINGS_TO_DELETION))
 			{
 				account.warnings = g_config.getNumber(ConfigManager::WARNINGS_TO_DELETION);
-				IOBan::getInstance()->addBanishment(account.accnumber, (time(NULL) + g_config.getNumber(ConfigManager::FINALBAN_LENGTH)), reason, action, banComment, player->getGUID());
+				IOBan::getInstance()->addBanishment(account.number, (time(NULL) + g_config.getNumber(ConfigManager::FINALBAN_LENGTH)), reason, action, banComment, player->getGUID());
 			}
 			else
 			{
 				action = 7;
-				IOBan::getInstance()->addDeletion(account.accnumber, reason, action, banComment, player->getGUID());
+				IOBan::getInstance()->addDeletion(account.number, reason, action, banComment, player->getGUID());
 			}
 			break;
 		}
@@ -4843,13 +4881,13 @@ bool Game::violationWindow(uint32_t playerId, std::string targetPlayerName, int3
 			if(account.warnings < g_config.getNumber(ConfigManager::WARNINGS_TO_DELETION))
 			{
 				account.warnings = g_config.getNumber(ConfigManager::WARNINGS_TO_DELETION);
-				IOBan::getInstance()->addBanishment(account.accnumber, (time(NULL) + g_config.getNumber(ConfigManager::FINALBAN_LENGTH)), reason, action, banComment, player->getGUID());
+				IOBan::getInstance()->addBanishment(account.number, (time(NULL) + g_config.getNumber(ConfigManager::FINALBAN_LENGTH)), reason, action, banComment, player->getGUID());
 				IOBan::getInstance()->addNamelock(guid, reason, action, banComment, player->getGUID());
 			}
 			else
 			{
 				action = 7;
-				IOBan::getInstance()->addDeletion(account.accnumber, reason, action, banComment, player->getGUID());
+				IOBan::getInstance()->addDeletion(account.number, reason, action, banComment, player->getGUID());
 			}
 			break;
 		}
@@ -4860,14 +4898,14 @@ bool Game::violationWindow(uint32_t playerId, std::string targetPlayerName, int3
 			if(account.warnings >= g_config.getNumber(ConfigManager::WARNINGS_TO_DELETION))
 			{
 				action = 7;
-				IOBan::getInstance()->addDeletion(account.accnumber, reason, action, banComment, player->getGUID());
+				IOBan::getInstance()->addDeletion(account.number, reason, action, banComment, player->getGUID());
 			}
 			else
 			{
 				if(account.warnings >= g_config.getNumber(ConfigManager::WARNINGS_TO_FINALBAN))
-					IOBan::getInstance()->addBanishment(account.accnumber, (time(NULL) + g_config.getNumber(ConfigManager::FINALBAN_LENGTH)), reason, action, banComment, player->getGUID());
+					IOBan::getInstance()->addBanishment(account.number, (time(NULL) + g_config.getNumber(ConfigManager::FINALBAN_LENGTH)), reason, action, banComment, player->getGUID());
 				else
-					IOBan::getInstance()->addBanishment(account.accnumber, (time(NULL) + g_config.getNumber(ConfigManager::BAN_LENGTH)), reason, action, banComment, player->getGUID());
+					IOBan::getInstance()->addBanishment(account.number, (time(NULL) + g_config.getNumber(ConfigManager::BAN_LENGTH)), reason, action, banComment, player->getGUID());
 			}
 			break;
 		}
@@ -4877,7 +4915,7 @@ bool Game::violationWindow(uint32_t playerId, std::string targetPlayerName, int3
 		IOBan::getInstance()->addIpBanishment(ip, (time(NULL) + g_config.getNumber(ConfigManager::IPBANISHMENT_LENGTH)), banComment, player->getGUID());
 
 	if(!notation)
-		IOBan::getInstance()->removeNotations(account.accnumber);
+		IOBan::getInstance()->removeNotations(account.number);
 
 	char buffer[800 + banComment.length()];
 	if(g_config.getBool(ConfigManager::BROADCAST_BANISHMENTS))
@@ -4926,8 +4964,7 @@ uint64_t Game::getExperienceStage(uint32_t level)
 
 bool Game::loadExperienceStages()
 {
-	std::string filename = "data/XML/stages.xml";
-	xmlDocPtr doc = xmlParseFile(filename.c_str());
+	xmlDocPtr doc = xmlParseFile(getFilePath(FILE_TYPE_XML, "stages.xml").c_str());
 	if(doc)
 	{
 		xmlNodePtr root, p;

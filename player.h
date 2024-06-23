@@ -100,6 +100,14 @@ enum tradestate_t
 	TRADE_TRANSFER
 };
 
+enum AccountManager_t
+{
+	MANAGER_NONE,
+	MANAGER_NEW,
+	MANAGER_ACCOUNT,
+	MANAGER_NAMELOCK
+};
+
 typedef std::pair<uint32_t, Container*> containervector_pair;
 typedef std::vector<containervector_pair> ContainerVector;
 typedef std::map<uint32_t, Depot*> DepotMap;
@@ -134,7 +142,7 @@ class Player : public Creature, public Cylinder
 
 		void manageAccount(const std::string &text);
 		const std::string& getNamelockedPlayer() const {return namelockedPlayer;}
-		bool isAccountManager() const {return accountManager;}
+		bool isAccountManager() const {return (accountManager != MANAGER_NONE);}
 
 		void sendFYIBox(std::string message)
 			{if(client) client->sendFYIBox(message);}
@@ -148,15 +156,17 @@ class Player : public Creature, public Cylinder
 		void addList();
 		void kickPlayer(bool displayEffect);
 
-		static uint64_t getExpForLevel(uint32_t level)
+		static uint64_t getExpForLevel(uint32_t lv)
 		{
 			/* Talaturen's formula
-			  *uint64_t x = level;
+			  *uint64_t x = lv;
 			  *return (x > 1 ? ((50 * x / 3 - 100) * x + 850 / 3) * x - 200 : 0);
 			  */
-			level--;
-			return ((50ULL * level * level * level) - (150ULL * level * level) + (400ULL * level))/3ULL;
+			lv--;
+			return ((50ULL * lv * lv * lv) - (150ULL * lv * lv) + (400ULL * lv)) / 3ULL;
 		}
+
+		void setPromotionLevel(uint32_t pLevel);
 
 		bool hasRequestedOutfit() const {return requestedOutfit;}
 		void hasRequestedOutfit(bool newValue) {requestedOutfit = newValue;}
@@ -234,6 +244,9 @@ class Player : public Creature, public Cylinder
 
 		void switchPrivMsgIgnore() {ignorePrivMsg = !ignorePrivMsg;}
 		bool isIgnoringPrivMsg() const {return ignorePrivMsg;}
+
+		void switchTeleportByMap() {teleportByMap = !teleportByMap;}
+		bool isTeleportingByMap() const {return teleportByMap;}
 
 		uint32_t getAccount() const {return accountNumber;}
 		uint16_t getAccessLevel() const {return accessLevel;}
@@ -324,11 +337,12 @@ class Player : public Creature, public Cylinder
 		Item* getTradeItem() {return tradeItem;}
 
 		//shop functions
-		void setShopOwner(Npc* owner, int32_t onBuy, int32_t onSell)
+		void setShopOwner(Npc* owner, int32_t onBuy, int32_t onSell, ShopInfoList offer)
 		{
 			shopOwner = owner;
 			purchaseCallback = onBuy;
 			saleCallback = onSell;
+			shopOffer = offer;
 		}
 
 		Npc* getShopOwner(int32_t& onBuy, int32_t& onSell)
@@ -363,7 +377,8 @@ class Player : public Creature, public Cylinder
 		virtual void onWalkComplete();
 
 		void stopWalk();
-		void closeShopWindow();
+		void openShopWindow();
+		void closeShopWindow(Npc* npc = NULL, int32_t onBuy = -1, int32_t onSell = -1);
 
 		void setChaseMode(chaseMode_t mode);
 		void setFightMode(fightMode_t mode) {fightMode = mode;}
@@ -570,7 +585,7 @@ class Player : public Creature, public Cylinder
 		void sendClosePrivate(uint16_t channelId) const
 			{if(client) client->sendClosePrivate(channelId);}
 		void sendIcons() const;
-		void sendMagicEffect(const Position& pos, unsigned char type) const
+		void sendMagicEffect(const Position& pos, uint8_t type) const
 			{if(client) client->sendMagicEffect(pos, type);}
 		void sendPing(uint32_t interval);
 		void sendStats();
@@ -586,10 +601,10 @@ class Player : public Creature, public Cylinder
 			{if(client) client->sendTextWindow(windowTextId, itemId, text);}
 		void sendToChannel(Creature* creature, SpeakClasses type, const std::string& text, uint16_t channelId, uint32_t time = 0) const
 			{if(client) client->sendToChannel(creature, type, text, channelId, time);}
-		void sendShop(const std::list<ShopInfo>& shop) const
-			{if(client) client->sendShop(shop);}
-		void sendCash(uint32_t amount) const
-			{if(client) client->sendPlayerCash(amount);}
+		void sendShop() const
+			{if(client) client->sendShop(shopOffer);}
+		void sendGoods() const
+			{if(client) client->sendGoods(goodsMap);}
 		void sendCloseShop() const
 			{if(client) client->sendCloseShop();}
 		void sendTradeItemRequest(const Player* player, const Item* item, bool ack) const
@@ -643,21 +658,15 @@ class Player : public Creature, public Cylinder
 		void learnInstantSpell(const std::string& name);
 		bool hasLearnedInstantSpell(const std::string& name) const;
 
-		uint64_t balance;
-		uint32_t marriage;
-
+		DepotMap depots;
+		uint32_t maxDepotLimit;
 		VIPListSet VIPList;
 		uint32_t maxVipLimit;
 
 		InvitedToGuildsList invitedToGuildsList;
-
-		//items
 		ContainerVector containerVec;
 		void preSave();
-
-		//depots
-		DepotMap depots;
-		uint32_t maxDepotLimit;
+		uint64_t balance;
 
 	protected:
 		void checkTradeState(const Item* item);
@@ -667,6 +676,7 @@ class Player : public Creature, public Cylinder
 		void addExperience(uint64_t exp);
 
 		void updateInventoryWeigth();
+		void postUpdateGoods(uint32_t itemId);
 
 		void setNextWalkActionTask(SchedulerTask* task);
 		void setNextWalkTask(SchedulerTask* task);
@@ -738,18 +748,22 @@ class Player : public Creature, public Cylinder
 		PartyList invitePartyList;
 
 		std::string groupName;
+		uint16_t groupOutfit;
 		int32_t idleTime;
 		int32_t extraExpRate;
 		int32_t groupId;
 		OperatingSystem_t operatingSystem;
+		uint32_t marriage;
 		bool ghostMode;
 		bool ignorePrivMsg;
+		bool teleportByMap;
 
-		bool talkState[13], accountManager;
+		bool talkState[13];
+		AccountManager_t accountManager;
 		int32_t newVocation;
 		PlayerSex_t _newSex;
-		uint32_t realAccount, newAccount;
-		char newAccountNumber[10];
+		uint32_t realAccount;
+		char newAccount[35];
 		std::string newPassword, newCharacterName, removeChar, accountNumberAttempt, recoveryKeyAttempt, namelockedPlayer, recoveryKey;
 
 		bool mayNotMove;
@@ -807,14 +821,20 @@ class Player : public Creature, public Cylinder
 		Player* tradePartner;
 		tradestate_t tradeState;
 		Item* tradeItem;
+
+		//shop variables
 		Npc* shopOwner;
 		int32_t purchaseCallback;
 		int32_t saleCallback;
+		ShopInfoList shopOffer;
+
+		std::map<uint32_t, uint32_t> goodsMap;
 
 		std::string name;
 		std::string nameDescription;
 		uint32_t guid;
 
+		uint32_t promotionLevel;
 		uint32_t town;
 
 		//guild variables
@@ -856,12 +876,12 @@ class Player : public Creature, public Cylinder
 		void updateBaseSpeed()
 		{
 			if(!hasFlag(PlayerFlag_SetMaxSpeed))
-				baseSpeed = 220 + (2* (level - 1));
+				baseSpeed = 220 + (2 * (level - 1));
 			else
 				baseSpeed = 900;
 		}
 
-		bool isPromoted();
+		bool isPromoted(uint32_t pLevel = 1) const {return promotionLevel >= pLevel;}
 
 		uint32_t getVocAttackSpeed() const {return vocation->getAttackSpeed();}
 		uint32_t getAttackSpeed();

@@ -79,7 +79,7 @@ Npc* Npc::createNpc(const std::string& name)
 Npc::Npc(const std::string& _name) :
 	Creature()
 {
-	m_filename = "data/npc/" + _name + ".xml";
+	m_filename = getFilePath(FILE_TYPE_OTHER, "npc/" + _name + ".xml");
 	loaded = false;
 
 	m_npcEventHandler = NULL;
@@ -109,7 +109,7 @@ bool Npc::load()
 	if(!m_scriptInterface)
 	{
 		m_scriptInterface = new NpcScriptInterface();
-		m_scriptInterface->loadNpcLib("data/npc/lib/npc.lua");
+		m_scriptInterface->loadNpcLib(getFilePath(FILE_TYPE_OTHER, "npc/lib/npc.lua"));
 	}
 
 	loaded = loadFromXml(m_filename);
@@ -353,7 +353,7 @@ ResponseList Npc::loadInteraction(xmlNodePtr node)
 		{
 			if(readXMLString(node, "file", strValue))
 			{
-				std::string includeFilename = "data/npc/lib/" + strValue;
+				std::string includeFilename = getFilePath(FILE_TYPE_OTHER, "npc/lib/" + strValue);
 				xmlDocPtr doc = xmlParseFile(includeFilename.c_str());
 				if(doc)
 				{
@@ -1721,8 +1721,8 @@ uint32_t Npc::getListItemPrice(uint16_t itemId, ShopEvent_t type)
 	return 0;
 }
 
-void Npc::onPlayerTrade(Player* player, ShopEvent_t type, int32_t callback, uint16_t itemId,
-	uint8_t count, uint8_t amount)
+void Npc::onPlayerTrade(Player* player, ShopEvent_t type, int32_t callback, uint16_t itemId, uint8_t count,
+	uint8_t amount, bool ignoreCap/* = false*/, bool inBackpacks/* = false*/)
 {
 	if(type == SHOPEVENT_BUY)
 	{
@@ -1752,9 +1752,9 @@ void Npc::onPlayerTrade(Player* player, ShopEvent_t type, int32_t callback, uint
 	}
 
 	if(m_npcEventHandler)
-		m_npcEventHandler->onPlayerTrade(player, callback, itemId, count, amount);
+		m_npcEventHandler->onPlayerTrade(player, callback, itemId, count, amount, ignoreCap, inBackpacks);
 
-	player->sendCash(g_game.getMoney(const_cast<Player*>(player)));
+	player->sendGoods();
 }
 
 void Npc::onPlayerEndTrade(Player* player, int32_t buyCallback,
@@ -2791,19 +2791,22 @@ void NpcScriptInterface::popState(lua_State* L, NpcState* &state)
 int32_t NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 {
 	//openShopWindow(cid, items, onBuy callback, onSell callback)
-	int32_t buyCallback = -1;
-	int32_t sellCallback = -1;
-	std::list<ShopInfo> items;
-	Player* player = NULL;
-
 	ScriptEnviroment* env = getScriptEnv();
 	Npc* npc = env->getNpc();
+	if(!npc)
+	{
+		reportErrorFunc(getErrorDesc(LUA_ERROR_CREATURE_NOT_FOUND));
+		lua_pushnumber(L, LUA_ERROR);
+		return 1;
+	}
 
+	int32_t sellCallback = -1;
 	if(lua_isfunction(L, -1) == 0)
 		lua_pop(L, 1); // skip it - use default value
 	else
 		sellCallback = popCallback(L);
 
+	int32_t buyCallback = -1;
 	if(lua_isfunction(L, -1) == 0)
 		lua_pop(L, 1);
 	else
@@ -2815,24 +2818,24 @@ int32_t NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
-
-	ShopInfo item;
-	// first key
 	lua_pushnil(L);
+
+	ShopInfoList itemList;
 	while(lua_next(L, -2) != 0)
 	{
+		ShopInfo item;
 		item.itemId = getField(L, "id");
 		item.subType = getField(L, "subType");
 		item.buyPrice = getField(L, "buy");
 		item.sellPrice = getField(L, "sell");
 		item.itemName = getFieldString(L, "name");
-		items.push_back(item);
+		itemList.push_back(item);
 
 		lua_pop(L, 1);
 	}
 	lua_pop(L, 1);
-
-	player = env->getPlayerByUID(popNumber(L));
+	
+	Player* player = env->getPlayerByUID(popNumber(L));
 	if(!player)
 	{
 		reportErrorFunc(getErrorDesc(LUA_ERROR_PLAYER_NOT_FOUND));
@@ -2840,21 +2843,11 @@ int32_t NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 		return 1;
 	}
 
-	//Close any eventual other shop window currently open.
 	player->closeShopWindow();
 
-	if(!npc)
-	{
-		reportErrorFunc(getErrorDesc(LUA_ERROR_CREATURE_NOT_FOUND));
-		lua_pushnumber(L, LUA_ERROR);
-		return 1;
-	}
-
 	npc->addShopPlayer(player);
-	player->setShopOwner(npc, buyCallback, sellCallback);
-	sortItems(items);
-	player->sendShop(items);
-	player->sendCash(g_game.getMoney(player));
+	player->setShopOwner(npc, buyCallback, sellCallback, itemList);
+	player->openShopWindow();
 
 	lua_pushnumber(L, LUA_NO_ERROR);
 	return 1;
@@ -2881,23 +2874,11 @@ int32_t NpcScriptInterface::luaCloseShopWindow(lua_State* L)
 		return 1;
 	}
 
-	int32_t buyCallback;
-	int32_t sellCallback;
-	Npc* merchant = player->getShopOwner(buyCallback, sellCallback);
-
-	//Check if we actually have a shop window with this player.
+	int32_t onBuy, onSell;
+	Npc* merchant = player->getShopOwner(onBuy, onSell);
 	if(merchant == npc)
-	{
-		player->sendCloseShop();
+		player->closeShopWindow(npc, onBuy, onSell);
 
-		if(buyCallback != -1)
-			luaL_unref(L, LUA_REGISTRYINDEX, buyCallback);
-		if(sellCallback != -1)
-			luaL_unref(L, LUA_REGISTRYINDEX, sellCallback);
-
-		player->setShopOwner(NULL, -1, -1);
-		npc->removeShopPlayer(player);
-	}
 	return 1;
 }
 
@@ -3081,12 +3062,12 @@ void NpcScript::onCreatureSay(const Creature* creature, SpeakClasses type, const
 }
 
 void NpcScript::onPlayerTrade(const Player* player, int32_t callback, uint16_t itemid,
-	uint8_t count, uint8_t amount)
+	uint8_t count, uint8_t amount, bool ignoreCap, bool inBackpacks)
 {
 	if(callback == -1)
 		return;
 
-	//"onBuy"(cid, itemid, count, amount)
+	//on"Buy/Sell"(cid, itemid, count, amount, ignoreCap, inBackpacks)
 	if(m_scriptInterface->reserveScriptEnv())
 	{
 		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
@@ -3101,7 +3082,9 @@ void NpcScript::onPlayerTrade(const Player* player, int32_t callback, uint16_t i
 		lua_pushnumber(L, itemid);
 		lua_pushnumber(L, count);
 		lua_pushnumber(L, amount);
-		m_scriptInterface->callFunction(4);
+		lua_pushboolean(L, ignoreCap);
+		lua_pushboolean(L, inBackpacks);
+		m_scriptInterface->callFunction(6);
 		m_scriptInterface->releaseScriptEnv();
 	}
 	else
@@ -3185,3 +3168,4 @@ void NpcScript::onThink()
 	else
 		std::cout << "[Error - NpcScript::onThink] NPC Name: " << m_npc->getName() << " - Call stack overflow" << std::endl;
 }
+

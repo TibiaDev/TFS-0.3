@@ -61,7 +61,7 @@ struct Abilities
 {
 	Abilities()
 	{
-		absorbPercentAll = 0;
+		absorbPercentOther = 0;
 		absorbPercentPhysical = 0;
 		absorbPercentFire = 0;
 		absorbPercentEnergy = 0;
@@ -96,7 +96,7 @@ struct Abilities
 	};
 
 	//damage abilities modifiers
-	int16_t absorbPercentAll;
+	int16_t absorbPercentOther;
 	int16_t absorbPercentPhysical;
 	int16_t absorbPercentFire;
 	int16_t absorbPercentEnergy;
@@ -275,6 +275,51 @@ class Array
 		A* m_data;
 		uint32_t m_size;
 };
+
+template<typename A>
+Array<A>::Array(uint32_t n)
+{
+	m_data = (A*)malloc(sizeof(A)*n);
+	memset(m_data, 0, sizeof(A)*n);
+	m_size = n;
+}
+
+template<typename A>
+Array<A>::~Array()
+{
+	free(m_data);
+}
+
+template<typename A>
+A Array<A>::getElement(uint32_t id)
+{
+	if(id < m_size)
+		return m_data[id];
+	else
+		return 0;
+}
+
+template<typename A>
+const A Array<A>::getElement(uint32_t id) const
+{
+	if(id < m_size)
+		return m_data[id];
+	else
+		return 0;
+}
+
+template<typename A>
+void Array<A>::addElement(A a, uint32_t pos)
+{
+	#define INCREMENT 5000
+	if(pos >= m_size)
+	{
+		m_data = (A*)realloc(m_data, sizeof(A)*(pos + INCREMENT));
+		memset(m_data + m_size, 0, sizeof(A)*(pos + INCREMENT - m_size));
+		m_size = pos + INCREMENT;
+	}
+	m_data[pos] = a;
+}
 
 class Items
 {
