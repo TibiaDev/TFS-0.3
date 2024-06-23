@@ -139,7 +139,8 @@ class Creature : public AutoID, virtual public Thing
 			 * 0x30000000 - NPC
 			 * 0x40000000 - Monster
 			 */
-			this->id = auto_id | this->idRange();
+			if(this->id == 0)
+				this->id = auto_id | this->idRange();
 		}
 		void setRemoved() {isInternalRemoved = true;}
 
@@ -204,8 +205,8 @@ class Creature : public AutoID, virtual public Thing
 				return ZONE_NOPVP;
 			else if(tile->hasFlag(TILESTATE_PVPZONE))
 				return ZONE_PVP;
-			else
-				return ZONE_NORMAL;
+
+			return ZONE_NORMAL;
 		}
 
 		//walk functions
@@ -296,7 +297,7 @@ class Creature : public AutoID, virtual public Thing
 		virtual void onAttackedCreatureDrainHealth(Creature* target, int32_t points);
 		virtual void onTargetCreatureGainHealth(Creature* target, int32_t points);
 		virtual void onAttackedCreatureKilled(Creature* target);
-		virtual void onKilledCreature(Creature* target);
+		virtual bool onKilledCreature(Creature* target);
 		virtual void onGainExperience(uint64_t gainExp);
 		virtual void onGainSharedExperience(uint64_t gainExp);
 		virtual void onAttackedCreatureBlockHit(Creature* target, BlockType_t blockType);

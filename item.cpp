@@ -46,9 +46,7 @@ Items Item::items;
 Item* Item::CreateItem(const uint16_t _type, uint16_t _count /*= 1*/)
 {
 	Item* newItem = NULL;
-
 	const ItemType& it = Item::items[_type];
-
 	if(it.group == ITEM_GROUP_DEPRECATED)
 	{
 		#ifdef __DEBUG__
@@ -97,7 +95,6 @@ Item* Item::CreateItem(const uint16_t _type, uint16_t _count /*= 1*/)
 Item* Item::CreateItem(PropStream& propStream)
 {
 	uint16_t _id;
-
 	if(!propStream.GET_USHORT(_id))
 		return NULL;
 
@@ -174,7 +171,7 @@ Item* Item::CreateItem(PropStream& propStream)
 }
 
 Item::Item(const uint16_t _type, uint16_t _count /*= 0*/) :
-	ItemAttributes()
+ItemAttributes()
 {
 	id = _type;
 
@@ -196,7 +193,7 @@ Item::Item(const uint16_t _type, uint16_t _count /*= 0*/) :
 }
 
 Item::Item(const Item &i) :
-	Thing(), ItemAttributes()
+Thing(), ItemAttributes()
 {
 	//std::cout << "Item copy constructor " << this << std::endl;
 	id = i.id;
@@ -213,6 +210,7 @@ Item* Item::clone() const
 	_item->m_attributes = m_attributes;
 	if(m_firstAttr)
 		_item->m_firstAttr = new Attribute(*m_firstAttr);
+
 	return _item;
 }
 
@@ -274,7 +272,6 @@ bool Item::hasSubType() const
 uint16_t Item::getSubType() const
 {
 	const ItemType& it = items[getID()];
-
 	if(it.isFluidContainer() || it.isSplash())
 		return getFluidType();
 	else if(it.charges != 0)
@@ -325,7 +322,7 @@ bool Item::unserialize(xmlNodePtr nodeItem)
 		setUniqueId(intValue);
 
 	if(readXMLInteger(nodeItem, "duration", intValue))
-		setDuration(intValue);
+		setDuration(std::max((int32_t)0, intValue));
 
 	if(readXMLInteger(nodeItem, "decayState", intValue))
 	{
@@ -609,7 +606,7 @@ bool Item::readAttr(AttrTypes_t attr, PropStream& propStream)
 			if(!propStream.GET_ULONG(duration))
 				return false;
 
-			setDuration(duration);
+			setDuration(std::max((uint32_t)0, duration));
 			break;
 		}
 
@@ -652,8 +649,8 @@ bool Item::readAttr(AttrTypes_t attr, PropStream& propStream)
 		//Teleport class
 		case ATTR_TELE_DEST:
 		{
-			TeleportDest* tele_dest;
-			if(!propStream.GET_STRUCT(tele_dest))
+			TeleportDest* _teleDest;
+			if(!propStream.GET_STRUCT(_teleDest))
 				return false;
 
 			return true;
@@ -841,7 +838,8 @@ bool Item::hasProperty(enum ITEMPROPERTY prop) const
 			break;
 
 		case MOVEABLE:
-			if(it.moveable && (!isLoadedFromMap() || (getUniqueId() == 0 && getActionId() == 0)))
+			if(it.moveable && (!isLoadedFromMap() ||
+				(getUniqueId() == 0 && (getActionId() == 0 || getContainer()))))
 				return true;
 			break;
 
@@ -871,12 +869,14 @@ bool Item::hasProperty(enum ITEMPROPERTY prop) const
 			break;
 
 		case IMMOVABLEBLOCKSOLID:
-			if(it.blockSolid && (!it.moveable || ((getUniqueId() != 0 || getActionId() != 0) && isLoadedFromMap())))
+			if(it.blockSolid && (!it.moveable || (isLoadedFromMap() &&
+				(getUniqueId() != 0 || (getActionId() != 0 && getContainer())))))
 				return true;
 			break;
 
 		case IMMOVABLEBLOCKPATH:
-			if(it.blockPathFind && (!it.moveable || ((getUniqueId() != 0 || getActionId() != 0) && isLoadedFromMap())))
+			if(it.blockPathFind && (!it.moveable || (isLoadedFromMap() &&
+				(getUniqueId() != 0 || (getActionId() != 0 && getContainer())))))
 				return true;
 			break;
 
@@ -886,7 +886,8 @@ bool Item::hasProperty(enum ITEMPROPERTY prop) const
 			break;
 
 		case IMMOVABLENOFIELDBLOCKPATH:
-			if(!it.isMagicField() && it.blockPathFind && (!it.moveable || ((getUniqueId() != 0 || getActionId() != 0) && isLoadedFromMap())))
+			if(!it.isMagicField() && it.blockPathFind && (!it.moveable || (isLoadedFromMap() &&
+				(getUniqueId() != 0 || (getActionId() != 0 && getContainer())))))
 				return true;
 			break;
 
@@ -910,37 +911,12 @@ double Item::getWeight() const
 	return items[id].weight;
 }
 
-std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
-	const Item* item /*= NULL*/, int32_t subType /*= -1*/, bool addArticle /*= true*/)
+std::string Item::getDescription(const ItemType& it, int32_t lookDistance, const Item* item /*= NULL*/, int32_t subType /*= -1*/, bool addArticle /*= true*/)
 {
+	std::stringstream s;
+	s << getNameDescription(it, item, subType, addArticle);
 	if(item)
 		subType = item->getSubType();
-
-	std::stringstream s;
-	if(it.name.length() || (item && item->getName().length()))
-	{
-		if(it.stackable && subType > 1)
-		{
-			if(it.showCount)
-				s << subType << " ";
-
-			s << (item ? item->getPluralName() : it.pluralName);
-		}
-		else
-		{
-			if(addArticle)
-			{
-				if(item && !item->getArticle().empty())
-					s << item->getArticle() << " ";
-				else if(!it.article.empty())
-					s << it.article << " ";
-			}
-
-			s << (item ? item->getName() : it.name);
-		}
-	}
-	else
-		s << "an item of type " << it.id;
 
 	if(it.isRune())
 	{
@@ -948,56 +924,77 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 		if(!it.runeSpellName.empty())
 			s << "\"" << it.runeSpellName << "\", ";
 
-		s << "Charges:" << subType <<").";
-		if(it.runeLevel > 0 || it.runeMagLevel > 0)
+		s << "Charges:" << subType << ")";
+		if(it.runeLevel > 0 || it.runeMagLevel > 0 || (it.vocationString != "" && it.wieldInfo == 0))
 		{
-			s << std::endl << "It can only be used with";
+			s << "." << std::endl << "It can only be used by ";
+			if(it.vocationString != "" && it.wieldInfo == 0)
+				s << it.vocationString;
+
+			bool begin = true;
 			if(it.runeLevel > 0)
-				s << " level " << it.runeLevel;
+			{
+				begin = false;
+				s << " with level " << it.runeLevel;
+			}
 
 			if(it.runeMagLevel > 0)
 			{
-				if(it.runeLevel > 0)
-					s << " and";
-
-				s << " magic level " << it.runeMagLevel;
+				begin = false;
+				s << " " << (begin ? "with" : "and") << " magic level " << it.runeMagLevel;
 			}
 
-			s << " or higher";
+			if(!begin)
+				s << " or higher";
 		}
 	}
 	else if(it.weaponType != WEAPON_NONE)
 	{
 		if(it.weaponType == WEAPON_DIST && it.ammoType != AMMO_NONE)
 		{
-			s << " (Range:" << it.shootRange;
+			s << " (Range:" << int32_t(item ? item->getShootRange() : it.shootRange);
 			if(it.attack != 0 || it.extraAttack != 0 || (item && (item->getAttack() != 0 || item->getExtraAttack() != 0)))
 			{
-				s << "Atk:" << int32_t(item ? item->getAttack() : it.attack);
+				s << ", Atk " << std::showpos << int32_t(item ? item->getAttack() : it.attack);
 				if(it.extraAttack != 0 || (item && item->getExtraAttack() != 0))
 					s << " " << std::showpos << int32_t(item ? item->getExtraAttack() : it.extraAttack) << std::noshowpos;
 			}
 
-			if(it.hitChance > 0 || (item && item->getHitChance() > 0))
-				s << ", Hit%" << std::showpos << (item ? item->getHitChance() : it.hitChance) << std::noshowpos;
+			if(it.hitChance != -1 || (item && item->getHitChance() != -1))
+				s << ", Hit% " << std::showpos << (item ? item->getHitChance() : it.hitChance) << std::noshowpos;
 
 			s << ")";
 		}
 		else if(it.weaponType != WEAPON_AMMO && it.weaponType != WEAPON_WAND)
 		{
 			s << " (";
+			bool begin = true;
 			if(it.attack != 0 || it.extraAttack != 0 || (item && (item->getAttack() != 0 || item->getExtraAttack() != 0)))
 			{
-				s << "Atk:" << int32_t(item ? item->getAttack() : it.attack);
-				if(it.extraAttack != 0 || (item && item->getExtraAttack() != 0))
-					s << " " << std::showpos << int32_t(item ? item->getExtraAttack() : it.extraAttack) << std::noshowpos;
+				begin = false;
+				s << "Atk:";
+				if(it.abilities.elementType != COMBAT_NONE && it.decayTo < 1)
+				{
+					s << std::max(0, int32_t((item ? item->getAttack() : it.attack) - it.abilities.elementDamage));
+					if(it.extraAttack != 0 || (item && item->getExtraAttack() != 0))
+						s << " " << std::showpos << int32_t(item ? item->getExtraAttack() : it.extraAttack) << std::noshowpos;
+
+					s << " physical + " << it.abilities.elementDamage << " " << getCombatName(it.abilities.elementType);
+				}
+				else
+				{
+					s << int32_t(item ? item->getAttack() : it.attack);
+					if(it.extraAttack != 0 || (item && item->getExtraAttack() != 0))
+						s << " " << std::showpos << int32_t(item ? item->getExtraAttack() : it.extraAttack) << std::noshowpos;
+				}
 			}
 
 			if(it.defense != 0 || it.extraDefense != 0 || (item && (item->getDefense() != 0 || item->getExtraDefense() != 0)))
 			{
-				if(it.attack != 0 || it.extraAttack != 0 || (item && (item->getAttack() != 0 || item->getExtraAttack() != 0)))
-					s << " ";
+				if(!begin)
+					s << ", ";
 
+				begin = false;
 				s << "Def:" << int32_t(item ? item->getDefense() : it.defense);
 				if(it.extraDefense != 0 || (item && item->getExtraDefense() != 0))
 					s << " " << std::showpos << int32_t(item ? item->getExtraDefense() : it.extraDefense) << std::noshowpos;
@@ -1005,10 +1002,10 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 
 			if(it.abilities.stats[STAT_MAGICLEVEL] != 0)
 			{
-				if(it.attack != 0 || it.extraAttack != 0 || it.defense != 0 || it.extraDefense != 0 || (item &&
-					(item->getAttack() != 0 || item->getExtraAttack() != 0 || item->getDefense() != 0 || item->getExtraDefense() != 0)))
+				if(!begin)
 					s << ", ";
 
+				begin = false;
 				s << "magic level " << std::showpos << (int32_t)it.abilities.stats[STAT_MAGICLEVEL] << std::noshowpos;
 			}
 
@@ -1018,125 +1015,41 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 	else if(it.armor != 0 || (item && item->getArmor() != 0))
 	{
 		s << " (Arm:" << (item ? item->getArmor() : it.armor);
-
-		if(it.abilities.absorbPercentOther != 0 || it.abilities.absorbPercentDeath != 0 ||
-			it.abilities.absorbPercentDrown != 0 || it.abilities.absorbPercentEarth != 0 ||
-			it.abilities.absorbPercentEnergy != 0 || it.abilities.absorbPercentFire != 0 ||
-			it.abilities.absorbPercentHoly != 0 || it.abilities.absorbPercentIce != 0 ||
-			it.abilities.absorbPercentLifeDrain != 0 || it.abilities.absorbPercentManaDrain != 0 ||
-			it.abilities.absorbPercentPhysical != 0)
+		for(uint16_t i = SKILL_FIRST; i <= SKILL_LAST; i++)
 		{
-			bool isBegin = true;
-			s << ", protection";
-			if(it.abilities.absorbPercentOther != 0)
-			{
-				s << " other " << std::showpos << it.abilities.absorbPercentOther << std::noshowpos << "%";
-				isBegin = false;
-			}
-
-			if(it.abilities.absorbPercentDeath != 0)
-			{
-				if(!isBegin)
-					s << ",";
-
-				s << " death " << std::showpos << it.abilities.absorbPercentDeath << std::noshowpos << "%";
-				isBegin = false;
-			}
-
-			if(it.abilities.absorbPercentDrown != 0)
-			{
-				if(!isBegin)
-					s << ",";
-
-				s << " drown " << std::showpos << it.abilities.absorbPercentDrown << std::noshowpos << "%";
-				isBegin = false;
-			}
-
-			if(it.abilities.absorbPercentEarth != 0)
-			{
-				if(!isBegin)
-					s << ",";
-
-				s << " earth " << std::showpos << it.abilities.absorbPercentEarth << std::noshowpos << "%";
-				isBegin = false;
-			}
-
-			if(it.abilities.absorbPercentEnergy != 0)
-			{
-				if(!isBegin)
-					s << ",";
-
-				s << " energy " << std::showpos << it.abilities.absorbPercentEnergy << std::noshowpos << "%";
-				isBegin = false;
-			}
-
-			if(it.abilities.absorbPercentFire != 0)
-			{
-				if(!isBegin)
-					s << ",";
-
-				s << " fire " << std::showpos << it.abilities.absorbPercentFire << std::noshowpos << "%";
-				isBegin = false;
-			}
-
-			if(it.abilities.absorbPercentHoly != 0)
-			{
-				if(!isBegin)
-					s << ",";
-
-				s << " holy " << std::showpos << it.abilities.absorbPercentHoly << std::noshowpos << "%";
-				isBegin = false;
-			}
-
-			if(it.abilities.absorbPercentIce != 0)
-			{
-				if(!isBegin)
-					s << ",";
-
-				s << " ice " << std::showpos << it.abilities.absorbPercentIce << std::noshowpos << "%";
-				isBegin = false;
-			}
-
-			if(it.abilities.absorbPercentLifeDrain != 0)
-			{
-				if(!isBegin)
-					s << ",";
-
-				s << " life drain " << std::showpos << it.abilities.absorbPercentLifeDrain << std::noshowpos << "%";
-				isBegin = false;
-			}
-
-			if(it.abilities.absorbPercentManaDrain != 0)
-			{
-				if(!isBegin)
-					s << ",";
-
-				s << " mana drain " << std::showpos << it.abilities.absorbPercentManaDrain << std::noshowpos << "%";
-				isBegin = false;
-			}
-
-			if(it.abilities.absorbPercentPhysical != 0)
-			{
-				if(!isBegin)
-					s << ",";
-
-				s << " physical " << std::showpos << it.abilities.absorbPercentPhysical << std::noshowpos << "%";
-				isBegin = false;
-			}
+			if(it.abilities.skills[i] != 0)
+				s << ", " << getSkillName(i) << " " << std::showpos << (int32_t)it.abilities.skills[i] << std::noshowpos;
 		}
 
 		if(it.abilities.stats[STAT_MAGICLEVEL] != 0)
 			s << ", magic level " << std::showpos << (int32_t)it.abilities.stats[STAT_MAGICLEVEL] << std::noshowpos;
 
+		bool begin = true;
+		for(uint32_t i = COMBAT_FIRST; i <= COMBAT_LAST; i++)
+		{
+			if(it.abilities.absorbPercent[i] != 0)
+			{
+				if(begin)
+				{
+					s << ", protection ";
+					begin = false;
+				}
+				else
+					s << ", ";
+
+				s << getCombatName((CombatType_t)i) << " " << std::showpos << it.abilities.absorbPercent[i] << std::noshowpos << "%";
+			}
+		}
+
 		if(it.abilities.speed > 0)
-			s << ", speed +" << it.abilities.speed / 2;
+			s << ", speed " << std::showpos << (it.abilities.speed / 2) << std::noshowpos;
 
 		s << ")";
 	}
 	else if(it.isContainer())
 		s << " (Vol:" << (int32_t)it.maxItems << ")";
 	else if(it.abilities.speed > 0)
-		s << " (speed +" << it.abilities.speed / 2 << ")";
+		s << " (speed " << std::showpos << (it.abilities.speed / 2) << std::noshowpos << ")";
 	else if(it.isKey())
 		s << " (Key:" << (item ? (int32_t)item->getActionId() : 0) << ")";
 	else if(it.isFluidContainer())
@@ -1164,7 +1077,6 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 				if(item->getWriter().length())
 				{
 					s << item->getWriter() << " wrote";
-
 					time_t date = item->getDate();
 					if(date > 0)
 					{
@@ -1172,6 +1084,7 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 						formatDate2(date, buf);
 						s << " on " << buf;
 					}
+
 					s << ": ";
 				}
 				else
@@ -1185,17 +1098,17 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 		else
 			s << "Nothing is written on it";
 	}
-	else if(it.isLevelDoor() && item && item->getActionId() >= 1000)
-		s << " for level " << item->getActionId() - 1000;
+	else if(it.levelDoor != 0 && item && item->getActionId() >= it.levelDoor)
+		s << " for level " << item->getActionId() - it.levelDoor;
 
 	if(it.showCharges)
-		s << " that has " << subType << " charge" << (subType > 1 ? "s" : "") << " left";
+		s << " that has " << subType << " charge" << (subType != 1 ? "s" : "") << " left";
 
 	if(it.showDuration)
 	{
 		if(item && item->hasAttribute(ATTR_ITEM_DURATION))
 		{
-			uint32_t duration = item->getDuration() / 1000;
+			int32_t duration = item->getDuration() / 1000;
 			s << " that has energy for ";
 
 			if(duration >= 120)
@@ -1230,6 +1143,7 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 				s << " and";
 			else
 				s << " of";
+
 			s << " magic level " << (int32_t)it.minReqMagicLevel << " or higher";
 		}
 
@@ -1243,20 +1157,14 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 			s << std::endl << getWeightDescription(it, weight);
 	}
 
-	if(it.abilities.elementType != COMBAT_NONE)
+	if(it.abilities.elementType != COMBAT_NONE && it.decayTo > 0)
 	{
-		s << " It is";
-		if(it.charges != 0)
-			s << " temporarily";
-
-		s << " enchanted with " << getCombatName(it.abilities.elementType) << " (";
+		s << std::endl << "It is temporarily enchanted with " << getCombatName(it.abilities.elementType) << " (";
+		s << std::max(0, int32_t((item ? item->getAttack() : it.attack) - it.abilities.elementDamage));
 		if(it.extraAttack != 0 || (item && item->getExtraAttack() != 0))
-			s << ((item ? item->getAttack() : it.attack) + (item ? item->getExtraAttack() : it.extraAttack)) - it.abilities.elementDamage;
-		else
-			s << it.attack - it.abilities.elementDamage;
+			s << " " << std::showpos << int32_t(item ? item->getExtraAttack() : it.extraAttack) << std::noshowpos;
 
-		s << " physical + " << it.abilities.elementDamage << " " << getCombatName(it.abilities.elementType);
-		s << " damage).";
+		s << " physical + " << it.abilities.elementDamage << " " << getCombatName(it.abilities.elementType) << " damage).";
 	}
 
 	if(item && !item->getSpecialDescription().empty())
@@ -1273,10 +1181,55 @@ std::string Item::getDescription(int32_t lookDistance) const
 	return getDescription(it, lookDistance, this);
 }
 
-std::string Item::getWeightDescription() const
+std::string Item::getNameDescription(const ItemType& it, const Item* item /*= NULL*/, int32_t subType /*= -1*/, bool addArticle /*= true*/)
 {
-	double weight = getWeight();
-	return (weight > 0 ? getWeightDescription(weight) : "");
+	if(item)
+		subType = item->getSubType();
+
+	std::stringstream s;
+	if(it.name.length() || (item && item->getName().length()))
+	{
+		if(it.stackable && subType > 1)
+		{
+			if(it.showCount)
+				s << subType << " ";
+
+			s << (item ? item->getPluralName() : it.pluralName);
+		}
+		else
+		{
+			if(addArticle)
+			{
+				if(item && !item->getArticle().empty())
+					s << item->getArticle() << " ";
+				else if(!it.article.empty())
+					s << it.article << " ";
+			}
+
+			s << (item ? item->getName() : it.name);
+		}
+	}
+	else
+		s << "an item of type " << it.id;
+
+	return s.str();
+}
+
+std::string Item::getNameDescription() const
+{
+	const ItemType& it = items[id];
+	return getNameDescription(it, this);
+}
+
+std::string Item::getWeightDescription(const ItemType& it, double weight, uint32_t count /*= 1*/)
+{
+	std::stringstream s;
+	if(it.stackable && count > 1)
+		s << "They weigh " << std::fixed << std::setprecision(2) << weight << " oz.";
+	else
+		s << "It weighs " << std::fixed << std::setprecision(2) << weight << " oz.";
+
+	return s.str();
 }
 
 std::string Item::getWeightDescription(double weight) const
@@ -1285,20 +1238,15 @@ std::string Item::getWeightDescription(double weight) const
 	return getWeightDescription(it, weight, count);
 }
 
-std::string Item::getWeightDescription(const ItemType& it, double weight, uint32_t count /*= 1*/)
+std::string Item::getWeightDescription() const
 {
-	std::stringstream ss;
-	if(it.stackable && count > 1)
-		ss << "They weigh " << std::fixed << std::setprecision(2) << weight << " oz.";
-	else
-		ss << "It weighs " << std::fixed << std::setprecision(2) << weight << " oz.";
-
-	return ss.str();
+	double weight = getWeight();
+	return (weight > 0 ? getWeightDescription(weight) : "");
 }
 
 void Item::setUniqueId(uint16_t n)
 {
-	if(getUniqueId() != 0)
+	if(getUniqueId() != 0 && getActionId() != 2000)
 		return;
 
 	ItemAttributes::setUniqueId(n);
@@ -1310,7 +1258,7 @@ bool Item::canDecay()
 	if(isRemoved())
 		return false;
 
-	if(getUniqueId() != 0)
+	if(isLoadedFromMap() && (getUniqueId() != 0 || (getActionId() != 0 && getContainer())))
 		return false;
 
 	const ItemType& it = Item::items[id];
@@ -1318,25 +1266,6 @@ bool Item::canDecay()
 		return false;
 
 	return true;
-}
-
-int32_t Item::getWorth() const
-{
-	switch(getID())
-	{
-		case ITEM_COINS_GOLD:
-			return getItemCount();
-			break;
-		case ITEM_COINS_PLATINUM:
-			return getItemCount() * 100;
-			break;
-		case ITEM_COINS_CRYSTAL:
-			return getItemCount() * 10000;
-			break;
-		default:
-			return 0;
-			break;
-	}
 }
 
 void Item::getLight(LightInfo& lightInfo)
@@ -1353,11 +1282,10 @@ const std::string& ItemAttributes::getStrAttr(itemAttrTypes type) const
 	if(!validateStrAttrType(type))
 		return emptyString;
 
-	Attribute* attr = getAttrConst(type);
-	if(attr)
+	if(Attribute* attr = getAttrConst(type))
 		return *(std::string*)attr->value;
-	else
-		return emptyString;
+
+	return emptyString;
 }
 
 void ItemAttributes::setStrAttr(itemAttrTypes type, const std::string& value)
@@ -1368,8 +1296,7 @@ void ItemAttributes::setStrAttr(itemAttrTypes type, const std::string& value)
 	if(value.length() == 0)
 		return;
 
-	Attribute* attr = getAttr(type);
-	if(attr)
+	if(Attribute* attr = getAttr(type))
 	{
 		if(attr->value)
 			delete (std::string*)attr->value;
@@ -1419,6 +1346,7 @@ void ItemAttributes::removeAttribute(itemAttrTypes type)
 				delete curAttr;
 				return;
 			}
+
 			//advance in the linked list
 			prevAttr = curAttr;
 			curAttr = curAttr->next;
@@ -1431,11 +1359,10 @@ uint32_t ItemAttributes::getIntAttr(itemAttrTypes type) const
 	if(!validateIntAttrType(type))
 		return 0;
 
-	Attribute* attr = getAttrConst(type);
-	if(attr)
+	if(Attribute* attr = getAttrConst(type))
 		return static_cast<uint32_t>(0xFFFFFFFF & reinterpret_cast<ptrdiff_t>(attr->value));
-	else
-		return 0;
+
+	return 0;
 }
 
 void ItemAttributes::setIntAttr(itemAttrTypes type, int32_t value)
@@ -1443,8 +1370,7 @@ void ItemAttributes::setIntAttr(itemAttrTypes type, int32_t value)
 	if(!validateIntAttrType(type))
 		return;
 
-	Attribute* attr = getAttr(type);
-	if(attr)
+	if(Attribute* attr = getAttr(type))
 		attr->value = reinterpret_cast<void*>(static_cast<ptrdiff_t>(value));
 }
 
@@ -1453,8 +1379,7 @@ void ItemAttributes::increaseIntAttr(itemAttrTypes type, int32_t value)
 	if(!validateIntAttrType(type))
 		return;
 
-	Attribute* attr = getAttr(type);
-	if(attr)
+	if(Attribute* attr = getAttr(type))
 		attr->value = reinterpret_cast<void*>(static_cast<ptrdiff_t>(static_cast<uint32_t>(0xFFFFFFFF & reinterpret_cast<ptrdiff_t>(attr->value)) + value));
 }
 
@@ -1479,13 +1404,13 @@ bool ItemAttributes::validateIntAttrType(itemAttrTypes type)
 		case ATTR_ITEM_ARMOR:
 		case ATTR_ITEM_ATTACKSPEED:
 		case ATTR_ITEM_HITCHANCE:
+		case ATTR_ITEM_SHOOTRANGE:
 			return true;
-			break;
 
 		default:
-			return false;
 			break;
 	}
+
 	return false;
 }
 
@@ -1500,12 +1425,11 @@ bool ItemAttributes::validateStrAttrType(itemAttrTypes type)
 		case ATTR_ITEM_PLURALNAME:
 		case ATTR_ITEM_ARTICLE:
 			return true;
-			break;
 
 		default:
-			return false;
 			break;
 	}
+
 	return false;
 }
 
@@ -1538,7 +1462,8 @@ ItemAttributes::Attribute* ItemAttributes::getAttrConst(itemAttrTypes type) cons
 
 		curAttr = curAttr->next;
 	}
-	std::cout << "Warning: [ItemAttributes::getAttrConst] (type & m_attributes) != 0 but attribute not found" << std::endl;
+
+	std::cout << "[Warning - ItemAttributes::getAttrConst] (type & m_attributes) != 0 but attribute not found" << std::endl;
 	return NULL;
 }
 
@@ -1562,7 +1487,8 @@ ItemAttributes::Attribute* ItemAttributes::getAttr(itemAttrTypes type)
 			curAttr = curAttr->next;
 		}
 	}
-	std::cout << "Warning: [ItemAttributes::getAttr] (type & m_attributes) != 0 but attribute not found" << std::endl;
+
+	std::cout << "[Warning - ItemAttributes::getAttr] (type & m_attributes) != 0 but attribute not found" << std::endl;
 	curAttr = new Attribute(type);
 	addAttr(curAttr);
 	return curAttr;

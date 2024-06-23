@@ -3,7 +3,7 @@
 		The Forgotten Server
 
 	Version
-		0.3 Beta 1
+		0.3 Beta 2
 
 	Codenamed
 		\
@@ -15,12 +15,9 @@
 		http://otland.net/
 ]
 
-[ FEATURES
-	PvP Arenas
+[ BUGS
+	Finish boost_thread support (Scheduler, Tasks, Main[?])
 		Assigned to: Elf
-
-	Multiworld system (revmultisys methods + custom config path from argv)
-		Assigned to: Elf, Kiper
 ]
 
 [ TASKS

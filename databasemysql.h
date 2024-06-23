@@ -31,6 +31,7 @@
 #include <mysql/mysql.h>
 #endif
 #include <sstream>
+#include <map>
 
 #ifndef __DISABLE_DIRTY_RECONNECT__
 #define MAX_RECONNECT_ATTEMPTS 3
@@ -65,6 +66,7 @@ class DatabaseMySQL : public _Database
 #endif
 
 		MYSQL m_handle;
+		my_bool myTrue, myFalse;
 #ifndef __DISABLE_DIRTY_RECONNECT__
 		uint32_t m_attempts;
 #endif

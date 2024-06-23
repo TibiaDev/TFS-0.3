@@ -85,13 +85,12 @@ bool Combat::getMinMaxValues(Creature* creature, Creature* target, int32_t& min,
 			case FORMULA_SKILL:
 			{
 				min = (int32_t)minb;
-
 				Item* tool = player->getWeapon();
 				if(const Weapon* weapon = g_weapons->getWeapon(tool))
 				{
-						max = (int32_t)(weapon->getWeaponDamage(player, target, tool, true) * maxa + maxb);
-						if(params.useCharges && tool->hasCharges())
-							g_game.transformItem(tool, tool->getID(), std::max((int32_t)0, ((int32_t)tool->getCharges()) - 1));
+					max = (int32_t)(weapon->getWeaponDamage(player, target, tool, true) * maxa + maxb);
+					if(params.useCharges && tool->hasCharges())
+						g_game.transformItem(tool, tool->getID(), std::max((int32_t)0, ((int32_t)tool->getCharges()) - 1));
 				}
 				else
 					max = (int32_t)maxb;
@@ -207,60 +206,6 @@ ConditionType_t Combat::DamageToConditionType(CombatType_t type)
 	return CONDITION_NONE;
 }
 
-bool Combat::isPlayerCombat(const Creature* target)
-{
-	if(target->getPlayer() || (target->isSummon() && target->getMaster()->getPlayer()))
-		return true;
-
-	return false;
-}
-
-ReturnValue Combat::canTargetCreature(const Player* player, const Creature* target)
-{
-	if(player == target)
-		return RET_YOUMAYNOTATTACKTHISPLAYER;
-
-	if(!player->hasFlag(PlayerFlag_IgnoreProtectionZone))
-	{
-		//pz-zone
-		if(player->getZone() == ZONE_PROTECTION)
-			return RET_YOUMAYNOTATTACKAPERSONWHILEINPROTECTIONZONE;
-
-		if(target->getZone() == ZONE_PROTECTION)
-			return RET_YOUMAYNOTATTACKAPERSONINPROTECTIONZONE;
-
-		//nopvp-zone
-		if(isPlayerCombat(target))
-		{
-			if(player->getZone() == ZONE_NOPVP)
-				return RET_ACTIONNOTPERMITTEDINANOPVPZONE;
-
-			if(target->getZone() == ZONE_NOPVP)
-				return RET_YOUMAYNOTATTACKAPERSONINPROTECTIONZONE;
-		}
-	}
-
-	if(player->hasFlag(PlayerFlag_CannotUseCombat) || !target->isAttackable())
-	{
-		if(target->getPlayer())
-			return RET_YOUMAYNOTATTACKTHISPLAYER;
-
-		return RET_YOUMAYNOTATTACKTHISCREATURE;
-	}
-
-	if(target->getPlayer())
-	{
-		if(isProtected(player, target->getPlayer()))
-			return RET_YOUMAYNOTATTACKTHISPLAYER;
-
-		if(player->getSecureMode() == SECUREMODE_ON && !Combat::isInPvpZone(player, target) &&
-			player->getSkullClient(target->getPlayer()) == SKULL_NONE)
-			return RET_TURNSECUREMODETOATTACKUNMARKEDPLAYERS;
-	}
-
-	return Combat::canDoCombat(player, target);
-}
-
 ReturnValue Combat::canDoCombat(const Creature* caster, const Tile* tile, bool isAggressive)
 {
 	if(tile->hasProperty(BLOCKPROJECTILE) || tile->floorChange() || tile->getTeleportItem())
@@ -288,23 +233,107 @@ ReturnValue Combat::canDoCombat(const Creature* caster, const Tile* tile, bool i
 	return RET_NOERROR;
 }
 
-bool Combat::isInPvpZone(const Creature* attacker, const Creature* target)
+ReturnValue Combat::canDoCombat(const Creature* attacker, const Creature* target)
 {
-	if(attacker->getZone() != ZONE_PVP)
-		return false;
+	if(!attacker)
+		return RET_NOERROR;
 
-	if(target->getZone() != ZONE_PVP)
-		return false;
+	bool checkZones = false;
+	if(const Player* targetPlayer = target->getPlayer())
+	{
+		if(!targetPlayer->isAttackable())
+			return RET_YOUMAYNOTATTACKTHISPLAYER;
 
-	return true;
+		const Player* attackerPlayer = NULL;
+		if((attackerPlayer = attacker->getPlayer()) || (attacker->getMaster()
+			&& (attackerPlayer = attacker->getMaster()->getPlayer())))
+		{
+			checkZones = true;
+			if((g_game.getWorldType() == WORLD_TYPE_NO_PVP && !Combat::isInPvpZone(attacker, target)) ||
+				isProtected(const_cast<Player*>(attackerPlayer), const_cast<Player*>(targetPlayer)))
+				return RET_YOUMAYNOTATTACKTHISPLAYER;
+		}
+	}
+	else if(target->getMonster())
+	{
+		if(!target->isAttackable())
+			return RET_YOUMAYNOTATTACKTHISCREATURE;
+
+		const Player* attackerPlayer = NULL;
+		if((attackerPlayer = attacker->getPlayer()) || (attacker->getMaster()
+			&& (attackerPlayer = attacker->getMaster()->getPlayer())))
+		{
+			if(attackerPlayer->hasFlag(PlayerFlag_CannotAttackMonster))
+				return RET_YOUMAYNOTATTACKTHISCREATURE;
+
+			if(target->getMaster() && target->getMaster()->getPlayer())
+			{
+				checkZones = true;
+				if(g_game.getWorldType() == WORLD_TYPE_NO_PVP && !Combat::isInPvpZone(attacker, target))
+					return RET_YOUMAYNOTATTACKTHISCREATURE;
+			}
+		}
+	}
+
+	if(checkZones)
+	{
+		if(target->getTile()->hasFlag(TILESTATE_NOPVPZONE) || (attacker->getTile()->hasFlag(TILESTATE_NOPVPZONE) &&
+			!target->getTile()->hasFlag(TILESTATE_NOPVPZONE) && !target->getTile()->hasFlag(TILESTATE_PROTECTIONZONE)))
+			return RET_ACTIONNOTPERMITTEDINANOPVPZONE;
+	}
+
+	return RET_NOERROR;
 }
 
-bool Combat::isProtected(const Player* attacker, const Player* target)
+ReturnValue Combat::canTargetCreature(const Player* player, const Creature* target)
+{
+	if(player == target)
+		return RET_YOUMAYNOTATTACKTHISPLAYER;
+
+	if(!player->hasFlag(PlayerFlag_IgnoreProtectionZone))
+	{
+		if(player->getZone() == ZONE_PROTECTION)
+			return RET_YOUMAYNOTATTACKAPERSONWHILEINPROTECTIONZONE;
+
+		if(target->getZone() == ZONE_PROTECTION)
+			return RET_YOUMAYNOTATTACKAPERSONINPROTECTIONZONE;
+
+		if(target->getPlayer() || (target->getMaster() && target->getMaster()->getPlayer()))
+		{
+			if(player->getZone() == ZONE_NOPVP)
+				return RET_ACTIONNOTPERMITTEDINANOPVPZONE;
+
+			if(target->getZone() == ZONE_NOPVP)
+				return RET_YOUMAYNOTATTACKAPERSONINPROTECTIONZONE;
+		}
+	}
+
+	if(player->hasFlag(PlayerFlag_CannotUseCombat) || !target->isAttackable())
+	{
+		if(target->getPlayer())
+			return RET_YOUMAYNOTATTACKTHISPLAYER;
+
+		return RET_YOUMAYNOTATTACKTHISCREATURE;
+	}
+
+	if(target->getPlayer() && player->getSecureMode() == SECUREMODE_ON && !Combat::isInPvpZone(player, target)
+		&& player->getSkullClient(target->getPlayer()) == SKULL_NONE)
+		return RET_TURNSECUREMODETOATTACKUNMARKEDPLAYERS;
+
+	return Combat::canDoCombat(player, target);
+}
+
+bool Combat::isInPvpZone(const Creature* attacker, const Creature* target)
+{
+	return attacker->getZone() == ZONE_PVP && target->getZone() == ZONE_PVP;
+}
+
+bool Combat::isProtected(Player* attacker, Player* target)
 {
 	if(attacker->hasFlag(PlayerFlag_CannotAttackPlayer) || !target->isAttackable())
 		return true;
 
-	if(g_config.getBool(ConfigManager::PVP_TILE_IGNORE_PROTECTION) && isInPvpZone(attacker, target))
+	if(attacker->getZone() == ZONE_PVP && target->getZone() == ZONE_PVP && g_config.getBool(ConfigManager::PVP_TILE_IGNORE_PROTECTION))
 		return false;
 
 	if(attacker->hasCustomFlag(PlayerCustomFlag_IsProtected) || target->hasCustomFlag(PlayerCustomFlag_IsProtected))
@@ -318,69 +347,6 @@ bool Combat::isProtected(const Player* attacker, const Player* target)
 		return true;
 
 	return false;
-}
-
-ReturnValue Combat::canDoCombat(const Creature* attacker, const Creature* target)
-{
-	if(attacker)
-	{
-		if(const Player* targetPlayer = target->getPlayer())
-		{
-			if(!targetPlayer->isAttackable())
-				return RET_YOUMAYNOTATTACKTHISPLAYER;
-
-			if(const Player* attackerPlayer = attacker->getPlayer())
-			{
-				if(isProtected(attackerPlayer, targetPlayer))
-					return RET_YOUMAYNOTATTACKTHISPLAYER;
-
-				if(targetPlayer->getTile()->hasFlag(TILESTATE_NOPVPZONE) ||
-					(attackerPlayer->getTile()->hasFlag(TILESTATE_NOPVPZONE) &&
-					!targetPlayer->getTile()->hasFlag(TILESTATE_NOPVPZONE) &&
-					!targetPlayer->getTile()->hasFlag(TILESTATE_PROTECTIONZONE)))
-					return RET_ACTIONNOTPERMITTEDINANOPVPZONE;
-			}
-			else if(attacker->isSummon())
-			{
-				if(const Player* masterAttackerPlayer = attacker->getMaster()->getPlayer())
-				{
-					if(isProtected(masterAttackerPlayer, targetPlayer))
-						return RET_YOUMAYNOTATTACKTHISPLAYER;
-
-					if(targetPlayer->getTile()->hasFlag(TILESTATE_NOPVPZONE) ||
-						(masterAttackerPlayer->getTile()->hasFlag(TILESTATE_NOPVPZONE) &&
-						!targetPlayer->getTile()->hasFlag(TILESTATE_NOPVPZONE) &&
-						!targetPlayer->getTile()->hasFlag(TILESTATE_PROTECTIONZONE)))
-						return RET_ACTIONNOTPERMITTEDINANOPVPZONE;
-				}
-			}
-		}
-		else if(target->getMonster())
-		{
-			if(const Player* attackerPlayer = attacker->getPlayer())
-			{
-				if(attackerPlayer->hasFlag(PlayerFlag_CannotAttackMonster))
-					return RET_YOUMAYNOTATTACKTHISCREATURE;
-
-				if(target->isSummon() && target->getMaster()->getPlayer() && target->getZone() == ZONE_NOPVP)
-					return RET_ACTIONNOTPERMITTEDINANOPVPZONE;
-			}
-		}
-
-		if(g_game.getWorldType() == WORLD_TYPE_NO_PVP)
-		{
-			if(attacker->getPlayer() || (attacker->isSummon() && attacker->getMaster()->getPlayer()))
-			{
-				if(target->getPlayer() && !isInPvpZone(attacker, target))
-					return RET_YOUMAYNOTATTACKTHISPLAYER;
-
-				if(target->isSummon() && target->getMaster()->getPlayer() && !isInPvpZone(attacker, target))
-					return RET_YOUMAYNOTATTACKTHISCREATURE;
-			}
-		}
-	}
-
-	return RET_NOERROR;
 }
 
 void Combat::setPlayerCombatValues(formulaType_t _type, double _mina, double _minb, double _maxa, double _maxb)
@@ -615,7 +581,7 @@ void Combat::combatTileEffects(const SpectatorVec& list, Creature* caster, Tile*
 						break;
 				}
 			}
-			else if(itemId == ITEM_FIREFIELD_PVP || itemId == ITEM_POISONFIELD_PVP || itemId == ITEM_ENERGYFIELD_PVP)
+			else if(params.isAggressive && !Item::items[itemId].blockSolid)
 				pzLock = true;
 
 			player->addInFightTicks(pzLock);
@@ -626,7 +592,7 @@ void Combat::combatTileEffects(const SpectatorVec& list, Creature* caster, Tile*
 			if(caster)
 				item->setOwner(caster->getID());
 
-			if(g_game.internalAddItem(tile, item) == RET_NOERROR)
+			if(g_game.internalAddItem(caster, tile, item) == RET_NOERROR)
 				g_game.startDecay(item);
 			else
 				delete item;
@@ -1372,7 +1338,7 @@ void MagicField::onStepInField(Creature* creature)
 {
 	//remove magic walls/wild growth
 	if(isBlocking())
-		g_game.internalRemoveItem(this, 1);
+		g_game.internalRemoveItem(creature, this, 1);
 	else
 	{
 		const ItemType& it = items[getID()];

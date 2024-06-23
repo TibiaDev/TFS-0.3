@@ -40,6 +40,9 @@ extern ConfigManager g_config;
 
 DatabaseMySQL::DatabaseMySQL()
 {
+	myTrue = true;
+	myFalse = false;
+
 	m_connected = false;
 	if(!mysql_init(&m_handle))
 	{
@@ -47,8 +50,7 @@ DatabaseMySQL::DatabaseMySQL()
 		return;
 	}
 
-	my_bool reconnect = true;
-	mysql_options(&m_handle, MYSQL_OPT_RECONNECT, &reconnect);
+	mysql_options(&m_handle, MYSQL_OPT_RECONNECT, &myTrue);
 	if(!mysql_real_connect(&m_handle, g_config.getString(ConfigManager::SQL_HOST).c_str(), g_config.getString(ConfigManager::SQL_USER).c_str(), g_config.getString(ConfigManager::SQL_PASS).c_str(), g_config.getString(ConfigManager::SQL_DB).c_str(), g_config.getNumber(ConfigManager::SQL_PORT), NULL, 0))
 	{
 		std::cout << "Failed connecting to database. MYSQL ERROR: " << mysql_error(&m_handle) << std::endl;
@@ -255,8 +257,8 @@ int32_t MySQLResult::getDataInt(const std::string &s)
 	{
 		if(m_row[it->second] == NULL)
 			return 0;
-		else
-			return atoi(m_row[it->second]);
+
+		return atoi(m_row[it->second]);
 	}
 
 	std::cout << "Error during getDataInt(" << s << ")." << std::endl;
@@ -270,8 +272,8 @@ int64_t MySQLResult::getDataLong(const std::string &s)
 	{
 		if(m_row[it->second] == NULL)
 			return 0;
-		else
-			return ATOI64(m_row[it->second]);
+
+		return ATOI64(m_row[it->second]);
 	}
 
 	std::cout << "Error during getDataLong(" << s << ")." << std::endl;
@@ -285,8 +287,8 @@ std::string MySQLResult::getDataString(const std::string &s)
 	{
 		if(m_row[it->second] == NULL)
 			return std::string("");
-		else
-			return std::string(m_row[it->second]);
+
+		return std::string(m_row[it->second]);
 	}
 
 	std::cout << "Error during getDataString(" << s << ")." << std::endl;
@@ -303,11 +305,9 @@ const char* MySQLResult::getDataStream(const std::string &s, uint64_t &size)
 			size = 0;
 			return NULL;
 		}
-		else
-		{
-			size = mysql_fetch_lengths(m_handle)[it->second];
-			return m_row[it->second];
-		}
+
+		size = mysql_fetch_lengths(m_handle)[it->second];
+		return m_row[it->second];
 	}
 
 	std::cout << "Error during getDataStream(" << s << ")." << std::endl;

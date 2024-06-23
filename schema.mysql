@@ -35,29 +35,32 @@ CREATE TABLE `server_config`
 	UNIQUE (`config`)
 ) ENGINE = InnoDB;
 
-INSERT INTO `server_config` VALUES ('db_version', 6);
+INSERT INTO `server_config` VALUES ('db_version', 8);
 
 CREATE TABLE `server_motd`
 (
-	`id` INT NOT NULL AUTO_INCREMENT,
+	`id` INT UNSIGNED NOT NULL,
+	`world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0,
 	`text` TEXT NOT NULL,
-	PRIMARY KEY (`id`)
+	UNIQUE (`id`, `world_id`)
 ) ENGINE = InnoDB;
 
-INSERT INTO `server_motd` VALUES (1, 'Welcome to The Forgotten Server!');
+INSERT INTO `server_motd` VALUES (1, 0, 'Welcome to The Forgotten Server!');
 
 CREATE TABLE `server_record`
 (
 	`record` INT NOT NULL,
 	`timestamp` BIGINT NOT NULL,
-	UNIQUE (`timestamp`, `record`)
+	`world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0,
+	UNIQUE (`timestamp`, `record`, `world_id`)
 ) ENGINE = InnoDB;
 
-INSERT INTO `server_record` VALUES (0, 0);
+INSERT INTO `server_record` VALUES (0, 0, 0);
 
 CREATE TABLE `server_reports`
 (
 	`id` INT NOT NULL AUTO_INCREMENT,
+	`world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0,
 	`player_id` INT UNSIGNED NOT NULL DEFAULT 0,
 	`posx` INT NOT NULL DEFAULT 0,
 	`posy` INT NOT NULL DEFAULT 0,
@@ -66,7 +69,7 @@ CREATE TABLE `server_reports`
 	`report` TEXT NOT NULL,
 	`reads` INT NOT NULL DEFAULT 0,
 	PRIMARY KEY (`id`),
-	KEY (`reads`)
+	KEY (`world_id`), KEY (`reads`)
 ) ENGINE = InnoDB;
 
 CREATE TABLE `groups`
@@ -112,6 +115,7 @@ CREATE TABLE `players`
 (
 	`id` INT NOT NULL AUTO_INCREMENT,
 	`name` VARCHAR(255) NOT NULL,
+	`world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0,
 	`group_id` INT NOT NULL DEFAULT 1,
 	`account_id` INT NOT NULL DEFAULT 0,
 	`level` INT NOT NULL DEFAULT 1,
@@ -165,7 +169,7 @@ CREATE TABLE `players`
 	FOREIGN KEY (`group_id`) REFERENCES `groups`(`id`)
 ) ENGINE = InnoDB;
 
-INSERT INTO `players` VALUES (1, 'Account Manager', 1, 1, 1, 0, 150, 150, 0, 0, 0, 0, 0, 110, 0, 0, 0, 0, 0, 0, 0, 50, 50, 7, '', 400, 0, 0, 0, 0, 0, 0, 0, '', 0, 0, 0, 201660000, 0, 10, 10, 10, 10, 0, 0, 0, 0, 0);
+INSERT INTO `players` VALUES (1, 'Account Manager', 0, 1, 1, 1, 0, 150, 150, 0, 0, 0, 0, 0, 110, 0, 0, 0, 0, 0, 0, 0, 50, 50, 7, '', 400, 0, 0, 0, 0, 0, 0, 0, '', 0, 0, 0, 201660000, 0, 10, 10, 10, 10, 0, 0, 0, 0, 0);
 
 CREATE TABLE `bans`
 (
@@ -188,24 +192,27 @@ CREATE TABLE `bans`
 CREATE TABLE `global_storage`
 (
 	`key` INT UNSIGNED NOT NULL,
+	`world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0,
 	`value` VARCHAR(255) NOT NULL DEFAULT '0',
-	UNIQUE  (`key`)
+	UNIQUE  (`key`, `world_id`)
 ) ENGINE = InnoDB;
 
 CREATE TABLE `guilds`
 (
 	`id` INT NOT NULL AUTO_INCREMENT,
+	`world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0,
 	`name` VARCHAR(255) NOT NULL COMMENT 'guild name - nothing else needed here',
 	`ownerid` INT NOT NULL,
 	`creationdata` INT NOT NULL,
 	`motd` VARCHAR(255) NOT NULL,
-	PRIMARY KEY (`id`)
+	PRIMARY KEY (`id`),
+	UNIQUE (`name`, `world_id`)
 ) ENGINE = InnoDB;
 
 CREATE TABLE `guild_invites`
 (
-	`player_id` INT UNSIGNED NOT NULL DEFAULT 0,
-	`guild_id` INT UNSIGNED NOT NULL DEFAULT 0,
+	`player_id` INT NOT NULL DEFAULT 0,
+	`guild_id` INT NOT NULL DEFAULT 0,
 	UNIQUE (`player_id`, `guild_id`)
 ) ENGINE = InnoDB;
 
@@ -221,15 +228,17 @@ CREATE TABLE `guild_ranks`
 
 CREATE TABLE `house_lists`
 (
-	`house_id` INT NOT NULL,
+	`house_id` INT UNSIGNED NOT NULL,
+	`world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0,
 	`listid` INT NOT NULL,
 	`list` TEXT NOT NULL,
-	UNIQUE (`house_id`, `listid`)
+	UNIQUE (`house_id`, `world_id`, `listid`)
 ) ENGINE = InnoDB;
 
 CREATE TABLE `houses`
 (
-	`id` INT NOT NULL AUTO_INCREMENT,
+	`id` INT UNSIGNED NOT NULL,
+	`world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0,
 	`owner` INT NOT NULL,
 	`paid` INT UNSIGNED NOT NULL DEFAULT 0,
 	`warnings` INT NOT NULL DEFAULT 0,
@@ -239,7 +248,7 @@ CREATE TABLE `houses`
 	`size` INT UNSIGNED NOT NULL DEFAULT 0,
 	`price` INT UNSIGNED NOT NULL DEFAULT 0,
 	`rent` INT UNSIGNED NOT NULL DEFAULT 0,
-	PRIMARY KEY (`id`)
+	UNIQUE (`id`, `world_id`)
 ) ENGINE = InnoDB;
 
 CREATE TABLE `player_deaths`
@@ -318,22 +327,25 @@ CREATE TABLE `player_viplist`
 
 CREATE TABLE `tiles`
 (
-	`id` INT NOT NULL AUTO_INCREMENT,
+	`id` INT UNSIGNED NOT NULL,
+	`world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0,
 	`x` INT(5) UNSIGNED NOT NULL,
 	`y` INT(5) UNSIGNED NOT NULL,
 	`z` TINYINT(2) UNSIGNED NOT NULL,
-	PRIMARY KEY (`id`),
+	UNIQUE (`id`, `world_id`),
 	KEY (`x`, `y`, `z`)
 ) ENGINE = InnoDB;
 
 CREATE TABLE `tile_items`
 (
-	`tile_id` INT NOT NULL,
+	`tile_id` INT UNSIGNED NOT NULL,
+	`world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0,
 	`sid` INT NOT NULL,
 	`pid` INT NOT NULL DEFAULT 0,
 	`itemtype` INT NOT NULL,
 	`count` INT NOT NULL DEFAULT 0,
 	`attributes` BLOB NOT NULL,
+	UNIQUE (`tile_id`, `world_id`, `sid`),
 	KEY (`sid`),
 	FOREIGN KEY (`tile_id`) REFERENCES `tiles`(`id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;

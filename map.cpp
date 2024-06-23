@@ -214,7 +214,7 @@ bool Map::placeCreature(const Position& centerPos, Creature* creature, bool exte
 	}
 
 	size_t shufflePos = 0;
-	PositionVec relList;
+	PairVector relList;
 	if(extendedPos)
 	{
 		shufflePos = 8;
@@ -239,7 +239,7 @@ bool Map::placeCreature(const Position& centerPos, Creature* creature, bool exte
 	Position tryPos;
 	for(uint32_t n = 1; n <= radius && !foundTile; ++n)
 	{
-		for(PositionVec::iterator it = relList.begin(); it != relList.end() && !foundTile; ++it)
+		for(PairVector::iterator it = relList.begin(); it != relList.end() && !foundTile; ++it)
 		{
 			int32_t dx = it->first * n;
 			int32_t dy = it->second * n;
@@ -1303,7 +1303,7 @@ uint32_t Map::clean()
 											item = tile->__getThing(i)->getItem();
 											if(item && !item->isLoadedFromMap() && !item->isNotMoveable())
 											{
-												g_game.internalRemoveItem(item);
+												g_game.internalRemoveItem(NULL, item);
 												i--;
 												count++;
 											}

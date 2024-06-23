@@ -99,11 +99,11 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 	if(!action)
 		return false;
 
-	int32_t id, endId;
+	int32_t id, endId, tmp;
 	bool success = true;
 	if(readXMLInteger(p, "itemid", id))
 	{
-		if(useItemMap[id] != NULL)
+		if(useItemMap.find(id) != useItemMap.end())
 		{
 			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with id: " << id << std::endl;
 			return false;
@@ -113,9 +113,10 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 	}
 	else if(readXMLInteger(p, "fromid", id) && readXMLInteger(p, "toid", endId))
 	{
-		if(useItemMap[id] != NULL)
+		tmp = id;
+		if(useItemMap.find(id) != useItemMap.end())
 		{
-			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with id: " << id << std::endl;
+			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with id: " << id << ", in fromid: " << tmp << " and toid: " << endId << std::endl;
 			success = false;
 		}
 		else
@@ -124,9 +125,9 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 		while(id < endId)
 		{
 			id++;
-			if(useItemMap[id] != NULL)
+			if(useItemMap.find(id) != useItemMap.end())
 			{
-				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with id: " << id << std::endl;
+				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with id: " << id << ", in fromid: " << tmp << " and toid: " << endId << std::endl;
 				continue;
 			}
 
@@ -135,7 +136,7 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 	}
 	else if(readXMLInteger(p, "uniqueid", id))
 	{
-		if(uniqueItemMap[id] != NULL)
+		if(uniqueItemMap.find(id) != uniqueItemMap.end())
 		{
 			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with uniqueid: " << id << std::endl;
 			return false;
@@ -145,9 +146,10 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 	}
 	else if(readXMLInteger(p, "fromuid", id) && readXMLInteger(p, "touid", endId))
 	{
-		if(uniqueItemMap[id] != NULL)
+		tmp = id;
+		if(uniqueItemMap.find(id) != uniqueItemMap.end())
 		{
-			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with uniqueid: " << id << std::endl;
+			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with uniqueid: " << id << ", in fromuid: " << tmp << " and touid: " << endId << std::endl;
 			success = false;
 		}
 		else
@@ -156,9 +158,9 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 		while(id < endId)
 		{
 			id++;
-			if(uniqueItemMap[id] != NULL)
+			if(uniqueItemMap.find(id) != uniqueItemMap.end())
 			{
-				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with uniqueid: " << id << std::endl;
+				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with uniqueid: " << id << ", in fromuid: " << tmp << " and touid: " << endId << std::endl;
 				continue;
 			}
 
@@ -167,7 +169,7 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 	}
 	else if(readXMLInteger(p, "actionid", id))
 	{
-		if(actionItemMap[id] != NULL)
+		if(actionItemMap.find(id) != actionItemMap.end())
 		{
 			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with actionid: " << id << std::endl;
 			return false;
@@ -177,9 +179,10 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 	}
 	else if(readXMLInteger(p, "fromaid", id) && readXMLInteger(p, "toaid", endId))
 	{
-		if(actionItemMap[id] != NULL)
+		tmp = id;
+		if(actionItemMap.find(id) != actionItemMap.end())
 		{
-			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with actionid: " << id << std::endl;
+			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with actionid: " << id << ", in fromaid: " << tmp << " and toaid: " << endId << std::endl;
 			success = false;
 		}
 		else
@@ -188,9 +191,9 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 		while(id < endId)
 		{
 			id++;
-			if(actionItemMap[id] != NULL)
+			if(actionItemMap.find(id) != actionItemMap.end())
 			{
-				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with actionid: " << id << std::endl;
+				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with actionid: " << id << ", in fromaid: " << tmp << " and toaid: " << endId << std::endl;
 				continue;
 			}
 
@@ -395,6 +398,7 @@ ReturnValue Actions::internalUseItem(Player* player, const Position& pos, uint8_
 		return RET_NOERROR;
 	}
 
+	bool executed = getAction(item) != NULL;
 	if(Container* container = item->getContainer())
 	{
 		if(container->getCorpseOwner() != 0 && !player->canOpenCorpse(container->getCorpseOwner()))
@@ -422,7 +426,7 @@ ReturnValue Actions::internalUseItem(Player* player, const Position& pos, uint8_
 			player->onSendContainer(tmpContainer);
 		}
 
-		return RET_NOERROR;
+		executed = true;
 	}
 
 	if(item->isReadable())
@@ -438,10 +442,13 @@ ReturnValue Actions::internalUseItem(Player* player, const Position& pos, uint8_
 			player->sendTextWindow(item, 0, false);
 		}
 
-		return RET_NOERROR;
+		executed = true;
 	}
 
-	return RET_CANNOTUSETHISOBJECT;	
+	if(executed)
+		return RET_CANNOTUSETHISOBJECT;
+
+	return RET_NOERROR;
 }
 
 bool Actions::useItem(Player* player, const Position& pos, uint8_t index, Item* item, bool isHotkey)
@@ -475,11 +482,7 @@ bool Actions::useItem(Player* player, const Position& pos, uint8_t index, Item* 
 	if(isHotkey)
 		showUseHotkeyMessage(player, itemId, itemCount);
 
-	uint32_t delay = g_config.getNumber(ConfigManager::ACTIONS_DELAY_INTERVAL);
-	if(Spell* tmp = g_spells->getRuneSpell(item->getID()))
-		delay = tmp->getExhaustion();
-
-	player->setNextAction(OTSYS_TIME() + delay);
+	player->setNextAction(OTSYS_TIME() + g_config.getNumber(ConfigManager::ACTIONS_DELAY_INTERVAL));
 	return true;
 }
 
@@ -583,11 +586,7 @@ bool Actions::useItemEx(Player* player, const Position& fromPos, const Position&
 	if(isHotkey)
 		showUseHotkeyMessage(player, itemId, itemCount);
 
-	uint32_t delay = g_config.getNumber(ConfigManager::EX_ACTIONS_DELAY_INTERVAL);
-	if(Spell* tmp = g_spells->getRuneSpell(item->getID()))
-		delay = tmp->getExhaustion();
-
-	player->setNextAction(OTSYS_TIME() + delay);
+	player->setNextAction(OTSYS_TIME() + g_config.getNumber(ConfigManager::EX_ACTIONS_DELAY_INTERVAL));
 	return true;
 }
 

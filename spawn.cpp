@@ -38,8 +38,7 @@ extern Game g_game;
 
 Spawns::Spawns()
 {
-	loaded = false;
-	started = false;
+	loaded = started = false;
 	filename = "";
 }
 
@@ -54,9 +53,7 @@ bool Spawns::loadFromXml(const std::string& _filename)
 		return true;
 
 	filename = _filename;
-
 	xmlDocPtr doc = xmlParseFile(filename.c_str());
-
 	if(doc)
 	{
 		xmlNodePtr root, spawnNode;
@@ -263,8 +260,8 @@ void Spawns::startup()
 
 	for(NpcList::iterator it = npcList.begin(); it != npcList.end(); ++it)
 		g_game.placeCreature((*it), (*it)->getMasterPos(), false, true);
-	npcList.clear();
 
+	npcList.clear();
 	for(SpawnList::iterator it = spawnList.begin(); it != spawnList.end(); ++it)
 		(*it)->startup();
 
@@ -277,9 +274,7 @@ void Spawns::clear()
 		delete (*it);
 
 	spawnList.clear();
-
-	loaded = false;
-	started = false;
+	loaded = started = false;
 	filename = "";
 }
 
@@ -308,35 +303,32 @@ Spawn::Spawn(const Position& _pos, int32_t _radius)
 
 Spawn::~Spawn()
 {
-	Monster* monster;
+	stopEvent();
 	for(SpawnedMap::iterator it = spawnedMap.begin(); it != spawnedMap.end(); ++it)
 	{
-		monster = it->second;
-		it->second = NULL;
+		Monster* monster = it->second;
+		spawnedMap.erase(it->first);
 
 		monster->setSpawn(NULL);
 		if(monster->isRemoved())
-			monster->releaseThing2();
+			g_game.FreeThing(monster);
 	}
 
-	spawnedMap.clear();
 	spawnMap.clear();
-
-	stopEvent();
 }
 
 bool Spawn::findPlayer(const Position& pos)
 {
 	SpectatorVec list;
-	SpectatorVec::iterator it;
 	g_game.getSpectators(list, pos);
 
 	Player* tmpPlayer = NULL;
-	for(it = list.begin(); it != list.end(); ++it)
+	for(SpectatorVec::iterator it = list.begin(); it != list.end(); ++it)
 	{
 		if((tmpPlayer = (*it)->getPlayer()) && !tmpPlayer->hasFlag(PlayerFlag_IgnoredByMonsters))
 			return true;
 	}
+
 	return false;
 }
 
@@ -369,12 +361,12 @@ bool Spawn::spawnMonster(uint32_t spawnId, MonsterType* mType, const Position& p
 		}
 	}
 
-	monster->setDirection(dir);
 	monster->setSpawn(this);
-	monster->setMasterPos(pos, radius);
 	monster->useThing2();
+	monster->setDirection(dir);
+	monster->setMasterPos(pos, radius);
 
-	spawnedMap.insert(spawned_pair(spawnId, monster));
+	spawnedMap.insert(SpawnedPair(spawnId, monster));
 	spawnMap[spawnId].lastSpawn = OTSYS_TIME();
 	return true;
 }
@@ -413,7 +405,7 @@ void Spawn::checkSpawn()
 		}
 		else if(!isInSpawnZone(monster->getPosition()) && spawnId != 0)
 		{
-			spawnedMap.insert(spawned_pair(0, monster));
+			spawnedMap.insert(SpawnedPair(0, monster));
 			spawnedMap.erase(it++);
 		}
 		else
@@ -437,7 +429,6 @@ void Spawn::checkSpawn()
 				}
 
 				spawnMonster(spawnId, sb.mType, sb.pos, sb.direction);
-
 				++spawnCount;
 				if(spawnCount >= (uint32_t)g_config.getNumber(ConfigManager::RATE_SPAWN))
 					break;

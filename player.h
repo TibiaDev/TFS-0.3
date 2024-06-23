@@ -451,7 +451,7 @@ class Player : public Creature, public Cylinder
 		virtual void onAttacked();
 		virtual void onAttackedCreatureDrainHealth(Creature* target, int32_t points);
 		virtual void onTargetCreatureGainHealth(Creature* target, int32_t points);
-		virtual void onKilledCreature(Creature* target);
+		virtual bool onKilledCreature(Creature* target);
 		virtual void onGainExperience(uint64_t gainExp);
 		virtual void onGainSharedExperience(uint64_t gainExp);
 		virtual void onAttackedCreatureBlockHit(Creature* target, BlockType_t blockType);
@@ -593,7 +593,8 @@ class Player : public Creature, public Cylinder
 		void sendDistanceShoot(const Position& from, const Position& to, unsigned char type) const
 			{if(client) client->sendDistanceShoot(from, to, type);}
 		void sendHouseWindow(House* house, uint32_t listId) const;
-		void sendOutfitWindow() const;
+		void sendOutfitWindow() const
+			{if(client) client->sendOutfitWindow();}
 		void sendCreatePrivateChannel(uint16_t channelId, const std::string& channelName)
 			{if(client) client->sendCreatePrivateChannel(channelId, channelName);}
 		void sendClosePrivate(uint16_t channelId) const
@@ -653,11 +654,10 @@ class Player : public Creature, public Cylinder
 		void receivePing() {if(npings > 0) npings--;}
 
 		virtual void onThink(uint32_t interval);
-		virtual void onAttacking(uint32_t interval);
 		void sendCriticalHit() const;
 
-		virtual void postAddNotification(Thing* thing, int32_t index, cylinderlink_t link = LINK_OWNER);
-		virtual void postRemoveNotification(Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link = LINK_OWNER);
+		virtual void postAddNotification(Creature* actor, Thing* thing, int32_t index, cylinderlink_t link = LINK_OWNER);
+		virtual void postRemoveNotification(Creature* actor, Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link = LINK_OWNER);
 
 		void setNextAction(int64_t time) {if(time > nextAction) {nextAction = time;}}
 		bool canDoAction() const {return nextAction <= OTSYS_TIME();}
@@ -670,6 +670,7 @@ class Player : public Creature, public Cylinder
 		void setEditHouse(House* house, uint32_t listId = 0);
 
 		void learnInstantSpell(const std::string& name);
+		void unlearnInstantSpell(const std::string& name);
 		bool hasLearnedInstantSpell(const std::string& name) const;
 
 		DepotMap depots;
@@ -709,8 +710,8 @@ class Player : public Creature, public Cylinder
 		virtual Cylinder* __queryDestination(int32_t& index, const Thing* thing, Item** destItem,
 			uint32_t& flags);
 
-		virtual void __addThing(Thing* thing);
-		virtual void __addThing(int32_t index, Thing* thing);
+		virtual void __addThing(Creature* actor, Thing* thing);
+		virtual void __addThing(Creature* actor, int32_t index, Thing* thing);
 
 		virtual void __updateThing(Thing* thing, uint16_t itemId, uint32_t count);
 		virtual void __replaceThing(uint32_t index, Thing* thing);
@@ -888,9 +889,9 @@ class Player : public Creature, public Cylinder
 		void updateBaseSpeed()
 		{
 			if(!hasFlag(PlayerFlag_SetMaxSpeed))
-				baseSpeed = 220 + (2 * (level - 1));
+				baseSpeed = vocation->getBaseSpeed() + (2 * (level - 1));
 			else
-				baseSpeed = 900;
+				baseSpeed = PLAYER_MAX_SPEED;
 		}
 
 		bool isPromoted(uint32_t pLevel = 1) const {return promotionLevel >= pLevel;}

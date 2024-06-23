@@ -263,8 +263,7 @@ class Combat
 			const AreaCombat* area, std::list<Tile*>& list);
 
 		static bool isInPvpZone(const Creature* attacker, const Creature* target);
-		static bool isProtected(const Player* attacker, const Player* target);
-		static bool isPlayerCombat(const Creature* target);
+		static bool isProtected(Player* attacker, Player* target);
 		static CombatType_t ConditionToDamageType(ConditionType_t type);
 		static ConditionType_t DamageToConditionType(CombatType_t type);
 		static ReturnValue canTargetCreature(const Player* attacker, const Creature* target);

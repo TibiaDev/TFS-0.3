@@ -248,7 +248,6 @@ bool House::transferToDepot()
 				std::cout << "Failure: [House::transferToDepot], can not load player: " << ownerName << std::endl;
 #endif
 				delete player;
-				player = NULL;
 			}
 		}
 	}
@@ -281,7 +280,7 @@ bool House::transferToDepot()
 
 	for(std::list<Item*>::iterator it = moveItemList.begin(); it != moveItemList.end(); ++it)
 	{
-		g_game.internalMoveItem((*it)->getParent(), depot, INDEX_WHEREEVER,
+		g_game.internalMoveItem(NULL, (*it)->getParent(), depot, INDEX_WHEREEVER,
 			(*it), (*it)->getItemCount(), NULL, FLAG_NOLIMIT);
 	}
 
@@ -404,7 +403,7 @@ HouseTransferItem* House::getTransferItem()
 
 	transferContainer.setParent(NULL);
 	transferItem = HouseTransferItem::createHouseTransferItem(this);
-	transferContainer.__addThing(transferItem);
+	transferContainer.__addThing(NULL, transferItem);
 	return transferItem;
 }
 
@@ -442,7 +441,7 @@ bool HouseTransferItem::onTradeEvent(TradeEvents_t event, Player* owner)
 			if(House* house = getHouse())
 				house->executeTransfer(this, owner);
 
-			g_game.internalRemoveItem(this, 1);
+			g_game.internalRemoveItem(NULL, this, 1);
 			break;
 		}
 		case ON_TRADE_CANCEL:
@@ -926,15 +925,15 @@ bool Houses::payHouses()
 			{
 				if(player->isPremium() || !g_config.getBool(ConfigManager::HOUSE_NEED_PREMIUM))
 				{
-					//get money from depot then from bank
+					//get money from bank then from depot
 					bool paid = false;
-					if(g_game.removeMoney(depot, house->getRent(), FLAG_NOLIMIT))
-						paid = true;
-					else if(g_config.getBool(ConfigManager::BANK_SYSTEM) && player->balance >= house->getRent())
+					if(g_config.getBool(ConfigManager::BANK_SYSTEM) && player->balance >= house->getRent())
 					{
 						player->balance -= house->getRent();
 						paid = true;
 					}
+					else if(g_game.removeMoney(depot, house->getRent(), FLAG_NOLIMIT))
+						paid = true;
 
 					if(paid)
 					{
@@ -992,7 +991,7 @@ bool Houses::payHouses()
 								char warningText[200];
 								sprintf(warningText, "Warning! \nThe %s rent of %d gold for your house \"%s\" is payable. Have it within %d days or you will lose this house.", period.c_str(), house->getRent(), house->getName().c_str(), (7 - house->getPayRentWarnings()));
 								letter->setText(warningText);
-								g_game.internalAddItem(depot, letter, INDEX_WHEREEVER, FLAG_NOLIMIT);
+								g_game.internalAddItem(NULL, depot, letter, INDEX_WHEREEVER, FLAG_NOLIMIT);
 							}
 
 							house->setPayRentWarnings(house->getPayRentWarnings() + 1);
@@ -1064,10 +1063,15 @@ uint32_t Houses::getHousesCount(uint32_t accId) const
 {
 	Account account = IOLoginData::getInstance()->loadAccount(accId);
 	uint32_t guid, count = 0;
-
-	for(std::list<std::string>::iterator it = account.charList.begin(); it != account.charList.end(); ++it)
+#ifdef __LOGIN_SERVER__
+	for(CharactersMap::iterator it = account.charList.begin(); it != account.charList.end(); ++it)
+	{
+		if(IOLoginData::getInstance()->getGuidByName(guid, (std::string&)it->first) && getInstance().getHouseByPlayerId(guid))
+#else
+	for(StringVec::iterator it = account.charList.begin(); it != account.charList.end(); ++it)
 	{
 		if(IOLoginData::getInstance()->getGuidByName(guid, (*it)) && getInstance().getHouseByPlayerId(guid))
+#endif
 			count++;
 	}
 	return count;

@@ -1,5 +1,5 @@
 AC_PREREQ([2.50])
-AC_INIT([theforgottenserver], [0.3])
+AC_INIT([TheForgottenServer], [0.3])
 AM_INIT_AUTOMAKE([1.10 foreign])
 AC_CONFIG_SRCDIR([account.cpp])
 AM_CONFIG_HEADER([config.h])
@@ -7,26 +7,35 @@ AM_CONFIG_HEADER([config.h])
 AC_PROG_CXX
 AC_LANG(C++)
 
-# check if we want a debug build
-debugBuild=no
-AC_ARG_ENABLE(debug, [  --enable-debug      enable debuging],
-	[DEBUG_FLAGS="-D__DEBUG__MOVESYS__ -D__DEBUG_HOUSES__ -D__DEBUG_MAILBOX__ -D__DEBUG_LUASCRIPTS__ -D__DEBUG_NET__ -D__DEBUG__"]
-	debugBuild=yes
-)
-AC_SUBST(DEBUG_FLAGS)
-
-# check if we want otserv allocator enabled
-otservAllocator=no
-AC_ARG_ENABLE(otallocator, [  --enable-otallocator   enable otserv custom allocator],
-	[OPTIONAL_FLAGS="$OPTIONAL_FLAGS -D__OTSERV_ALLOCATOR__"]
-	otservAllocator=yes
-)
-
 # check if we want server diag enabled
 serverDiag=no
 AC_ARG_ENABLE(server-diag, [  --enable-server-diag   enable server diagnostic],
 	[OPTIONAL_FLAGS="$OPTIONAL_FLAGS -D__ENABLE_SERVER_DIAGNOSTIC__"]
 	serverDiag=yes
+)
+
+# check if we want login server mode
+AM_CONDITIONAL(LOGIN_SERVER, false)
+loginServer=no
+AC_ARG_ENABLE(login-server, [  --enable-login-server   enable login server mode],
+	[OPTIONAL_FLAGS="$OPTIONAL_FLAGS -D__LOGIN_SERVER__"]
+	AM_CONDITIONAL(LOGIN_SERVER, true)
+	loginServer=yes
+)
+
+# check if we want remote control feature
+AM_CONDITIONAL(REMOTE_CONTROL, false)
+remoteControl=no
+AC_ARG_ENABLE(remote-control, [  --enable-remote-control   enable remote control feature],
+	[OPTIONAL_FLAGS="$OPTIONAL_FLAGS -D__REMOTE_CONTROL__"]
+	AM_CONDITIONAL(REMOTE_CONTROL, true)
+	remoteControl=yes
+)
+# check if we want otserv allocator enabled
+otservAllocator=no
+AC_ARG_ENABLE(otserv-allocator, [  --enable-otserv-allocator   enable otserv custom allocator],
+	[OPTIONAL_FLAGS="$OPTIONAL_FLAGS -D__OTSERV_ALLOCATOR__"]
+	otservAllocator=yes
 )
 
 # check if we want homedir conf enabled
@@ -36,7 +45,21 @@ AC_ARG_ENABLE(homedir-conf, [  --enable-homedir-conf   enable home directory con
 	homedirConf=yes
 )
 
+# check do we want to compile with boost_thread
+boostThread=no
+AC_ARG_ENABLE(boost-thread, [  --enable-boost-thread   enable usage of libboost_thread],
+	[OPTIONAL_FLAGS="$OPTIONAL_FLAGS -D__USE_BOOST_THREAD__"]
+	boostThread=yes
+)
 AC_SUBST(OPTIONAL_FLAGS)
+
+# check if we want a debug build
+debugBuild=no
+AC_ARG_ENABLE(debug, [  --enable-debug      enable debuging],
+	[DEBUG_FLAGS="-D__DEBUG__MOVESYS__ -D__DEBUG_HOUSES__ -D__DEBUG_MAILBOX__ -D__DEBUG_LUASCRIPTS__ -D__DEBUG_NET__ -D__DEBUG__"]
+	debugBuild=yes
+)
+AC_SUBST(DEBUG_FLAGS)
 
 AM_CONDITIONAL(USE_MYSQL, false)
 useMySQL=no
@@ -116,14 +139,16 @@ LIBS="$LIBS $XML_LIBS"
 AC_CHECK_HEADERS([gmp.h], ,[AC_MSG_ERROR("GMP header not found.")])
 AC_CHECK_LIB(gmp, __gmpz_init2, ,[AC_MSG_ERROR("Linking against GMP failed.")])
 
-# check for boost
-#AC_CHECK_LIB(boost_thread-gcc-mt, main, , [
-#	AC_CHECK_LIB(boost_thread-mt, main, , [
-#		AC_CHECK_LIB(boost_thread, main, , [
-#			AC_MSG_ERROR("Linking against boost::thread library failed.")
-#		])
-#	])
-#])
+#check for boost
+if test "x$boostThread" = "xyes" ; then
+AC_CHECK_LIB(boost_thread-gcc-mt, main, , [
+	AC_CHECK_LIB(boost_thread-mt, main, , [
+		AC_CHECK_LIB(boost_thread, main, , [
+			AC_MSG_ERROR("Linking against boost::thread library failed.")
+		])
+	])
+])
+fi
 
 AC_CHECK_LIB(boost_regex-gcc-mt, main, , [
 	AC_CHECK_LIB(boost_regex-mt, main, , [
@@ -192,14 +217,17 @@ AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
 
 echo
-echo The Forgotten Server 0.3
-#echo $PACKAGE $VERSION
+#echo The Forgotten Server 0.3
+echo $PACKAGE $VERSION
 echo
-echo Debug build................. : $debugBuild
 echo Server diagnostics.......... : $serverDiag
+echo Login server mode........... : $loginServer
+echo Remote control.............. : $remoteControl
 echo OTServ custom allocator..... : $otservAllocator
 echo Home-directory configuration : $homedirConf
+echo Debug build................. : $debugBuild
 echo
+echo Build with libboost_thread.. : $boostThread
 echo Build with MySQL............ : $useMySQL
 echo Build with SQLite........... : $useSQLite
 echo Build with PostgreSQL....... : $usePostgreSQL

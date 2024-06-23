@@ -120,6 +120,9 @@ class ConfigManager
 			IPBANISHMENT_LENGTH,
 			MAX_PLAYER_SUMMONS,
 			FIELD_OWNERSHIP,
+			WORLD_ID,
+			EXTRA_PARTY_PERCENT,
+			EXTRA_PARTY_LIMIT,
 			LAST_NUMBER_CONFIG /* this must be the last one */
 		};
 
@@ -173,9 +176,14 @@ class ConfigManager
 			BLESSING_ONLY_PREMIUM,
 			BED_REQUIRE_PREMIUM,
 			ALLOW_CHANGECOLORS,
+			LOGIN_ONLY_LOGINSERVER,
+			STOP_ATTACK_AT_EXIT,
+			DISABLE_OUTFITS_PRIVILEGED,
+			OPTIMIZE_DB_AT_STARTUP,
 			LAST_BOOL_CONFIG /* this must be the last one */
 		};
 
+		static std::string filename;
 		bool loadFile(const std::string& _filename);
 		bool reload();
 

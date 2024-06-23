@@ -44,11 +44,10 @@ bool DatabaseManager::optimizeTables()
 			query.str("");
 			do
 			{
+				std::cout << "> Optimizing table: " << result->getDataString("TABLE_NAME") << std::endl;
 				query << "OPTIMIZE TABLE `" << result->getDataString("TABLE_NAME") << "`;";
-				if(db->executeQuery(query.str()))
-					std::cout << "> Optimizing table: " << result->getDataString("TABLE_NAME") << std::endl;
-				else
-					std::cout << "> Failed optimizing table: " << result->getDataString("TABLE_NAME") << std::endl;
+				if(!db->executeQuery(query.str()))
+					std::cout << "WARNING: Optimization failed." << std::endl;
 
 				query.str("");
 			}
@@ -201,6 +200,9 @@ uint32_t DatabaseManager::updateDatabase()
 	Database* db = Database::getInstance();
 
 	uint32_t version = getDatabaseVersion();
+	if(db->getDatabaseEngine() == DATABASE_ENGINE_ODBC)
+		return version;
+
 	if(version < 6 && db->getDatabaseEngine() == DATABASE_ENGINE_POSTGRESQL)
 	{
 		std::cout << "> WARNING: Couldn't update database - PostgreSQL support available since version 6, please use latest schema.pgsql." << std::endl;
@@ -216,7 +218,7 @@ uint32_t DatabaseManager::updateDatabase()
 			std::cout << "> Updating database to version: 1..." << std::endl;
 
 			DBQuery query;
-			if(db->getDatabaseEngine() != DATABASE_ENGINE_MYSQL)
+			if(db->getDatabaseEngine() == DATABASE_ENGINE_SQLITE)
 				query << "CREATE TABLE IF NOT EXISTS `server_config` ( `config` VARCHAR(35) NOT NULL DEFAULT '', `value` INTEGER NOT NULL );";
 			else
 				query << "CREATE TABLE IF NOT EXISTS `server_config` ( `config` VARCHAR(35) NOT NULL DEFAULT '', `value` INT NOT NULL ) ENGINE = InnoDB;";
@@ -226,9 +228,10 @@ uint32_t DatabaseManager::updateDatabase()
 			query << "INSERT INTO `server_config` VALUES ('db_version', 1);";
 			db->executeQuery(query.str());
 
-			if(db->getDatabaseEngine() != DATABASE_ENGINE_MYSQL)
+			if(db->getDatabaseEngine() == DATABASE_ENGINE_SQLITE)
 			{
-				//Updating from 0.2 with SQLite is not supported yet, so we'll stop here.
+				//TODO: 0.2 migration SQLite support
+				std::cerr << "> SQLite migration from 0.2 support not available, please use latest database!" << std::endl;
 				return 1;
 			}
 
@@ -364,7 +367,7 @@ uint32_t DatabaseManager::updateDatabase()
 				}
 
 				if(imported[0])
-					std::cout << "WARNING: It appears that you have more than 6 groups, there is nothing wrong with that you have more than 6 groups, but they weren't updated with the new settings from 0.3 which you might want to do!" << std::endl;
+					std::cout << "WARNING: It appears that you have more than 6 groups, there is nothing wrong with that you have more that, but they weren't updated with the new settings from 0.3 so you might want to take a look at them!" << std::endl;
 
 				//Update players table
 				query.str("");
@@ -742,6 +745,97 @@ uint32_t DatabaseManager::updateDatabase()
 			query.str("");
 			registerDatabaseConfig("db_version", 6);
 			return 6;
+		}
+
+		case 6:
+		{
+			std::cout << "> Updating database to version: 7..." << std::endl;
+			if(g_config.getBool(ConfigManager::INGAME_GUILD_MANAGEMENT))
+			{
+				DBResult* result;
+
+				DBQuery query;
+				query << "SELECT `r`.`id`, `r`.`guild_id` FROM `guild_ranks` r LEFT JOIN `guilds` g ON `r`.`guild_id` = `g`.`id` WHERE `g`.`ownerid` = `g`.`id` AND `r`.`level` = 3;";
+				if((result = db->storeQuery(query.str())))
+				{
+					do
+					{
+						query.str("");
+						query << "UPDATE `guilds`, `players` SET `guilds`.`ownerid` = `players`.`id` WHERE `guilds`.`id` = " << result->getDataInt("guild_id") << " AND `players`.`rank_id` = " << result->getDataInt("id") << ";";
+						db->executeQuery(query.str());
+					}
+					while(result->next());
+					db->freeResult(result);
+				}
+
+				query.str("");
+			}
+
+			registerDatabaseConfig("db_version", 7);
+			return 7;
+		}
+
+		case 7:
+		{
+			//DBResult* result;
+			std::cout << "> Updating database version to: 8..." << std::endl;
+
+			DBQuery query;
+			switch(db->getDatabaseEngine())
+			{
+				case DATABASE_ENGINE_MYSQL:
+				{
+					std::string queryList[29] = {
+						"ALTER TABLE `server_motd` CHANGE `id` `id` INT UNSIGNED NOT NULL;",
+						"ALTER TABLE `server_motd` DROP PRIMARY KEY;",
+						"ALTER TABLE `server_motd` ADD `world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0;",
+						"ALTER TABLE `server_motd` ADD UNIQUE (`id`, `world_id`);",
+						"ALTER TABLE `server_record` DROP INDEX `timestamp`;",
+						"ALTER TABLE `server_record` ADD `world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0;",
+						"ALTER TABLE `server_record` ADD UNIQUE (`timestamp`, `record`, `world_id`);",
+						"ALTER TABLE `server_reports` ADD `world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0;",
+						"ALTER TABLE `server_reports` ADD INDEX (`world_id`);",
+						"ALTER TABLE `players` ADD `world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0;",
+						"ALTER TABLE `global_storage` DROP INDEX `key`;",
+						"ALTER TABLE `global_storage` ADD `world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0;",
+						"ALTER TABLE `global_storage` ADD UNIQUE (`key`, `world_id`);",
+						"ALTER TABLE `guilds` ADD `world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0;",
+						"ALTER TABLE `guilds` ADD UNIQUE (`name`, `world_id`);",
+						"ALTER TABLE `house_lists` DROP INDEX `house_id`;",
+						"ALTER TABLE `house_lists` ADD `world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0;",
+						"ALTER TABLE `house_lists` ADD UNIQUE (`house_id`, `world_id`, `listid`);",
+						"ALTER TABLE `houses` CHANGE `id` `id` INT NOT NULL;",
+						"ALTER TABLE `houses` DROP PRIMARY KEY;",
+						"ALTER TABLE `houses` ADD `world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0;",
+						"ALTER TABLE `houses` ADD UNIQUE (`id`, `world_id`);",
+						"ALTER TABLE `tiles` CHANGE `id` `id` INT NOT NULL;",
+						"ALTER TABLE `tiles` DROP PRIMARY KEY;",
+						"ALTER TABLE `tiles` ADD `world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0;",
+						"ALTER TABLE `tiles` ADD UNIQUE (`id`, `world_id`);",
+						"ALTER TABLE `tile_items` ADD `world_id` TINYINT(2) UNSIGNED NOT NULL DEFAULT 0;",
+						"ALTER TABLE `tile_items` ADD UNIQUE (`tile_id`, `world_id`, `sid`);"
+					};
+
+					for(uint32_t i = 0; i < sizeof(queryList) / sizeof(std::string); i++)
+					{
+						query << queryList[i];
+						db->executeQuery(query.str());
+						query.str("");
+					}
+					break;
+				}
+
+				case DATABASE_ENGINE_SQLITE:
+				case DATABASE_ENGINE_POSTGRESQL:
+				default:
+				{
+					//TODO
+					break;
+				}
+			}
+
+			registerDatabaseConfig("db_version", 8);
+			return 8;
 		}
 
 		default:

@@ -43,6 +43,9 @@
 #include "globalevent.h"
 #include "chat.h"
 #include "teleport.h"
+#ifdef __LOGIN_SERVER__
+#include "gameservers.h"
+#endif
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 #include "outputmessage.h"
 #include "connection.h"
@@ -385,6 +388,13 @@ bool TalkAction::reloadInfo(Player* player, const std::string& cmd, const std::s
 		g_creatureEvents->reload();
 		player->sendTextMessage(MSG_STATUS_CONSOLE_BLUE, "Reloaded creature scripts.");
 	}
+	#ifdef __LOGIN_SERVER__
+	else if(tmpParam == "gameserver" || tmpParam == "gameservers")
+	{
+		GameServers::getInstance()->reload();
+		player->sendTextMessage(MSG_STATUS_CONSOLE_BLUE, "Reloaded game servers.");
+	}
+	#endif
 	else if(tmpParam == "globalevent" || tmpParam == "globalevents")
 	{
 		g_globalEvents->reload();
@@ -478,7 +488,9 @@ bool TalkAction::serverDiag(Player* player, const std::string& cmd, const std::s
 	text << "--------------------\n";
 	text << "ProtocolGame: " << ProtocolGame::protocolGameCount << "\n";
 	text << "ProtocolLogin: " << ProtocolLogin::protocolLoginCount << "\n";
+#ifdef __REMOTE_CONTROL__
 	text << "ProtocolAdmin: " << ProtocolAdmin::protocolAdminCount << "\n";
+#endif
 	text << "ProtocolStatus: " << ProtocolStatus::protocolStatusCount << "\n";
 	text << "ProtocolOld: " << ProtocolOld::protocolOldCount << "\n\n";
 	player->sendTextMessage(MSG_STATUS_CONSOLE_BLUE, text.str().c_str());
@@ -525,39 +537,41 @@ bool TalkAction::changeThingProporties(Player* player, const std::string& cmd, c
 				{
 					tmp = parseParams(cmdit, cmdtokens.end());
 					if(strcasecmp(tmp.c_str(), "description") == 0)
-							item->setSpecialDescription(parseParams(cmdit, cmdtokens.end()));
+						item->setSpecialDescription(parseParams(cmdit, cmdtokens.end()));
 					else if(strcasecmp(tmp.c_str(), "count") == 0 || strcasecmp(tmp.c_str(), "fluidtype") == 0 || strcasecmp(tmp.c_str(), "charges") == 0)
-							item->setSubType(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setSubType(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "action") == 0 || strcasecmp(tmp.c_str(), "actionid") == 0 || strcasecmp(tmp.c_str(), "aid") == 0)
-							item->setActionId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setActionId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "unique") == 0 || strcasecmp(tmp.c_str(), "uniqueid") == 0 || strcasecmp(tmp.c_str(), "uid") == 0)
-							item->setUniqueId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setUniqueId(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "duration") == 0)
-							item->setDuration(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setDuration(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "writer") == 0)
-							item->setWriter(parseParams(cmdit, cmdtokens.end()));
+						item->setWriter(parseParams(cmdit, cmdtokens.end()));
 					else if(strcasecmp(tmp.c_str(), "text") == 0)
-							item->setText(parseParams(cmdit, cmdtokens.end()));
+						item->setText(parseParams(cmdit, cmdtokens.end()));
 					else if(strcasecmp(tmp.c_str(), "name") == 0)
-							item->setName(parseParams(cmdit, cmdtokens.end()));
+						item->setName(parseParams(cmdit, cmdtokens.end()));
 					else if(strcasecmp(tmp.c_str(), "pluralname") == 0)
-							item->setPluralName(parseParams(cmdit, cmdtokens.end()));
+						item->setPluralName(parseParams(cmdit, cmdtokens.end()));
 					else if(strcasecmp(tmp.c_str(), "article") == 0)
-							item->setArticle(parseParams(cmdit, cmdtokens.end()));
+						item->setArticle(parseParams(cmdit, cmdtokens.end()));
 					else if(strcasecmp(tmp.c_str(), "attack") == 0)
-							item->setAttack(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setAttack(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "extraattack") == 0)
-							item->setExtraAttack(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setExtraAttack(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "defense") == 0)
-							item->setDefense(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setDefense(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "extradefense") == 0)
-							item->setExtraDefense(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setExtraDefense(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "armor") == 0)
-							item->setArmor(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setArmor(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "attackspeed") == 0)
-							item->setAttackSpeed(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setAttackSpeed(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "hitchance") == 0)
-							item->setHitChance(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+						item->setHitChance(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
+					else if(strcasecmp(tmp.c_str(), "shootrange") == 0)
+						item->setShootRange(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "depot") == 0 || strcasecmp(tmp.c_str(), "depotid") == 0)
 					{
 						if(item->getContainer() && item->getContainer()->getDepot())
@@ -682,7 +696,7 @@ bool TalkAction::changeThingProporties(Player* player, const std::string& cmd, c
 
 bool TalkAction::addSkill(Player* player, const std::string& cmd, const std::string& param)
 {
-	std::vector<std::string> params = explodeString(param, ",");
+	StringVec params = explodeString(param, ",");
 	if(params.size() < 2)
 	{
 		player->sendTextMessage(MSG_STATUS_SMALL, "Command requires at least 2 parameters.");
@@ -717,7 +731,7 @@ bool TalkAction::addSkill(Player* player, const std::string& cmd, const std::str
 bool TalkAction::showBanishmentInfo(Player* player, const std::string& cmd, const std::string& param)
 {
 	uint32_t accountId = atoi(param.c_str());
-	if(accountId == 0 && IOLoginData::getInstance()->playerExists(param))
+	if(accountId == 0 && IOLoginData::getInstance()->playerExists(param, true))
 		accountId = IOLoginData::getInstance()->getAccountIdByName(param);
 
 	Ban ban;
@@ -728,7 +742,7 @@ bool TalkAction::showBanishmentInfo(Player* player, const std::string& cmd, cons
 		if(ban.adminid == 0)
 			name = (deletion ? "Automatic deletion" : "Automatic banishment");
 		else
-			IOLoginData::getInstance()->getNameByGuid(ban.adminid, name);
+			IOLoginData::getInstance()->getNameByGuid(ban.adminid, name, true);
 
 		char date[16], date2[16], buffer[500 + ban.comment.length()];
 		formatDate2(ban.added, date);
@@ -840,7 +854,6 @@ bool TalkAction::sellHouse(Player* player, const std::string& cmd, const std::st
 	}
 
 	Player* tradePartner = NULL;
-
 	ReturnValue ret = g_game.getPlayerByNameWildcard(param, tradePartner);
 	if(ret != RET_NOERROR)
 	{
@@ -884,7 +897,7 @@ bool TalkAction::sellHouse(Player* player, const std::string& cmd, const std::st
 		return true;
 	}
 
-	if(!tradePartner->isPremium())
+	if(!tradePartner->isPremium() && !g_config.getBool(ConfigManager::HOUSE_NEED_PREMIUM))
 	{
 		player->sendCancel("Trade player does not have a premium account.");
 		return true;
@@ -961,12 +974,12 @@ bool TalkAction::createGuild(Player* player, const std::string& cmd, const std::
 						{
 							if(player->isPremium())
 							{
+								player->setGuildName(param);
 								IOGuild::getInstance()->createGuild(player);
 
 								char buffer[50 + maxLength];
 								sprintf(buffer, "You have formed the guild: %s!", param.c_str());
 								player->sendTextMessage(MSG_INFO_DESCR, buffer);
-								player->setGuildName(param);
 							}
 							else
 								player->sendCancelMessage(RET_YOUNEEDPREMIUMACCOUNT);
@@ -1002,15 +1015,12 @@ bool TalkAction::ghost(Player* player, const std::string& cmd, const std::string
 
 	SpectatorVec list;
 	g_game.getSpectators(list, player->getPosition(), true);
+	int32_t index = player->getTopParent()->__getIndexOfThing(player);
+
 	SpectatorVec::const_iterator it;
-
-	Cylinder* cylinder = player->getTopParent();
-	int32_t index = cylinder->__getIndexOfThing(player);
-
-	Player* tmpPlayer;
 	for(it = list.begin(); it != list.end(); ++it)
 	{
-		if((tmpPlayer = (*it)->getPlayer()))
+		if(Player* tmpPlayer = (*it)->getPlayer())
 		{
 			tmpPlayer->sendCreatureChangeVisible(player, !player->isInGhostMode());
 			if(tmpPlayer != player && !tmpPlayer->canSeeGhost(player))
