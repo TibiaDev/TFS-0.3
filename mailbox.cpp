@@ -46,6 +46,7 @@ ReturnValue Mailbox::__queryAdd(int32_t index, const Thing* thing, uint32_t coun
 		if(canSend(item))
 			return RET_NOERROR;
 	}
+
 	return RET_NOTPOSSIBLE;
 }
 
@@ -121,37 +122,65 @@ bool Mailbox::sendItem(Creature* actor, Item* item)
 	bool tmp = IOLoginData::getInstance()->playerExists(receiver);
 	if(Player* player = g_game.getPlayerByName(receiver))
 	{
-		if(Depot* depot = player->getDepot(dp, true))
+		Depot* depot = player->getDepot(dp, true);
+		if(depot && g_game.internalMoveItem(actor, item->getParent(), depot, INDEX_WHEREEVER,
+			item, item->getItemCount(), NULL, FLAG_NOLIMIT) == RET_NOERROR)
 		{
-			if(g_game.internalMoveItem(actor, item->getParent(), depot, INDEX_WHEREEVER,
-				item, item->getItemCount(), NULL, FLAG_NOLIMIT) == RET_NOERROR)
+			g_game.transformItem(item, item->getID() + 1);
+			bool result = true, opened = (player->getContainerID(depot) != -1);
+			if(Player* tmp = actor->getPlayer())
 			{
-				g_game.transformItem(item, item->getID() + 1);
-				return true;
+				CreatureEventList mailEvents = tmp->getCreatureEvents(CREATURE_EVENT_MAIL_SEND);
+				for(CreatureEventList::iterator it = mailEvents.begin(); it != mailEvents.end(); ++it)
+				{
+					if(!(*it)->executeOnMailSend(tmp, player, item, opened) && result)
+						result = false;
+				}
+
+				mailEvents = player->getCreatureEvents(CREATURE_EVENT_MAIL_RECEIVE);
+				for(CreatureEventList::iterator it = mailEvents.begin(); it != mailEvents.end(); ++it)
+				{
+					if(!(*it)->executeOnMailReceive(player, tmp, item, opened) && result)
+						result = false;
+				}
 			}
+
+			return result;
 		}
 	}
 	else if(tmp)
 	{
 		Player* player = new Player(receiver, NULL);
-		if(!IOLoginData::getInstance()->loadPlayer(player, receiver))
+		if(IOLoginData::getInstance()->loadPlayer(player, receiver))
 		{
-			#ifdef __DEBUG_MAILBOX__
-			std::cout << "Failure: [Mailbox::sendItem], can not load player: " << receiver << std::endl;
-			#endif
-			delete player;
-			return false;
-		}
-
-		if(Depot* depot = player->getDepot(dp, true))
-		{
-			if(g_game.internalMoveItem(actor, item->getParent(), depot, INDEX_WHEREEVER,
+			Depot* depot = player->getDepot(dp, true);
+			if(depot && g_game.internalMoveItem(actor, item->getParent(), depot, INDEX_WHEREEVER,
 				item, item->getItemCount(), NULL, FLAG_NOLIMIT) == RET_NOERROR)
 			{
 				g_game.transformItem(item, item->getID() + 1);
-				IOLoginData::getInstance()->savePlayer(player);
-				delete player;
-				return true;
+				bool result = true;
+				if(Player* tmp = actor->getPlayer())
+				{
+					CreatureEventList mailEvents = tmp->getCreatureEvents(CREATURE_EVENT_MAIL_SEND);
+					for(CreatureEventList::iterator it = mailEvents.begin(); it != mailEvents.end(); ++it)
+					{
+						if(!(*it)->executeOnMailSend(tmp, player, item, false) && result)
+							result = false;
+					}
+
+					mailEvents = player->getCreatureEvents(CREATURE_EVENT_MAIL_RECEIVE);
+					for(CreatureEventList::iterator it = mailEvents.begin(); it != mailEvents.end(); ++it)
+					{
+						if(!(*it)->executeOnMailReceive(player, tmp, item, false) && result)
+							result = false;
+					}
+				}
+
+				if(IOLoginData::getInstance()->savePlayer(player))
+				{
+					delete player;
+					return result;
+				}
 			}
 		}
 
@@ -181,7 +210,7 @@ bool Mailbox::getReceiver(Item* item, std::string& name, uint32_t& dp)
 	}
 	else if(item->getID() != ITEM_LETTER) /**The item is somehow not a parcel or letter**/
 	{
-		std::cout << "Mailbox::getReciver error, trying to get reciecer from unkown item! ID:: " << item->getID() << "." << std::endl;
+		std::cout << "[Error - Mailbox::getReciver] Trying to get receiver from unkown item with id: " << item->getID() << "!" << std::endl;
 		return false;
 	}
 

@@ -9,18 +9,14 @@ setConditionParam(condition, CONDITION_PARAM_SUBID, 1)
 setConditionParam(condition, CONDITION_PARAM_BUFF, TRUE)
 setConditionParam(condition, CONDITION_PARAM_TICKS, 2 * 60 * 1000)
 setConditionParam(condition, CONDITION_PARAM_SKILL_MELEE, 3)
+setConditionParam(condition, CONDITION_PARAM_SKILL_DISTANCE, 3)
 
 local baseMana = 60
 function onCastSpell(cid, var)
 	local pos = getCreaturePosition(cid)
-	if(getPlayerParty(cid) == nil) then
-		doPlayerSendDefaultCancel(cid, RETURNVALUE_NOPARTYMEMBERSINRANGE)
-		doSendMagicEffect(pos, CONST_ME_POFF)
-		return LUA_ERROR
-	end
 
 	local membersList = getPartyMembers(cid)
-	if(type(membersList) ~= 'table' or table.maxn(membersList) <= 1) then
+	if(membersList == nil or type(membersList) ~= 'table' or table.maxn(membersList) <= 1) then
 		doPlayerSendDefaultCancel(cid, RETURNVALUE_NOPARTYMEMBERSINRANGE)
 		doSendMagicEffect(pos, CONST_ME_POFF)
 		return LUA_ERROR

@@ -82,6 +82,7 @@ function doNpcSellItem(cid, itemid, amount, subType, ignoreCap, inBackpacks, bac
 
 			if(isInArray({(getContainerCapById(backpack) * b), amount}, i) == TRUE) then
 				if(doPlayerAddItemEx(cid, container, ignoreCap) ~= RETURNVALUE_NOERROR) then
+					b = b - 1
 					break
 				end
 
@@ -92,6 +93,7 @@ function doNpcSellItem(cid, itemid, amount, subType, ignoreCap, inBackpacks, bac
 				end
 			end
 		end
+
 		return a, b
 	end
 
@@ -104,8 +106,10 @@ function doNpcSellItem(cid, itemid, amount, subType, ignoreCap, inBackpacks, bac
 		if(doPlayerAddItemEx(cid, item, ignoreCap) ~= RETURNVALUE_NOERROR) then
 			break
 		end
+
 		a = i
 	end
+
 	return a, 0
 end
 

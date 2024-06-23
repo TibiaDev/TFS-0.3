@@ -57,33 +57,19 @@ TalkActions::~TalkActions()
 
 void TalkActions::clear()
 {
-	TalkActionsMap::iterator it = talksMap.begin();
-	while(it != talksMap.end())
-	{
+	for(TalkActionsMap::iterator it = talksMap.begin(); it != talksMap.end(); ++it)
 		delete it->second;
-		talksMap.erase(it);
-		it = talksMap.begin();
-	}
 
+	talksMap.clear();
 	m_scriptInterface.reInitState();
-}
-
-LuaScriptInterface& TalkActions::getScriptInterface()
-{
-	return m_scriptInterface;
-}
-
-std::string TalkActions::getScriptBaseName()
-{
-	return "talkactions";
 }
 
 Event* TalkActions::getEvent(const std::string& nodeName)
 {
 	if(asLowerCaseString(nodeName) == "talkaction")
 		return new TalkAction(&m_scriptInterface);
-	else
-		return NULL;
+
+	return NULL;
 }
 
 bool TalkActions::registerEvent(Event* event, xmlNodePtr p)
@@ -141,12 +127,11 @@ bool TalkActions::onPlayerSay(Player* player, uint16_t channelId, const std::str
 
 	if(talkAction->isLogged())
 	{
-		player->sendTextMessage(MSG_STATUS_CONSOLE_RED, words.c_str());
-
 		char buf[21], buffer[100];
 		formatDate(time(NULL), buf);
 		sprintf(buffer, "%s.log", getFilePath(FILE_TYPE_LOG, player->getName()).c_str());
 
+		player->sendTextMessage(MSG_STATUS_CONSOLE_RED, words.c_str());
 		if(FILE* file = fopen(buffer, "a"))
 		{
 			fprintf(file, "[%s] %s\n", buf, words.c_str());
@@ -170,8 +155,6 @@ TalkFunction_t TalkAction::definedFunctions[] =
  	{"joinguild", &joinGuild},
  	{"createguild", &createGuild},
 	{"ghost", &ghost},
-	{"squelch", &squelch},
-	{"clickteleport", &clickTeleport},
 	{"addskill", &addSkill},
 	{"changethingproporties", &changeThingProporties},
 	{"showbanishmentinfo", &showBanishmentInfo}
@@ -233,7 +216,7 @@ bool TalkAction::loadFunction(const std::string& functionName)
 		if(tmpFunctionName == definedFunctions[i].name)
 		{
 			function = definedFunctions[i].callback;
-			m_scripted = false;
+			m_scripted = EVENT_SCRIPT_FALSE;
 			return true;
 		}
 	}
@@ -242,41 +225,59 @@ bool TalkAction::loadFunction(const std::string& functionName)
 	return false;
 }
 
-std::string TalkAction::getScriptEventName()
+int32_t TalkAction::executeSay(Player* player, const std::string& words, const std::string& param, uint16_t channel)
 {
-	return "onSay";
-}
-
-int32_t TalkAction::executeSay(Creature* creature, const std::string& words, const std::string& param, uint16_t channel)
-{
-	//onSay(cid, words, param)
+	//onSay(cid, words, param, channel)
 	if(m_scriptInterface->reserveScriptEnv())
 	{
 		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
+		if(m_scripted == EVENT_SCRIPT_BUFFER)
+		{
+			env->setRealPos(player->getPosition());
 
-		#ifdef __DEBUG_LUASCRIPTS__
-		char desc[125];
-		sprintf(desc, "%s - %s- %s", creature->getName().c_str(), words.c_str(), param.c_str());
-		env->setEventDesc(desc);
-		#endif
+			std::stringstream scriptstream;
+			scriptstream << "cid = " << env->addThing(player) << std::endl;
+			scriptstream << "words = \"" << words << "\"" << std::endl;
+			scriptstream << "param = \"" << param << "\"" << std::endl;
+			scriptstream << "channel = " << channel << std::endl;
 
-		env->setScriptId(m_scriptId, m_scriptInterface);
-		env->setRealPos(creature->getPosition());
+			scriptstream << m_scriptData;
+			int32_t result = LUA_TRUE;
+			if(m_scriptInterface->loadBuffer(scriptstream.str()) != -1)
+			{
+				lua_State* L = m_scriptInterface->getLuaState();
+				result = m_scriptInterface->getField(L, "_result");
+			}
 
-		uint32_t cid = env->addThing(creature);
+			m_scriptInterface->releaseScriptEnv();
+			return (result == LUA_TRUE);
+		}
+		else
+		{
+			#ifdef __DEBUG_LUASCRIPTS__
+			char desc[125];
+			sprintf(desc, "%s - %s- %s", creature->getName().c_str(), words.c_str(), param.c_str());
+			env->setEventDesc(desc);
+			#endif
 
-		lua_State* L = m_scriptInterface->getLuaState();
+			env->setScriptId(m_scriptId, m_scriptInterface);
+			env->setRealPos(player->getPosition());
 
-		m_scriptInterface->pushFunction(m_scriptId);
-		lua_pushnumber(L, cid);
-		lua_pushstring(L, words.c_str());
-		lua_pushstring(L, param.c_str());
-		lua_pushnumber(L, channel);
+			uint32_t cid = env->addThing(player);
 
-		int32_t result = m_scriptInterface->callFunction(4);
-		m_scriptInterface->releaseScriptEnv();
+			lua_State* L = m_scriptInterface->getLuaState();
 
-		return (result == LUA_TRUE);
+			m_scriptInterface->pushFunction(m_scriptId);
+			lua_pushnumber(L, cid);
+			lua_pushstring(L, words.c_str());
+			lua_pushstring(L, param.c_str());
+			lua_pushnumber(L, channel);
+
+			int32_t result = m_scriptInterface->callFunction(4);
+			m_scriptInterface->releaseScriptEnv();
+
+			return (result == LUA_TRUE);
+		}
 	}
 	else
 	{
@@ -340,78 +341,81 @@ bool TalkAction::buyHouse(Player* player, const std::string& cmd, const std::str
 
 	if(Houses::getInstance().getHouseByPlayerId(player->getGUID()))
 	{
-		player->sendCancel("You are already owner of another house.");
+		player->sendCancel("You already own another house.");
 		return true;
 	}
 
-	uint16_t housesPerAccount = g_config.getNumber(ConfigManager::HOUSES_PER_ACCOUNT);
-	if(housesPerAccount > 0 && Houses::getInstance().getHousesCount(player->getAccount()) >= housesPerAccount)
+	uint16_t accountHouses = g_config.getNumber(ConfigManager::HOUSES_PER_ACCOUNT);
+	if(accountHouses > 0 && Houses::getInstance().getHousesCount(player->getAccount()) >= accountHouses)
 	{
 		char buffer[80];
-		sprintf(buffer, "You may own only %d house%s per account.", housesPerAccount, (housesPerAccount != 1 ? "s" : ""));
+		sprintf(buffer, "You may own only %d house%s per account.", accountHouses, (accountHouses != 1 ? "s" : ""));
 		player->sendCancel(buffer);
 		return true;
 	}
 
-	Position pos = getNextPosition(player->getDirection(), player->getPosition());
-	if(Tile* tile = g_game.getTile(pos.x, pos.y, pos.z))
+	const Position& pos = getNextPosition(player->getDirection(), player->getPosition());
+	Tile* tile = g_game.getTile(pos);
+	if(!tile)
 	{
-		if(HouseTile* houseTile = dynamic_cast<HouseTile*>(tile))
-		{
-			if(House* house = houseTile->getHouse())
-			{
-				if(house->getDoorByPosition(pos))
-				{
-					if(!house->getHouseOwner())
-					{
-						if(!g_config.getBool(ConfigManager::HOUSE_NEED_PREMIUM) || player->isPremium())
-						{
-							uint32_t levelToBuyHouse = g_config.getNumber(ConfigManager::LEVEL_TO_BUY_HOUSE);
-							if(player->getLevel() >= levelToBuyHouse)
-							{
-								if(house->getPrice())
-								{
-									if(g_game.getMoney(player) >= house->getPrice() && g_game.removeMoney(player, house->getPrice()))
-									{
-										house->setHouseOwner(player->getGUID());
-										std::string ret = "You have successfully bought this house, remember to leave money at ";
-										if(g_config.getBool(ConfigManager::BANK_SYSTEM))
-											ret += "bank or ";
-
-										ret += "depot of this city for rent.";
-										player->sendTextMessage(MSG_INFO_DESCR, ret.c_str());
-									}
-									else
-										player->sendCancel("You do not have enough money.");
-								}
-								else
-									player->sendCancel("You can not buy this house.");
-							}
-							else
-							{
-								char buffer[90];
-								sprintf(buffer, "You have to be at least Level %d to buy house.", levelToBuyHouse);
-								player->sendCancel(buffer);
-							}
-						}
-						else
-							player->sendCancelMessage(RET_YOUNEEDPREMIUMACCOUNT);
-					}
-					else
-						player->sendCancel("This house alreadly has an owner.");
-				}
-				else
-					player->sendCancel("You have to be looking at the door of the house you would like to buy.");
-			}
-			else
-				player->sendCancel("You have to be looking at the door of the house you would like to buy.");
-		}
-		else
-			player->sendCancel("You have to be looking at the door of the house you would like to buy.");
+		player->sendCancel("You have to be looking at door of the house you would like to buy.");
+		return true;
 	}
-	else
-		player->sendCancel("You have to be looking at the door of the house you would like to buy.");
 
+	HouseTile* houseTile = dynamic_cast<HouseTile*>(tile);
+	if(!houseTile)
+	{
+		player->sendCancel("You have to be looking at door of the house you would like to buy.");
+		return true;
+	}
+
+	House* house = houseTile->getHouse();
+	if(!house)
+	{
+		player->sendCancel("You have to be looking at door of the house you would like to buy.");
+		return true;
+	}
+
+	if(!house->getDoorByPosition(pos))
+	{
+		player->sendCancel("You have to be looking at door of the house you would like to buy.");
+		return true;
+	}
+
+	if(house->getHouseOwner())
+	{
+		player->sendCancel("This house is already owned by someone else.");
+		return true;
+	}
+
+	if(g_config.getBool(ConfigManager::HOUSE_NEED_PREMIUM) && !player->isPremium())
+	{
+		player->sendCancelMessage(RET_YOUNEEDPREMIUMACCOUNT);
+		return true;
+	}
+
+	uint32_t levelToBuyHouse = g_config.getNumber(ConfigManager::LEVEL_TO_BUY_HOUSE);
+	if(player->getLevel() < levelToBuyHouse)
+	{
+		char buffer[90];
+		sprintf(buffer, "You have to be at least Level %d to buy a house.", levelToBuyHouse);
+		player->sendCancel(buffer);
+		return true;
+	}
+
+	if(g_game.getMoney(player) < house->getPrice() || !g_game.removeMoney(player, house->getPrice()))
+	{
+		player->sendCancel("You do not have enough money.");
+		return true;
+	}
+
+	house->setHouseOwner(player->getGUID());
+	std::string ret = "You have successfully bought this house, remember to leave money at ";
+	if(g_config.getBool(ConfigManager::BANK_SYSTEM))
+		ret += "bank or ";
+
+	ret += "depot of this city for rent.";
+	player->sendTextMessage(MSG_INFO_DESCR, ret.c_str());
 	return true;
 }
 
@@ -465,7 +469,7 @@ bool TalkAction::sellHouse(Player* player, const std::string& cmd, const std::st
 		return true;
 	}
 
-	if(!Position::areInRange<2,2,0>(tradePartner->getPosition(), player->getPosition()))
+	if(!Position::areInRange<3,3,0>(tradePartner->getPosition(), player->getPosition()))
 	{
 		player->sendCancel("Trade player is too far away.");
 		return true;
@@ -496,11 +500,12 @@ bool TalkAction::joinGuild(Player* player, const std::string& cmd, const std::st
 	if(!g_config.getBool(ConfigManager::INGAME_GUILD_MANAGEMENT))
 		return false;
 
-	trimString((std::string&)param);
+	std::string param_ = param;
+	trimString(param_);
 	if(player->getGuildId() == 0)
 	{	
 		uint32_t guildId;
-		if(IOGuild::getInstance()->getGuildIdByName(guildId, param))
+		if(IOGuild::getInstance()->getGuildIdByName(guildId, param_))
 		{
 			if(player->isInvitedToGuild(guildId))
 			{
@@ -531,28 +536,29 @@ bool TalkAction::createGuild(Player* player, const std::string& cmd, const std::
 
 	if(player->getGuildId() == 0)
 	{
-		trimString((std::string&)param);
-		if(isValidName(param))
+		std::string param_ = param;
+		trimString(param_);
+		if(isValidName(param_))
 		{
 			const uint32_t minLength = g_config.getNumber(ConfigManager::MIN_GUILDNAME);
 			const uint32_t maxLength = g_config.getNumber(ConfigManager::MAX_GUILDNAME);
-			if(param.length() >= minLength)
+			if(param_.length() >= minLength)
 			{
-				if(param.length() <= maxLength)
+				if(param_.length() <= maxLength)
 				{
 					uint32_t guildId;
-					if(!IOGuild::getInstance()->getGuildIdByName(guildId, param))
+					if(!IOGuild::getInstance()->getGuildIdByName(guildId, param_))
 					{
 						const uint32_t levelToFormGuild = g_config.getNumber(ConfigManager::LEVEL_TO_FORM_GUILD);
 						if(player->getLevel() >= levelToFormGuild)
 						{
 							if(player->isPremium())
 							{
-								player->setGuildName(param);
+								player->setGuildName(param_);
 								IOGuild::getInstance()->createGuild(player);
 
 								char buffer[50 + maxLength];
-								sprintf(buffer, "You have formed the guild: %s!", param.c_str());
+								sprintf(buffer, "You have formed the guild: %s!", param_.c_str());
 								player->sendTextMessage(MSG_INFO_DESCR, buffer);
 							}
 							else
@@ -585,22 +591,34 @@ bool TalkAction::createGuild(Player* player, const std::string& cmd, const std::
 
 bool TalkAction::ghost(Player* player, const std::string& cmd, const std::string& param)
 {
-	player->switchGhostMode();
+	bool added = true;
+	Condition* condition = NULL;
+	if((condition = player->getCondition(CONDITION_GAMEMASTER, CONDITIONID_DEFAULT, GAMEMASTER_INVISIBLE)))
+	{
+		player->removeCondition(condition);
+		added = false;
+	}
+	else if((condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_GAMEMASTER, -1, 0, false, GAMEMASTER_INVISIBLE)))
+		player->addCondition(condition);
 
 	SpectatorVec list;
-	g_game.getSpectators(list, player->getPosition(), true);
-	int32_t index = player->getTopParent()->__getIndexOfThing(player);
-
 	SpectatorVec::const_iterator it;
+	g_game.getSpectators(list, player->getPosition(), true);
+
+	int32_t index = player->getTopParent()->__getIndexOfThing(player);
+	Player* tmpPlayer = NULL;
 	for(it = list.begin(); it != list.end(); ++it)
 	{
-		if(Player* tmpPlayer = (*it)->getPlayer())
+		if((tmpPlayer = (*it)->getPlayer()))
 		{
-			tmpPlayer->sendCreatureChangeVisible(player, !player->isInGhostMode());
+			tmpPlayer->sendCreatureChangeVisible(player, !added);
 			if(tmpPlayer != player && !tmpPlayer->canSeeGhost(player))
 			{
-				if(player->isInGhostMode())
+				if(added)
+				{
 					tmpPlayer->sendCreatureDisappear(player, index, true);
+					tmpPlayer->sendMagicEffect(player->getPosition(), NM_ME_POFF);
+				}
 				else
 					tmpPlayer->sendCreatureAppear(player, true);
 
@@ -612,7 +630,7 @@ bool TalkAction::ghost(Player* player, const std::string& cmd, const std::string
 	for(it = list.begin(); it != list.end(); ++it)
 		(*it)->onUpdateTile(player->getTile(), player->getPosition());
 
-	if(player->isInGhostMode())
+	if(added)
 	{
 		for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 		{
@@ -638,28 +656,6 @@ bool TalkAction::ghost(Player* player, const std::string& cmd, const std::string
 	return true;
 }
 
-bool TalkAction::squelch(Player* player, const std::string& cmd, const std::string& param)
-{
-	player->switchPrivateIgnore();
-
-	char buffer[90];
-	sprintf(buffer, "You have %s private messages ignoring.", (player->isIgnoringPrivate() ? "enabled" : "disabled"));
-	player->sendTextMessage(MSG_INFO_DESCR, buffer);
-
-	return true;
-}
-
-bool TalkAction::clickTeleport(Player* player, const std::string& cmd, const std::string& param)
-{
-	player->switchClickTeleport();
-
-	char buffer[90];
-	sprintf(buffer, "You have %s click teleporting.", (player->isTeleportingByClick() ? "enabled" : "disabled"));
-	player->sendTextMessage(MSG_INFO_DESCR, buffer);
-
-	return true;
-}
-
 bool TalkAction::addSkill(Player* player, const std::string& cmd, const std::string& param)
 {
 	StringVec params = explodeString(param, ",");
@@ -667,6 +663,14 @@ bool TalkAction::addSkill(Player* player, const std::string& cmd, const std::str
 	{
 		player->sendTextMessage(MSG_STATUS_SMALL, "Command requires at least 2 parameters.");
 		return true;
+	}
+
+	uint32_t amount = 1;
+	if(params.size() > 2)
+	{
+		std::string tmp = params[2];
+		trimString(tmp);
+		amount = (uint32_t)std::max(1, atoi(tmp.c_str()));
 	}
 
 	std::string name = params[0], skill = params[1];
@@ -682,13 +686,15 @@ bool TalkAction::addSkill(Player* player, const std::string& cmd, const std::str
 	}
 
 	if(skill[0] == 'l' || skill[0] == 'e')
-		target->addExperience(Player::getExpForLevel(target->getLevel() + 1) - target->getExperience());
+		target->addExperience(uint64_t(Player::getExpForLevel(target->getLevel() + amount) - target->getExperience()));
 	else if(skill[0] == 'm')
-		target->addManaSpent(target->getVocation()->getReqMana(target->getMagicLevel() + 1) - target->getSpentMana());
+		target->addManaSpent((uint64_t)std::ceil(double(target->getVocation()->getReqMana(target->getMagicLevel() +
+			amount) - target->getSpentMana()) / g_config.getDouble(ConfigManager::RATE_MAGIC)), true, false);
 	else
 	{
 		skills_t skillId = getSkillId(skill);
-		target->addSkillAdvance(skillId, target->getVocation()->getReqSkillTries(skillId, target->getSkill(skillId, SKILL_LEVEL) + 1));
+		target->addSkillAdvance(skillId, (uint32_t)std::ceil(double(target->getVocation()->getReqSkillTries(skillId, (target->getSkill(skillId,
+			SKILL_LEVEL) + amount)) - target->getSkill(skillId, SKILL_TRIES)) / g_config.getDouble(ConfigManager::RATE_SKILL)), false);
 	}
 
 	return true;
@@ -781,7 +787,7 @@ bool TalkAction::changeThingProporties(Player* player, const std::string& cmd, c
 					else if(strcasecmp(tmp.c_str(), "basespeed") == 0)
 						_creature->setBaseSpeed(atoi(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "droploot") == 0)
-						_creature->setDropLoot(booleanString(parseParams(cmdit, cmdtokens.end()).c_str()));
+						_creature->setDropLoot(booleanString(parseParams(cmdit, cmdtokens.end()).c_str()) ? LOOT_DROP_FULL : LOOT_DROP_NONE);
 					else if(strcasecmp(tmp.c_str(), "lossskill") == 0)
 						_creature->setLossSkill(booleanString(parseParams(cmdit, cmdtokens.end()).c_str()));
 					else if(strcasecmp(tmp.c_str(), "cannotmove") == 0)
@@ -819,12 +825,6 @@ bool TalkAction::changeThingProporties(Player* player, const std::string& cmd, c
 								parseParams(cmdit, cmdtokens.end()).c_str());
 						else if(strcasecmp(tmp.c_str(), "resetidle") == 0)
 							_player->resetIdleTime();
-						else if(strcasecmp(tmp.c_str(), "ghost") == 0)
-							_player->switchGhostMode();
-						else if(strcasecmp(tmp.c_str(), "squelch") == 0)
-							_player->switchPrivateIgnore();
-						else if(strcasecmp(tmp.c_str(), "cliport") == 0)
-							_player->switchClickTeleport();
 						else if(strcasecmp(tmp.c_str(), "saving") == 0)
 							_player->switchSaving();
 						else
@@ -881,9 +881,12 @@ bool TalkAction::changeThingProporties(Player* player, const std::string& cmd, c
 
 bool TalkAction::showBanishmentInfo(Player* player, const std::string& cmd, const std::string& param)
 {
-	uint32_t accountId = atoi(param.c_str());
-	if(accountId == 0 && IOLoginData::getInstance()->playerExists((std::string&)param, true))
-		accountId = IOLoginData::getInstance()->getAccountIdByName(param);
+	std::string param_ = param;
+	trimString(param_);
+
+	uint32_t accountId = atoi(param_.c_str());
+	if(accountId == 0 && IOLoginData::getInstance()->playerExists(param_, true))
+		accountId = IOLoginData::getInstance()->getAccountIdByName(param_);
 
 	Ban ban;
 	if(IOBan::getInstance()->getData(accountId, ban) && (ban.type == BANTYPE_BANISHMENT || ban.type == BANTYPE_DELETION))

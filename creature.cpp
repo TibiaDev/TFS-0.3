@@ -52,7 +52,7 @@ isInternalRemoved(false)
 	_tile = NULL;
 	direction = SOUTH;
 	master = NULL;
-	lootDrop = true;
+	lootDrop = LOOT_DROP_FULL;
 	skillLoss = true;
 	cannotMove = false;
 	skull = SKULL_NONE;
@@ -230,20 +230,23 @@ void Creature::onThink(uint32_t interval)
 
 void Creature::onAttacking(uint32_t interval)
 {
-	if(attackedCreature)
-	{
-		CreatureEventList attackEvents = getCreatureEvents(CREATURE_EVENT_ATTACK);
-		for(CreatureEventList::iterator it = attackEvents.begin(); it != attackEvents.end(); ++it)
-		{
-			if(!(*it)->executeOnAttack(this, attackedCreature))
-				setAttackedCreature(NULL);
-		}
+	if(!attackedCreature)
+		return;
 
-		onAttacked();
-		attackedCreature->onAttacked();
-		if(g_game.isSightClear(getPosition(), attackedCreature->getPosition(), true))
-			doAttacking(interval);
+	CreatureEventList attackEvents = getCreatureEvents(CREATURE_EVENT_ATTACK);
+	for(CreatureEventList::iterator it = attackEvents.begin(); it != attackEvents.end(); ++it)
+	{
+		if(!(*it)->executeOnAttack(this, attackedCreature) && attackedCreature)
+			setAttackedCreature(NULL);
 	}
+
+	if(!attackedCreature)
+		return;
+
+	onAttacked();
+	attackedCreature->onAttacked();
+	if(g_game.isSightClear(getPosition(), attackedCreature->getPosition(), true))
+		doAttacking(interval);
 }
 
 void Creature::onWalk()
@@ -864,9 +867,9 @@ bool Creature::getKillers(Creature** _lastHitCreature, Creature** _mostDamageCre
 	return (*_lastHitCreature || *_mostDamageCreature);
 }
 
-bool Creature::hasBeenAttacked(uint32_t attackerId)
+bool Creature::hasBeenAttacked(uint32_t attackerId) const
 {
-	CountMap::iterator it = damageMap.find(attackerId);
+	CountMap::const_iterator it = damageMap.find(attackerId);
 	if(it != damageMap.end())
 		return (OTSYS_TIME() - it->second.ticks <= g_game.getInFightTicks());
 
@@ -1111,7 +1114,7 @@ uint32_t Creature::getStaminaRatio(Creature* attacker) const
 			totalHits += it->second.hits;
 	}
 
-	return totalHits;
+	return totalHits * g_config.getNumber(ConfigManager::RATE_STAMINA);
 }
 
 uint64_t Creature::getGainedExperience(Creature* attacker, bool useMultiplier/* = true*/)
@@ -1333,8 +1336,7 @@ void Creature::onBlockHit(BlockType_t blockType)
 
 void Creature::addSummon(Creature* creature)
 {
-	//std::cout << "addSummon: " << this << " summon=" << creature << std::endl;
-	creature->setDropLoot(false);
+	creature->setDropLoot(LOOT_DROP_NONE);
 	creature->setLossSkill(false);
 	creature->setMaster(this);
 	creature->useThing2();
@@ -1343,11 +1345,10 @@ void Creature::addSummon(Creature* creature)
 
 void Creature::removeSummon(const Creature* creature)
 {
-	//std::cout << "removeSummon: " << this << " summon=" << creature << std::endl;
 	std::list<Creature*>::iterator cit = std::find(summons.begin(), summons.end(), creature);
 	if(cit != summons.end())
 	{
-		(*cit)->setDropLoot(false);
+		(*cit)->setDropLoot(LOOT_DROP_NONE);
 		(*cit)->setLossSkill(false);
 		(*cit)->setMaster(NULL);
 		(*cit)->releaseThing2();

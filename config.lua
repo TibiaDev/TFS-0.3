@@ -45,7 +45,7 @@
 	fieldOwnershipDuration = 5 * 1000
 	stopAttackingAtExit = "no"
 	oldConditionAccuracy = "no"
-	loginProtectionPeriod = 10
+	loginProtectionPeriod = 10 * 1000
 	deathLostPercent = 10
 
 	-- Connection config
@@ -138,6 +138,8 @@
 	emoteSpells = "no"
 	expireReportsAfterReads = 1
 	promptExceptionTracerErrorBox = "yes"
+	storePlayerDirection = "no"
+	playerQueryDeepness = 1
 
 	-- Premium account
 	freePremium = "no"
@@ -152,6 +154,7 @@
 	rateExperience = 5.0
 	rateSkill = 3.0
 	rateMagic = 3.0
+	rateStaminaHits = 3
 	rateLoot = 2
 	rateSpawn = 1
 	experienceStages = "no"
@@ -192,6 +195,7 @@
 	-- Logs
 	-- NOTE: This kind of logging does not work in GUI version.
 	-- For such, please compile the software with __GUI_LOGS__ flag.
+	runeFile = ""
 	outLogName = ""
 	errorLogName = ""
 	truncateLogsOnStartup = "no"

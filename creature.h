@@ -52,7 +52,16 @@ enum slots_t
 	SLOT_RING = 9,
 	SLOT_AMMO = 10,
 	SLOT_DEPOT = 11,
+	SLOT_HAND = 12,
+	SLOT_TWO_HAND = SLOT_HAND,
 	SLOT_LAST = SLOT_DEPOT
+};
+
+enum lootDrop_t
+{
+	LOOT_DROP_FULL,
+	LOOT_DROP_PREVENT,
+	LOOT_DROP_NONE
 };
 
 struct FindPathParams
@@ -127,8 +136,6 @@ class Creature : public AutoID, virtual public Thing
 		virtual Monster* getMonster() {return NULL;}
 		virtual const Monster* getMonster() const {return NULL;}
 
-		void getPathToFollowCreature();
-
 		virtual const std::string& getName() const = 0;
 		virtual const std::string& getNameDescription() const = 0;
 		virtual std::string getDescription(int32_t lookDistance) const;
@@ -144,6 +151,7 @@ class Creature : public AutoID, virtual public Thing
 				this->id = auto_id | this->idRange();
 		}
 		void setRemoved() {isInternalRemoved = true;}
+		void getPathToFollowCreature();
 
 		virtual uint32_t idRange() = 0;
 		uint32_t getID() const {return id;}
@@ -164,7 +172,9 @@ class Creature : public AutoID, virtual public Thing
 		virtual bool isPushable() const {return (getSleepTicks() <= 0);}
 		virtual bool isRemoved() const {return isInternalRemoved;}
 		virtual bool canSeeInvisibility() const {return false;}
+
 		virtual bool isInGhostMode() const {return false;}
+		virtual bool canSeeGhost(const Creature* creature) const {return false;}
 
 		int64_t getSleepTicks() const;
 		int32_t getWalkDelay(Direction dir) const;
@@ -236,12 +246,13 @@ class Creature : public AutoID, virtual public Thing
 
 		void setMaster(Creature* creature) {master = creature;}
 		Creature* getMaster() {return master;}
-		bool isSummon() const {return master != NULL;}
 		const Creature* getMaster() const {return master;}
+		bool isSummon() const {return master != NULL;}
 
 		virtual void addSummon(Creature* creature);
 		virtual void removeSummon(const Creature* creature);
 		const std::list<Creature*>& getSummons() {return summons;}
+		uint32_t getSummonCount() const {return summons.size();}
 
 		virtual int32_t getArmor() const {return 0;}
 		virtual int32_t getDefense() const {return 0;}
@@ -284,7 +295,7 @@ class Creature : public AutoID, virtual public Thing
 		virtual uint64_t getGainedExperience(Creature* attacker, bool useMultiplier = true);
 		void addDamagePoints(Creature* attacker, int32_t damagePoints);
 		void addHealPoints(Creature* caster, int32_t healthPoints);
-		bool hasBeenAttacked(uint32_t attackerId);
+		bool hasBeenAttacked(uint32_t attackerId) const;
 
 		//combat event functions
 		virtual void onAddCondition(ConditionType_t type);
@@ -351,9 +362,7 @@ class Creature : public AutoID, virtual public Thing
 		virtual PartyShields_t getShield() const {return partyShield;}
 		virtual PartyShields_t getPartyShield(const Creature* creature) const {return creature->getShield();}
 
-		uint32_t getSummonCount() const {return summons.size();}
-		void setDropLoot(bool _lootDrop) {lootDrop = _lootDrop;}
-		bool getDropLoot() const {return lootDrop;}
+		void setDropLoot(lootDrop_t _lootDrop) {lootDrop = _lootDrop;}
 		void setLossSkill(bool _skillLoss) {skillLoss = _skillLoss;}
 		bool getLossSkill() const {return skillLoss;}
 		void setNoMove(bool _cannotMove) {cannotMove = _cannotMove;}
@@ -406,7 +415,7 @@ class Creature : public AutoID, virtual public Thing
 		uint32_t baseSpeed;
 		int32_t varSpeed;
 		bool skillLoss;
-		bool lootDrop;
+		lootDrop_t lootDrop;
 		bool cannotMove;
 		Skulls_t skull;
 		PartyShields_t partyShield;

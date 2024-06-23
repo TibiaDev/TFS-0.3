@@ -23,9 +23,11 @@
 
 #include <stdio.h>
 #include <boost/utility.hpp>
+#include <boost/shared_ptr.hpp>
 
 class NetworkMessage;
 class OutputMessage;
+typedef boost::shared_ptr<OutputMessage> OutputMessage_ptr;
 class Connection;
 class RSA;
 
@@ -42,7 +44,6 @@ class Protocol : boost::noncopyable
 			m_key[1] = 0;
 			m_key[2] = 0;
 			m_key[3] = 0;
-			m_outputBuffer = NULL;
 			m_refCount = 0;
 		}
 		virtual ~Protocol() {}
@@ -50,7 +51,7 @@ class Protocol : boost::noncopyable
 
 		virtual void parsePacket(NetworkMessage& msg){}
 
-		void onSendMessage(OutputMessage* msg);
+		void onSendMessage(OutputMessage_ptr msg);
 		void onRecvMessage(NetworkMessage& msg);
 		virtual void onRecvFirstMessage(NetworkMessage& msg) = 0;
 
@@ -64,7 +65,7 @@ class Protocol : boost::noncopyable
 
 	protected:
 		//Use this function for autosend messages only
-		OutputMessage* getOutputBuffer();
+		OutputMessage_ptr getOutputBuffer();
 
 		void enableXTEAEncryption() {m_encryptionEnabled = true;}
 		void disableXTEAEncryption() {m_encryptionEnabled = false;}
@@ -84,7 +85,7 @@ class Protocol : boost::noncopyable
 		friend class Connection;
 
 	private:
-		OutputMessage* m_outputBuffer;
+		OutputMessage_ptr m_outputBuffer;
 		Connection* m_connection;
 		bool m_encryptionEnabled;
 		bool m_checksumEnabled;

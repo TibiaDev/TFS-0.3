@@ -22,6 +22,7 @@
 #include "server.h"
 #include "connection.h"
 #include "outputmessage.h"
+#include "scheduler.h"
 
 Server::Server(uint32_t serverip, uint16_t port):
 m_io_service()
@@ -68,9 +69,11 @@ void Server::closeListenSocket()
 
 void Server::openListenSocket()
 {
-	m_acceptor = new boost::asio::ip::tcp::acceptor(m_io_service, boost::asio::ip::tcp::endpoint(boost::asio::ip::address(
-		boost::asio::ip::address_v4(m_serverIp)), m_serverPort));
+	closeListenSocket();
+	m_acceptor = new boost::asio::ip::tcp::acceptor(m_io_service, boost::asio::ip::tcp::endpoint(
+		boost::asio::ip::address(boost::asio::ip::address_v4(m_serverIp)), m_serverPort));
 	accept();
+	m_pendingStart = false;
 }
 
 void Server::onAccept(Connection* connection, const boost::system::error_code& error)
@@ -86,20 +89,25 @@ void Server::onAccept(Connection* connection, const boost::system::error_code& e
 	else if(error != boost::asio::error::operation_aborted)
 	{
 		PRINT_ASIO_ERROR("Accepting");
-		closeListenSocket();
 		if(m_listenErrors > 100)
 		{
 			#ifndef __ENABLE_LISTEN_ERROR__
-			std::cout << "[Warning - Server::onAccept] More than 100 listen errors." << std::endl;
 			m_listenErrors = 0;
+			std::cout << "[Warning - Server::onAccept] More than 100 listen errors." << std::endl;
 			#else
+			closeListenSocket();
 			std::cout << "[Error - Server::onAccept] More than 100 listen errors." << std::endl;
 			return;
 			#endif
 		}
 
 		m_listenErrors++;
-		openListenSocket();
+		if(!m_pendingStart)
+		{
+			m_pendingStart = true;
+			Scheduler::getScheduler().addEvent(createSchedulerTask(5000,
+				boost::bind(&Server::openListenSocket, this)));
+		}
 	}
 	#ifdef __DEBUG_NET__
 	else

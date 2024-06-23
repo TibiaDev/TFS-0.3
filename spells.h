@@ -43,31 +43,32 @@ class Spells : public BaseEvents
 		virtual ~Spells();
 
 		Spell* getSpellByName(const std::string& name);
+
 		RuneSpell* getRuneSpell(uint32_t id);
 		RuneSpell* getRuneSpellByName(const std::string& name);
 
 		InstantSpell* getInstantSpell(const std::string words);
 		InstantSpell* getInstantSpellByName(const std::string& name);
-
-		uint32_t getInstantSpellCount(const Player* player);
 		InstantSpell* getInstantSpellByIndex(const Player* player, uint32_t index);
 
+		uint32_t getInstantSpellCount(const Player* player);
 		bool onPlayerSay(Player* player, const std::string& words);
-
+		virtual std::string getScriptBaseName() const {return "spells";}
 		static Position getCasterPosition(Creature* creature, Direction dir);
-		virtual std::string getScriptBaseName();
 
 	protected:
 		virtual void clear();
-		virtual LuaScriptInterface& getScriptInterface();
+
 		virtual Event* getEvent(const std::string& nodeName);
 		virtual bool registerEvent(Event* event, xmlNodePtr p);
+
+		virtual LuaScriptInterface& getScriptInterface() {return m_scriptInterface;}
+		LuaScriptInterface m_scriptInterface;
 
 		RunesMap runes;
 		InstantsMap instants;
 
 		friend class CombatSpell;
-		LuaScriptInterface m_scriptInterface;
 };
 
 typedef bool (InstantSpellFunction)(const InstantSpell* spell, Creature* creature, const std::string& param);
@@ -101,7 +102,8 @@ class CombatSpell : public Event, public BaseSpell
 		Combat* getCombat() {return combat;}
 
 	protected:
-		virtual std::string getScriptEventName() {return "onCastSpell";}
+		virtual std::string getScriptEventName() const {return "onCastSpell";}
+		virtual std::string getScriptEventParams() const {return "cid, var";}
 
 		bool needDirection;
 		bool needTarget;
@@ -121,7 +123,7 @@ class Spell : public BaseSpell
 		void postCastSpell(Player* player, uint32_t manaCost, uint32_t soulCost) const;
 
 		int32_t getManaCost(const Player* player) const;
-		int32_t getSoulCost() const;
+		int32_t getSoulCost() const {return soul;}
 		uint32_t getLevel() const {return level;}
 		uint32_t getMagicLevel() const {return magLevel;}
 		int32_t getMana() const {return mana;}
@@ -142,22 +144,23 @@ class Spell : public BaseSpell
 		bool playerInstantSpellCheck(Player* player, const Position& toPos);
 		bool playerRuneSpellCheck(Player* player, const Position& toPos);
 
-		bool learnable;
-		bool enabled;
-		bool premium;
 		int32_t level;
 		int32_t magLevel;
+		bool premium;
+		bool learnable;
+		bool enabled;
 
 		int32_t mana;
 		int32_t manaPercent;
 		int32_t soul;
 		int32_t range;
 		uint32_t exhaustion;
+
 		bool needTarget;
 		bool needWeapon;
-		bool selfTarget;
 		bool blockingSolid;
 		bool blockingCreature;
+		bool selfTarget;
 		bool isAggressive;
 
 		typedef std::map<int32_t, bool> VocSpellMap;
@@ -192,7 +195,8 @@ class InstantSpell : public TalkAction, public Spell
 		bool canThrowSpell(const Creature* creature, const Creature* target) const;
 
 	protected:
-		virtual std::string getScriptEventName();
+		virtual std::string getScriptEventName() const {return "onCastSpell";}
+		virtual std::string getScriptEventParams() const {return "cid, var";}
 
 		static InstantSpellFunction HouseGuestList;
 		static InstantSpellFunction HouseSubOwnerList;
@@ -233,7 +237,8 @@ class ConjureSpell : public InstantSpell
 		uint32_t getReagentId() const {return conjureReagentId;}
 
 	protected:
-		virtual std::string getScriptEventName();
+		virtual std::string getScriptEventName() const {return "onCastSpell";}
+		virtual std::string getScriptEventParams() const {return "cid, var";}
 
 		static ReturnValue internalConjureItem(Player* player, uint32_t conjureId, uint32_t conjureCount,
 			bool transform = false, uint32_t reagentId = 0, slots_t slot = SLOT_WHEREEVER, bool test = false);
@@ -276,7 +281,8 @@ class RuneSpell : public Action, public Spell
 		uint32_t getRuneItemId(){return runeId;}
 
 	protected:
-		virtual std::string getScriptEventName();
+		virtual std::string getScriptEventName() const {return "onCastSpell";}
+		virtual std::string getScriptEventParams() const {return "cid, var";}
 
 		static RuneSpellFunction Illusion;
 		static RuneSpellFunction Convince;

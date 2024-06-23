@@ -85,7 +85,7 @@ enum ReturnValue
 	RET_YOUNEEDAMAGICITEMTOCASTSPELL = 57,
 	RET_CANNOTCONJUREITEMHERE = 58,
 	RET_YOUNEEDTOSPLITYOURSPEARS = 59,
-	RET_NAMEISTOOAMBIGIOUS = 60,
+	RET_NAMEISTOOAMBIGUOUS = 60,
 	RET_CANONLYUSEONESHIELD = 61,
 	RET_YOUARENOTTHEOWNER = 62,
 	RET_NOPARTYMEMBERSINRANGE = 63
@@ -119,7 +119,7 @@ class Thing
 
 		virtual void setParent(Cylinder* cylinder) {parent = cylinder;}
 
-		Cylinder* getTopParent(); //returns Tile/Container or a Player
+		Cylinder* getTopParent();
 		const Cylinder* getTopParent() const;
 
 		virtual Tile* getTile();

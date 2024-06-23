@@ -36,12 +36,11 @@ extern ConfigManager g_config;
 extern Monsters g_monsters;
 
 AutoList<Monster>Monster::listMonster;
-
-int32_t Monster::despawnRange;
-int32_t Monster::despawnRadius;
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 uint32_t Monster::monsterCount = 0;
 #endif
+int32_t Monster::despawnRange;
+int32_t Monster::despawnRadius;
 
 Monster* Monster::createMonster(MonsterType* mType)
 {
@@ -86,9 +85,6 @@ Creature()
 	defenseTicks = 0;
 	yellTicks = 0;
 	extraMeleeAttack = false;
-
-	strDescription = mType->nameDescription;
-	toLowerCaseString(strDescription);
 
 	// register creature events
 	MonsterScriptList::iterator it;
@@ -955,7 +951,7 @@ void Monster::pushCreatures(Tile* tile)
 			else
 			{
 				monster->changeHealth(-monster->getHealth());
-				monster->setDropLoot(false);
+				monster->setDropLoot(LOOT_DROP_NONE);
 				removeCount++;
 			}
 		}
@@ -1296,8 +1292,17 @@ void Monster::updateLookDirection()
 
 void Monster::dropLoot(Container* corpse)
 {
-	if(corpse && lootDrop)
+	if(corpse && lootDrop == LOOT_DROP_FULL)
 		mType->createLoot(corpse);
+}
+
+bool Monster::isImmune(CombatType_t type) const
+{
+	ElementMap::const_iterator it = mType->elementMap.find(type);
+	if(it == mType->elementMap.end())
+		return Creature::isImmune(type);
+
+	return it->second >= 100;
 }
 
 void Monster::setNormalCreatureLight()

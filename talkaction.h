@@ -35,7 +35,6 @@ enum TalkActionFilter
 	TALKFILTER_WORD,
 	TALKFILTER_LAST
 };
-
 class TalkAction;
 
 class TalkActions : public BaseEvents
@@ -47,16 +46,17 @@ class TalkActions : public BaseEvents
 		bool onPlayerSay(Player* player, uint16_t channelId, const std::string& words);
 
 	protected:
-		virtual LuaScriptInterface& getScriptInterface();
-		virtual std::string getScriptBaseName();
+		virtual std::string getScriptBaseName() const {return "talkactions";}
+		virtual void clear();
+
 		virtual Event* getEvent(const std::string& nodeName);
 		virtual bool registerEvent(Event* event, xmlNodePtr p);
-		virtual void clear();
+
+		virtual LuaScriptInterface& getScriptInterface() {return m_scriptInterface;}
+		LuaScriptInterface m_scriptInterface;
 
 		typedef std::map<std::string, TalkAction*> TalkActionsMap;
 		TalkActionsMap talksMap;
-
-		LuaScriptInterface m_scriptInterface;
 };
 
 typedef bool (TalkFunction)(Player* player, const std::string& words, const std::string& param);
@@ -71,11 +71,12 @@ class TalkAction : public Event
 		virtual bool configureEvent(xmlNodePtr p);
 		virtual bool loadFunction(const std::string& functionName);
 
-		int32_t executeSay(Creature* creature, const std::string& words, const std::string& param, uint16_t channel);
+		int32_t executeSay(Player* player, const std::string& words, const std::string& param, uint16_t channel);
 		TalkFunction* function;
 
 		std::string getWords() const {return m_words;}
 		TalkActionFilter getFilter() const {return m_filter;}
+
 		uint32_t getAccess() const {return m_access;}
 		int32_t getChannel() const {return m_channel;}
 
@@ -83,15 +84,17 @@ class TalkAction : public Event
 		bool isSensitive() const {return m_sensitive;}
 
 	protected:
-		static TalkFunction placeSummon;
+		static TalkFunction_t definedFunctions[];
+
+		virtual std::string getScriptEventName() const {return "onSay";}
+		virtual std::string getScriptEventParams() const {return "cid, words, param, channel";}
+
 		static TalkFunction serverDiag;
 		static TalkFunction sellHouse;
 		static TalkFunction buyHouse;
 		static TalkFunction joinGuild;
 		static TalkFunction createGuild;
 		static TalkFunction ghost;
-		static TalkFunction squelch;
-		static TalkFunction clickTeleport;
 		static TalkFunction addSkill;
 		static TalkFunction changeThingProporties;
 		static TalkFunction showBanishmentInfo;
@@ -101,9 +104,6 @@ class TalkAction : public Event
 		uint32_t m_access;
 		int32_t m_channel;
 		bool m_logged, m_sensitive;
-
-		virtual std::string getScriptEventName();
-		static TalkFunction_t definedFunctions[];
 };
 
 struct TalkFunction_t
