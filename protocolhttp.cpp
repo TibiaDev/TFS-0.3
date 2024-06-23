@@ -22,45 +22,39 @@
 
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 uint32_t ProtocolHTTP::protocolHTTPCount = 0;
-#endif
 
+#endif
+#ifdef __DEBUG_NET_DETAIL__
 void ProtocolHTTP::deleteProtocolTask()
 {
-#ifdef __DEBUG_NET_DETAIL__
-	std::cout << "Deleting ProtocolHTTP" << std::endl;
-#endif
+	std::clog << "Deleting ProtocolHTTP" << std::endl;
 	Protocol::deleteProtocolTask();
 }
 
-void ProtocolHTTP::disconnectClient()
-{
-	getConnection()->close();
-}
-
-bool ProtocolHTTP::parseFirstPacket(NetworkMessage& msg)
+#endif
+void ProtocolHTTP::onRecvFirstMessage(NetworkMessage&)
 {
 	if(OutputMessage_ptr output = OutputMessagePool::getInstance()->getOutputMessage(this, false))
 	{
 		TRACK_MESSAGE(output);
 
-		output->AddString("HTTP/1.1 200 OK");
-		output->AddString("Date: Fri, 27 Mar 2009 17:28.13 GMT\r\n");
-		output->AddString("Server: The Forgotten Server httpd/0.4\r\n");
-		output->AddString("Content-Location: filename.html\r\n");
+		output->putString("HTTP/1.1 200 OK");
+		output->putString("Date: Fri, 27 Mar 2009 17:28.13 GMT\r\n");
+		output->putString("Server: The Forgotten Server httpd/0.4\r\n");
+		output->putString("Content-Location: index.html\r\n");
 		//Vary: negotiate\r\n
 		//TCN: choice\r\n
-		output->AddString("Last-Modified: Fri, 27 Mar 2009 17:28.13 GMT\r\n");
-		output->AddString("Accept-Ranges: bytes\r\n");
-		output->AddString("Content-Length: 1234\r\n");
-		output->AddString("Expires: Fri, 27 Mar 2009 17:28.13 GMT\r\n");
-		output->AddString("Connection: close\r\n");
-		output->AddString("Content-Type: text/html qs=0.7\r\n");
-		output->AddString("\r\n");
-		output->AddString("<html><head><title>The Forgotten Server httpd</title></head><body>It works (apache ripoff ;D)!</body></html>");
+		output->putString("Last-Modified: Fri, 27 Mar 2009 17:28.13 GMT\r\n");
+		output->putString("Accept-Ranges: bytes\r\n");
+		output->putString("Content-Length: 1234\r\n");
+		output->putString("Expires: Fri, 27 Mar 2009 17:28.13 GMT\r\n");
+		output->putString("Connection: close\r\n");
+		output->putString("Content-Type: text/html qs=0.7\r\n");
+		output->putString("\r\n");
+		output->putString("<html><head><title>The Forgotten Server httpd</title></head><body>It works (apache ripoff ;D)!</body></html>");
 
 		OutputMessagePool::getInstance()->send(output);
 	}
 
 	getConnection()->close();
-	return true;
 }
