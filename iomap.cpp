@@ -59,6 +59,31 @@ typedef uint32_t flags_t;
 	|--- OTBM_ITEM_DEF (not implemented)
 */
 
+Tile* IOMap::createTile(Item*& ground, Item* item, uint16_t px, uint16_t py, uint16_t pz)
+{
+	Tile* tile = NULL;
+	if(ground)
+	{
+		if((item && item->isBlocking()) || ground->isBlocking()) //tile is blocking with possibly some decoration, should be static
+			tile = new StaticTile(px, py, pz);
+		else //tile is not blocking with possibly multiple items, use dynamic
+			tile = new DynamicTile(px, py, pz);
+
+		tile->__internalAddThing(ground);
+		if(ground->getDecaying() != DECAYING_TRUE)
+		{
+			ground->__startDecaying();
+			ground->setLoadedFromMap(true);
+		}
+
+		ground = NULL;
+	}
+	else //no ground on this tile, so it will always block
+		tile = new StaticTile(px, py, pz);
+
+	return tile;
+}
+
 bool IOMap::loadMap(Map* map, const std::string& identifier)
 {
 	FileLoader f;
@@ -196,7 +221,6 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 	for(StringVec::iterator it = map->descriptions.begin(); it != map->descriptions.end(); ++it)
 		std::cout << (*it) << std::endl;
 
-	Tile* tile = NULL;
 	NODE nodeMapData = f.getChildNode(nodeMap, type);
 	while(nodeMapData != NO_NODE)
 	{
@@ -246,11 +270,13 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 						return false;
 					}
 
+					Tile* tile = NULL;
+					Item* groundItem = NULL;
+					uint32_t tileflags = 0;
+
 					uint16_t px = base_x + tileCoord->_x, py = base_y + tileCoord->_y, pz = base_z;
 					House* house = NULL;
-					if(type == OTBM_TILE)
-						tile = new Tile(px, py, pz);
-					else if(type == OTBM_HOUSETILE)
+					if(type == OTBM_HOUSETILE)
 					{
 						uint32_t _houseid;
 						if(!propStream.GET_ULONG(_houseid))
@@ -276,7 +302,6 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 						house->addTile(static_cast<HouseTile*>(tile));
 					}
 
-					map->setTile(px, py, pz, tile);
 					//read tile attributes
 					uint8_t attribute;
 					while(propStream.GET_UCHAR(attribute))
@@ -296,21 +321,21 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 								}
 
 								if((flags & TILESTATE_PROTECTIONZONE) == TILESTATE_PROTECTIONZONE)
-									tile->setFlag(TILESTATE_PROTECTIONZONE);
+									tileflags |= TILESTATE_PROTECTIONZONE;
 								else if((flags & TILESTATE_NOPVPZONE) == TILESTATE_NOPVPZONE)
-									tile->setFlag(TILESTATE_NOPVPZONE);
+									tileflags |= TILESTATE_NOPVPZONE;
 								else if((flags & TILESTATE_PVPZONE) == TILESTATE_PVPZONE)
-									tile->setFlag(TILESTATE_PVPZONE);
+									tileflags |= TILESTATE_PVPZONE;
 
 								if((flags & TILESTATE_NOLOGOUT) == TILESTATE_NOLOGOUT)
-									tile->setFlag(TILESTATE_NOLOGOUT);
+									tileflags |= TILESTATE_NOLOGOUT;
 
 								if((flags & TILESTATE_REFRESH) == TILESTATE_REFRESH)
 								{
 									if(house)
 										std::cout << "[x:" << px << ", y:" << py << ", z:" << pz << "] House tile flagged as refreshing!";
 
-									tile->setFlag(TILESTATE_REFRESH);
+									tileflags |= TILESTATE_REFRESH;
 								}
 
 								break;
@@ -328,7 +353,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 									return false;
 								}
 
-								if(house && !item->isNotMoveable())
+								if(house && item->isMoveable())
 								{
 									std::cout << "[Warning - IOMap::loadMap] Movable item in house: " << house->getHouseId();
 									std::cout << ", item type: " << item->getID() << ", at position " << px << "/" << py << "/";
@@ -337,11 +362,26 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 									delete item;
 									item = NULL;
 								}
-								else
+								else if(tile)
 								{
+									tile->__internalAddThing(item);
 									item->__startDecaying();
 									item->setLoadedFromMap(true);
+								}
+								else if(item->isGroundTile())
+								{
+									if(groundItem)
+										delete groundItem;
+
+									groundItem = item;
+								}
+								else
+								{
+									tile = createTile(groundItem, item, px, py, pz);
 									tile->__internalAddThing(item);
+
+									item->__startDecaying();
+									item->setLoadedFromMap(true);
 								}
 
 								break;
@@ -378,7 +418,7 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 
 							if(item->unserializeItemNode(f, nodeItem, propStream))
 							{
-								if(house && !item->isNotMoveable())
+								if(house && item->isMoveable())
 								{
 									std::cout << "[Warning - IOMap::loadMap] Movable item in house: ";
 									std::cout << house->getHouseId() << ", item type: " << item->getID();
@@ -387,11 +427,26 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 									delete item;
 									item = NULL;
 								}
-								else
+								else if(tile)
 								{
+									tile->__internalAddThing(item);
 									item->__startDecaying();
 									item->setLoadedFromMap(true);
+								}
+								else if(item->isGroundTile())
+								{
+									if(groundItem)
+										delete groundItem;
+
+									groundItem = item;
+								}
+								else
+								{
+									tile = createTile(groundItem, item, px, py, pz);
 									tile->__internalAddThing(item);
+
+									item->__startDecaying();
+									item->setLoadedFromMap(true);
 								}
 							}
 							else
@@ -414,6 +469,12 @@ bool IOMap::loadMap(Map* map, const std::string& identifier)
 
 						nodeItem = f.getNextNode(nodeItem, type);
 					}
+
+					if(!tile)
+						tile = createTile(groundItem, NULL, px, py, pz);
+
+					tile->setFlag((tileflags_t)tileflags);
+					map->setTile(px, py, pz, tile);
 				}
 				else
 				{

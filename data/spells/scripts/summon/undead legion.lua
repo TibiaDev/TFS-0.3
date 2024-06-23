@@ -1,23 +1,23 @@
-local combat = createCombatObject()
-setCombatParam(combat, COMBAT_PARAM_EFFECT, CONST_ME_MAGIC_BLUE)
-
-local area = createCombatArea(AREA_CIRCLE3X3)
-setCombatArea(combat, area)
-
 function onTargetTile(cid, pos)
-	local position = pos
-	position.stackpos = 255
-	local item = getThingfromPos(position)
-	if item.itemid > 0 then
-		if isInArray(CORPSES, item.itemid) == TRUE then
-			doRemoveItem(item.uid,1)
-			local creature = doCreateMonster("Skeleton", pos)
-			doConvinceCreature(cid, creature)
-			doSendMagicEffect(pos, CONST_ME_POFF)
-		end
+	local getPos = pos
+	getPos.stackpos = STACKPOS_TOP_MOVEABLE_ITEM_OR_CREATURE
+
+	local corpse = getThingFromPos(getPos)
+	if(corpse.uid > 0 and isCorpse(corpse.uid) and isMoveable(corpse.uid) and getCreatureSkullType(cid) ~= SKULL_BLACK) then
+		doRemoveItem(corpse.uid)
+		doConvinceCreature(cid, doCreateMonster(cid, "Skeleton", pos))
+
+		doSendMagicEffect(pos, CONST_ME_MAGIC_BLUE)
+		return true
 	end
+
+	return false
 end
 
+local area, combat = createCombatArea(AREA_CIRCLE3X3), createCombatObject()
+setCombatArea(combat, area)
+
+setCombatParam(combat, COMBAT_PARAM_EFFECT, CONST_ME_MAGIC_BLUE)
 setCombatCallback(combat, CALLBACK_PARAM_TARGETTILE, "onTargetTile")
 
 function onCastSpell(cid, var)

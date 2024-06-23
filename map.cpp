@@ -30,10 +30,10 @@
 
 #include "iomapserialize.h"
 #include "items.h"
+
 #include "game.h"
 
 extern Game g_game;
-IOMapSerialize IOMapSerialize;
 
 Map::Map()
 {
@@ -60,59 +60,64 @@ bool Map::loadMap(const std::string& identifier)
 		std::cout << "> WARNING: Could not load house data." << std::endl;
 
 	delete loader;
-	std::cout << "> Data loading time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
+	std::cout << "> Data parsing time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
 	start = OTSYS_TIME();
 
-	IOMapSerialize.loadHouseInfo(this);
-	std::cout << "> Unserialization time for houses: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
-	start = OTSYS_TIME();
+	IOMapSerialize::getInstance()->updateHouses();
+	IOMapSerialize::getInstance()->updateAuctions();
+	std::cout << "> Houses synchronization time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
 
-	IOMapSerialize.loadMap(this);
-	std::cout << "> Unserialization time for map: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
+	start = OTSYS_TIME();
+	IOMapSerialize::getInstance()->loadHouses();
+	IOMapSerialize::getInstance()->loadMap(this);
+
+	std::cout << "> Content unserialization time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
 	return true;
 }
 
 bool Map::saveMap()
 {
+	IOMapSerialize* IOLoader = IOMapSerialize::getInstance();
 	bool saved = false;
-	for(uint32_t tries = 0; tries < 3; tries++)
+	for(uint32_t tries = 0; tries < 3; ++tries)
 	{
-		if(IOMapSerialize.saveMap(this))
-		{
-			saved = true;
-			break;
-		}
+		if(!IOLoader->saveHouses())
+			continue;
+
+		saved = true;
+		break;
 	}
 
 	if(!saved)
 		return false;
 
 	saved = false;
-	for(uint32_t tries = 0; tries < 3; tries++)
+	for(uint32_t tries = 0; tries < 3; ++tries)
 	{
-		if(IOMapSerialize.saveHouseInfo(this))
-		{
-			saved = true;
-			break;
-		}
+		if(!IOLoader->saveMap(this))
+			continue;
+
+		saved = true;
+		break;
 	}
+
 	return saved;
 }
 
-Tile* Map::getTile(uint16_t x, uint16_t y, uint16_t z)
+Tile* Map::getTile(int32_t x, int32_t y, int32_t z)
 {
-	if(z < MAP_MAX_LAYERS)
-	{
-		QTreeLeafNode* leaf = QTreeNode::getLeafStatic(&root, x, y);
-		if(leaf)
-		{
-			Floor* floor = leaf->getFloor(z);
-			if(floor)
-				return floor->tiles[x & FLOOR_MASK][y & FLOOR_MASK];
-		}
-	}
+	if(x < 0 || x >= 0xFFFF || y < 0 || y >= 0xFFFF || z < 0 || z >= MAP_MAX_LAYERS)
+		return NULL;
 
-	return NULL;
+	QTreeLeafNode* leaf = QTreeNode::getLeafStatic(&root, x, y);
+	if(!leaf)
+		return NULL;
+
+	Floor* floor = leaf->getFloor(z);
+	if(!floor)
+		return NULL;
+
+	return floor->tiles[x & FLOOR_MASK][y & FLOOR_MASK];
 }
 
 void Map::setTile(uint16_t x, uint16_t y, uint16_t z, Tile* newTile)
@@ -148,9 +153,8 @@ void Map::setTile(uint16_t x, uint16_t y, uint16_t z, Tile* newTile)
 			leaf->m_leafE = eastLeaf;
 	}
 
+	uint32_t offsetX = x & FLOOR_MASK, offsetY = y & FLOOR_MASK;
 	Floor* floor = leaf->createFloor(z);
-	uint32_t offsetX = x & FLOOR_MASK;
-	uint32_t offsetY = y & FLOOR_MASK;
 	if(!floor->tiles[offsetX][offsetY])
 	{
 		floor->tiles[offsetX][offsetY] = newTile;
@@ -162,9 +166,9 @@ void Map::setTile(uint16_t x, uint16_t y, uint16_t z, Tile* newTile)
 	if(newTile->hasFlag(TILESTATE_REFRESH))
 	{
 		RefreshBlock_t rb;
-		if(newTile->downItems)
+		if(TileItemVector* tileItems = newTile->getItemList())
 		{
-			for(ItemVector::iterator it = newTile->downItems->begin(); it != newTile->downItems->end(); ++it)
+			for(ItemVector::iterator it = tileItems->getBeginDownItem(); it != tileItems->getEndDownItem(); ++it)
 				rb.list.push_back((*it)->clone());
 		}
 
@@ -217,28 +221,23 @@ bool Map::placeCreature(const Position& centerPos, Creature* creature, bool exte
 	{
 		for(PairVector::iterator it = relList.begin(); it != relList.end() && !foundTile; ++it)
 		{
-			int32_t dx = it->first * n;
-			int32_t dy = it->second * n;
-
+			int32_t dx = it->first * n, dy = it->second * n;
 			tryPos = centerPos;
+
 			tryPos.x = tryPos.x + dx;
 			tryPos.y = tryPos.y + dy;
-
-			tile = getTile(tryPos);
-			if(!tile || (placeInPz && !tile->hasFlag(TILESTATE_PROTECTIONZONE)))
+			if(!(tile = getTile(tryPos)) || (placeInPz && !tile->hasFlag(TILESTATE_PROTECTIONZONE)))
 				continue;
 
 			if(tile->__queryAdd(0, creature, 1, 0) == RET_NOERROR)
 			{
-				if(extendedPos)
+				if(!extendedPos)
 				{
-					if(isSightClear(centerPos, tryPos, false))
-					{
-						foundTile = true;
-						break;
-					}
+					foundTile = true;
+					break;
 				}
-				else
+
+				if(isSightClear(centerPos, tryPos, false))
 				{
 					foundTile = true;
 					break;
@@ -251,8 +250,9 @@ bool Map::placeCreature(const Position& centerPos, Creature* creature, bool exte
 		return false;
 
 	int32_t index = 0;
-	Item* toItem = NULL;
 	uint32_t flags = 0;
+
+	Item* toItem = NULL;
 	if(Cylinder* toCylinder = tile->__queryDestination(index, creature, &toItem, flags))
 	{
 		toCylinder->__internalAddThing(creature);
@@ -266,38 +266,30 @@ bool Map::placeCreature(const Position& centerPos, Creature* creature, bool exte
 bool Map::removeCreature(Creature* creature)
 {
 	Tile* tile = creature->getTile();
-	if(tile)
-	{
-		tile->qt_node->removeCreature(creature);
-		tile->__removeThing(creature, 0);
-		return true;
-	}
-	return false;
+	if(!tile)
+		return false;
+
+	tile->qt_node->removeCreature(creature);
+	tile->__removeThing(creature, 0);
+	return true;
 }
 
-void Map::getSpectatorsInternal(SpectatorVec& list, const Position& centerPos, bool checkforduplicate,
+void Map::getSpectatorsInternal(SpectatorVec& list, const Position& centerPos, bool checkForDuplicate,
 	int32_t minRangeX, int32_t maxRangeX, int32_t minRangeY, int32_t maxRangeY,
 	int32_t minRangeZ, int32_t maxRangeZ)
 {
-	int32_t minoffset = centerPos.z - maxRangeZ;
-	int32_t x1 = std::min((int32_t)0xFFFF, std::max((int32_t)0, (centerPos.x + minRangeX + minoffset)));
-	int32_t y1 = std::min((int32_t)0xFFFF, std::max((int32_t)0, (centerPos.y + minRangeY + minoffset)));
+	int32_t minoffset = centerPos.z - maxRangeZ, maxoffset = centerPos.z - minRangeZ,
+		x1 = std::min((int32_t)0xFFFF, std::max((int32_t)0, (centerPos.x + minRangeX + minoffset))),
+		y1 = std::min((int32_t)0xFFFF, std::max((int32_t)0, (centerPos.y + minRangeY + minoffset))),
+		x2 = std::min((int32_t)0xFFFF, std::max((int32_t)0, (centerPos.x + maxRangeX + maxoffset))),
+		y2 = std::min((int32_t)0xFFFF, std::max((int32_t)0, (centerPos.y + maxRangeY + maxoffset))),
+		startx1 = x1 - (x1 % FLOOR_SIZE), starty1 = y1 - (y1 % FLOOR_SIZE),
+		endx2 = x2 - (x2 % FLOOR_SIZE), endy2 = y2 - (y2 % FLOOR_SIZE);
 
-	int32_t maxoffset = centerPos.z - minRangeZ;
-	int32_t x2 = std::min((int32_t)0xFFFF, std::max((int32_t)0, (centerPos.x + maxRangeX + maxoffset)));
-	int32_t y2 = std::min((int32_t)0xFFFF, std::max((int32_t)0, (centerPos.y + maxRangeY + maxoffset)));
+	QTreeLeafNode* startLeaf = getLeaf(startx1, starty1);
+	QTreeLeafNode* leafS = startLeaf;
 
-	int32_t startx1 = x1 - (x1 % FLOOR_SIZE);
-	int32_t starty1 = y1 - (y1 % FLOOR_SIZE);
-	int32_t endx2 = x2 - (x2 % FLOOR_SIZE);
-	int32_t endy2 = y2 - (y2 % FLOOR_SIZE);
-
-	QTreeLeafNode* startLeaf;
 	QTreeLeafNode* leafE;
-	QTreeLeafNode* leafS;
-
-	startLeaf = getLeaf(startx1, starty1);
-	leafS = startLeaf;
 	for(int32_t ny = starty1; ny <= endy2; ny += FLOOR_SIZE)
 	{
 		leafE = leafS;
@@ -305,34 +297,29 @@ void Map::getSpectatorsInternal(SpectatorVec& list, const Position& centerPos, b
 		{
 			if(leafE)
 			{
-				CreatureVector& node_list = leafE->creature_list;
-				CreatureVector::const_iterator node_iter = node_list.begin();
-				CreatureVector::const_iterator node_end = node_list.end();
-				if(node_iter != node_end)
+				CreatureVector& nodeList = leafE->creatureList;
+				CreatureVector::const_iterator it = nodeList.begin();
+				if(it != nodeList.end())
 				{
 					do
 					{
-						Creature* creature = *node_iter;
-						const Position& cpos = creature->getPosition();
-						int32_t offsetZ = centerPos.z - cpos.z;
-						if(cpos.z < minRangeZ || cpos.z > maxRangeZ)
+						Creature* creature = (*it);
+						const Position& pos = creature->getPosition();
+
+						int32_t offsetZ = centerPos.z - pos.z;
+						if(pos.z < minRangeZ || pos.z > maxRangeZ)
 							continue;
 
-						if(cpos.y < (centerPos.y + minRangeY + offsetZ) || cpos.y > (centerPos.y + maxRangeY + offsetZ))
+						if(pos.y < (centerPos.y + minRangeY + offsetZ) || pos.y > (centerPos.y + maxRangeY + offsetZ))
 							continue;
 
-						if(cpos.x < (centerPos.x + minRangeX + offsetZ) || cpos.x > (centerPos.x + maxRangeX + offsetZ))
+						if(pos.x < (centerPos.x + minRangeX + offsetZ) || pos.x > (centerPos.x + maxRangeX + offsetZ))
 							continue;
 
-						if(checkforduplicate)
-						{
-							if(std::find(list.begin(), list.end(), creature) == list.end())
-								list.push_back(creature);
-						}
-						else
+						if(!checkForDuplicate || std::find(list.begin(), list.end(), creature) == list.end())
 							list.push_back(creature);
 					}
-					while(++node_iter != node_end);
+					while(++it != nodeList.end());
 				}
 
 				leafE = leafE->stepEast();
@@ -351,8 +338,11 @@ void Map::getSpectatorsInternal(SpectatorVec& list, const Position& centerPos, b
 void Map::getSpectators(SpectatorVec& list, const Position& centerPos, bool checkforduplicate /*= false*/, bool multifloor /*= false*/,
 	int32_t minRangeX /*= 0*/, int32_t maxRangeX /*= 0*/, int32_t minRangeY /*= 0*/, int32_t maxRangeY /*= 0*/)
 {
+	if(centerPos.z >= MAP_MAX_LAYERS)
+		return;
+
 	bool foundCache = false, cacheResult = false;
-	if(minRangeX == 0 && maxRangeX == 0 && minRangeY == 0 && maxRangeY == 0 && multifloor == true && checkforduplicate == false)
+	if(!minRangeX && !maxRangeX && !minRangeY && !maxRangeY && multifloor && !checkforduplicate)
 	{
 		SpectatorCache::iterator it = spectatorCache.find(centerPos);
 		if(it != spectatorCache.end())
@@ -366,19 +356,17 @@ void Map::getSpectators(SpectatorVec& list, const Position& centerPos, bool chec
 
 	if(!foundCache)
 	{
-		minRangeX = (minRangeX == 0 ? -maxViewportX : -minRangeX);
-		maxRangeX = (maxRangeX == 0 ? maxViewportX : maxRangeX);
-		minRangeY = (minRangeY == 0 ? -maxViewportY : -minRangeY);
-		maxRangeY = (maxRangeY == 0 ? maxViewportY : maxRangeY);
+		minRangeX = (!minRangeX ? -maxViewportX : -minRangeX);
+		maxRangeX = (!maxRangeX ? maxViewportX : maxRangeX);
+		minRangeY = (!minRangeY ? -maxViewportY : -minRangeY);
+		maxRangeY = (!maxRangeY ? maxViewportY : maxRangeY);
 
 		int32_t minRangeZ, maxRangeZ;
 		if(multifloor)
 		{
 			if(centerPos.z > 7)
 			{
-				//underground
-
-				//8->15
+				//underground, 8->15
 				minRangeZ = std::max(centerPos.z - 2, 0);
 				maxRangeZ = std::min(centerPos.z + 2, MAP_MAX_LAYERS - 1);
 			}
@@ -405,9 +393,8 @@ void Map::getSpectators(SpectatorVec& list, const Position& centerPos, bool chec
 			maxRangeZ = centerPos.z;
 		}
 
-		getSpectatorsInternal(list, centerPos, true,
-			minRangeX, maxRangeX, minRangeY, maxRangeY,
-			minRangeZ, maxRangeZ);
+		getSpectatorsInternal(list, centerPos, true, minRangeX,
+			maxRangeX, minRangeY, maxRangeY, minRangeZ, maxRangeZ);
 
 		if(cacheResult)
 			spectatorCache[centerPos].reset(new SpectatorVec(list));
@@ -416,6 +403,13 @@ void Map::getSpectators(SpectatorVec& list, const Position& centerPos, bool chec
 
 const SpectatorVec& Map::getSpectators(const Position& centerPos)
 {
+	if(centerPos.z >= MAP_MAX_LAYERS)
+	{
+		boost::shared_ptr<SpectatorVec> p(new SpectatorVec());
+		SpectatorVec& list = *p;
+		return list;
+	}
+
 	SpectatorCache::iterator it = spectatorCache.find(centerPos);
 	if(it != spectatorCache.end())
 		return *it->second;
@@ -435,7 +429,6 @@ const SpectatorVec& Map::getSpectators(const Position& centerPos)
 	//above ground
 	else if(centerPos.z == 6)
 	{
-		
 		minRangeZ = 0;
 		maxRangeZ = 8;
 	}
@@ -460,18 +453,12 @@ bool Map::canThrowObjectTo(const Position& fromPos, const Position& toPos, bool 
 	//z checks
 	//underground 8->15
 	//ground level and above 7->0
-	if((fromPos.z >= 8 && toPos.z < 8) || (toPos.z >= 8 && fromPos.z < 8))
+	if((fromPos.z >= 8 && toPos.z < 8) || (toPos.z >= 8 &&
+		fromPos.z < 8) || fromPos.z - fromPos.z > 2)
 		return false;
 
-	if(fromPos.z - fromPos.z > 2)
-		return false;
-
-	int32_t deltax, deltay, deltaz;
-	deltax = std::abs(fromPos.x - toPos.x);
-	deltay = std::abs(fromPos.y - toPos.y);
-	deltaz = std::abs(fromPos.z - toPos.z);
-
-	//distance checks
+	int32_t deltax = std::abs(fromPos.x - toPos.x), deltay = std::abs(
+		fromPos.y - toPos.y), deltaz = std::abs(fromPos.z - toPos.z);
 	if(deltax - deltaz > rangex || deltay - deltaz > rangey)
 		return false;
 
@@ -485,13 +472,9 @@ bool Map::checkSightLine(const Position& fromPos, const Position& toPos) const
 {
 	Position start = fromPos;
 	Position end = toPos;
-	int32_t x, y, z, dx, dy, dz, sx, sy, sz, ey, ez;
 
-	dx = abs(start.x - end.x);
-	dy = abs(start.y - end.y);
-	dz = abs(start.z - end.z);
-
-	int32_t max = dx, dir = 0;
+	int32_t x, y, z, dx = std::abs(start.x - end.x), dy = std::abs(start.y - end.y),
+		dz = std::abs(start.z - end.z), sx, sy, sz, ey, ez, max = dx, dir = 0;
 	if(dy > max)
 	{
 		max = dy;
@@ -555,7 +538,7 @@ bool Map::checkSightLine(const Position& fromPos, const Position& toPos) const
 				break;
 		}
 
-		if(!(toPos.x == rx && toPos.y == ry && toPos.z == rz) && !(fromPos.x == rx && fromPos.y == ry && fromPos.z == rz))
+		if((toPos.x != rx || toPos.y != ry || toPos.z != rz) && (fromPos.x != rx || fromPos.y != ry || fromPos.z != rz))
 		{
 			if(lastrz != rz && const_cast<Map*>(this)->getTile(lastrx, lastry, std::min(lastrz, rz)))
 				return false;
@@ -570,13 +553,13 @@ bool Map::checkSightLine(const Position& fromPos, const Position& toPos) const
 		ez += dz;
 		if(2 * ey >= dx)
 		{
-			y  += sy;
+			y += sy;
 			ey -= dx;
 		}
 
 		if(2 * ez >= dx)
 		{
-			z  += sz;
+			z += sz;
 			ez -= dx;
 		}
 	}
@@ -607,11 +590,9 @@ const Tile* Map::canWalkTo(const Creature* creature, const Position& pos)
 
 	//used for none-cached tiles
 	Tile* tile = getTile(pos);
-	if(creature->getTile() != tile)
-	{
-		if(!tile || tile->__queryAdd(0, creature, 1, FLAG_PATHFINDING | FLAG_IGNOREFIELDDAMAGE) != RET_NOERROR)
-			return NULL;
-	}
+	if(creature->getTile() != tile && (!tile || tile->__queryAdd(0, creature, 1,
+		FLAG_PATHFINDING | FLAG_IGNOREFIELDDAMAGE) != RET_NOERROR))
+		return NULL;
 
 	return tile;
 }
@@ -619,23 +600,25 @@ const Tile* Map::canWalkTo(const Creature* creature, const Position& pos)
 bool Map::getPathTo(const Creature* creature, const Position& destPos,
 	std::list<Direction>& listDir, int32_t maxSearchDist /*= -1*/)
 {
-	if(canWalkTo(creature, destPos) == NULL)
+	if(!canWalkTo(creature, destPos))
 		return false;
 
-	listDir.clear();
 	Position startPos = destPos;
 	Position endPos = creature->getPosition();
 
+	listDir.clear();
 	if(startPos.z != endPos.z)
 		return false;
 
 	AStarNodes nodes;
 	AStarNode* startNode = nodes.createOpenNode();
+
 	startNode->x = startPos.x;
 	startNode->y = startPos.y;
 
 	startNode->g = 0;
 	startNode->h = nodes.getEstimatedDistance(startPos.x, startPos.y, endPos.x, endPos.y);
+
 	startNode->f = startNode->g + startNode->h;
 	startNode->parent = NULL;
 
@@ -655,12 +638,13 @@ bool Map::getPathTo(const Creature* creature, const Position& destPos,
 		{-1, 1},
 	};
 
-	const Tile* tile = NULL;
 	AStarNode* found = NULL;
+	AStarNode* n = NULL;
+
+	const Tile* tile = NULL;
 	while(maxSearchDist != -1 || nodes.countClosedNodes() < 100)
 	{
-		AStarNode* n = nodes.getBestNode();
-		if(!n)
+		if(!(n = nodes.getBestNode()))
 		{
 			listDir.clear();
 			return false; //no path found
@@ -671,64 +655,53 @@ bool Map::getPathTo(const Creature* creature, const Position& destPos,
 			found = n;
 			break;
 		}
-		else
+
+		for(uint8_t i = 0; i < 8; ++i)
 		{
-			for(uint8_t i = 0; i < 8; ++i)
+			pos.x = n->x + neighbourOrderList[i][0];
+			pos.y = n->y + neighbourOrderList[i][1];
+
+			bool outOfRange = false;
+			if(maxSearchDist != -1 && (std::abs(endPos.x - pos.x) > maxSearchDist ||
+				std::abs(endPos.y - pos.y) > maxSearchDist))
+				outOfRange = true;
+
+			if(!outOfRange && (tile = canWalkTo(creature, pos)))
 			{
-				pos.x = n->x + neighbourOrderList[i][0];
-				pos.y = n->y + neighbourOrderList[i][1];
-
-				bool outOfRange = false;
-				if(maxSearchDist != -1 && (std::abs(endPos.x - pos.x) > maxSearchDist ||
-					std::abs(endPos.y - pos.y) > maxSearchDist))
+				//The cost (g) for this neighbour
+				int32_t cost = nodes.getMapWalkCost(creature, n, tile, pos),
+					extraCost = nodes.getTileWalkCost(creature, tile),
+					newg = n->g + cost + extraCost;
+				//Check if the node is already in the closed/open list
+				//If it exists and the nodes already on them has a lower cost (g) then we can ignore this neighbour node
+				AStarNode* neighbourNode = nodes.getNodeInList(pos.x, pos.y);
+				if(neighbourNode)
 				{
-					outOfRange = true;
+					if(neighbourNode->g <= newg) //The node on the closed/open list is cheaper than this one
+						continue;
+
+					nodes.openNode(neighbourNode);
+				}
+				else if(!(neighbourNode = nodes.createOpenNode())) //Does not exist in the open/closed list, create a new node
+				{
+					//seems we ran out of nodes
+					listDir.clear();
+					return false;
 				}
 
-				if(!outOfRange && (tile = canWalkTo(creature, pos)))
-				{
-					//The cost (g) for this neighbour
-					int32_t cost = nodes.getMapWalkCost(creature, n, tile, pos);
-					int32_t extraCost = nodes.getTileWalkCost(creature, tile);
-					int32_t newg = n->g + cost + extraCost;
+				//This node is the best node so far with this state
+				neighbourNode->x = pos.x;
+				neighbourNode->y = pos.y;
 
-					//Check if the node is already in the closed/open list
-					//If it exists and the nodes already on them has a lower cost (g) then we can ignore this neighbour node
-					AStarNode* neighbourNode = nodes.getNodeInList(pos.x, pos.y);
-					if(neighbourNode)
-					{
-						if(neighbourNode->g <= newg)
-						{
-							//The node on the closed/open list is cheaper than this one
-							continue;
-						}
+				neighbourNode->g = newg;
+				neighbourNode->h = nodes.getEstimatedDistance(neighbourNode->x, neighbourNode->y, endPos.x, endPos.y);
 
-						nodes.openNode(neighbourNode);
-					}
-					else
-					{
-						//Does not exist in the open/closed list, create a new node
-						neighbourNode = nodes.createOpenNode();
-						if(!neighbourNode)
-						{
-							//seems we ran out of nodes
-							listDir.clear();
-							return false;
-						}
-					}
-
-					//This node is the best node so far with this state
-					neighbourNode->x = pos.x;
-					neighbourNode->y = pos.y;
-					neighbourNode->parent = n;
-					neighbourNode->g = newg;
-					neighbourNode->h = nodes.getEstimatedDistance(neighbourNode->x, neighbourNode->y, endPos.x, endPos.y);
-					neighbourNode->f = neighbourNode->g + neighbourNode->h;
-				}
+				neighbourNode->f = neighbourNode->g + neighbourNode->h;
+				neighbourNode->parent = n;
 			}
-
-			nodes.closeNode(n);
 		}
+
+		nodes.closeNode(n);
 	}
 
 	int32_t prevx = endPos.x, prevy = endPos.y, dx, dy;
@@ -737,14 +710,13 @@ bool Map::getPathTo(const Creature* creature, const Position& destPos,
 		pos.x = found->x;
 		pos.y = found->y;
 
-		found = found->parent;
-
 		dx = pos.x - prevx;
 		dy = pos.y - prevy;
 
 		prevx = pos.x;
 		prevy = pos.y;
 
+		found = found->parent;
 		if(dx == -1 && dy == -1)
 			listDir.push_back(NORTHWEST);
 		else if(dx == 1 && dy == -1)
@@ -769,17 +741,19 @@ bool Map::getPathTo(const Creature* creature, const Position& destPos,
 bool Map::getPathMatching(const Creature* creature, std::list<Direction>& dirList,
 	const FrozenPathingConditionCall& pathCondition, const FindPathParams& fpp)
 {
-	dirList.clear();
 	Position startPos = creature->getPosition();
 	Position endPos;
 
 	AStarNodes nodes;
 	AStarNode* startNode = nodes.createOpenNode();
+
 	startNode->x = startPos.x;
 	startNode->y = startPos.y;
 
 	startNode->f = 0;
 	startNode->parent = NULL;
+
+	dirList.clear();
 	int32_t bestMatch = 0;
 
 	Position pos;
@@ -798,18 +772,16 @@ bool Map::getPathMatching(const Creature* creature, std::list<Direction>& dirLis
 		{-1, 1},
 	};
 
-	const Tile* tile = NULL;
 	AStarNode* found = NULL;
+	AStarNode* n = NULL;
+
+	const Tile* tile = NULL;
 	while(fpp.maxSearchDist != -1 || nodes.countClosedNodes() < 100)
 	{
-		AStarNode* n = nodes.getBestNode();
-		if(!n)
+		if(!(n = nodes.getBestNode()))
 		{
-			if(found)
-			{
-				//not quite what we want, but we found something
+			if(found) //not quite what we want, but we found something
 				break;
-			}
 
 			dirList.clear();
 			return false; //no path found
@@ -819,7 +791,7 @@ bool Map::getPathMatching(const Creature* creature, std::list<Direction>& dirLis
 		{
 			found = n;
 			endPos = Position(n->x, n->y, startPos.z);
-			if(bestMatch == 0)
+			if(!bestMatch)
 				break;
 		}
 
@@ -832,9 +804,7 @@ bool Map::getPathMatching(const Creature* creature, std::list<Direction>& dirLis
 			bool inRange = true;
 			if(fpp.maxSearchDist != -1 && (std::abs(startPos.x - pos.x) > fpp.maxSearchDist ||
 				std::abs(startPos.y - pos.y) > fpp.maxSearchDist))
-			{
 				inRange = false;
-			}
 
 			if(fpp.keepDistance)
 			{
@@ -845,44 +815,34 @@ bool Map::getPathMatching(const Creature* creature, std::list<Direction>& dirLis
 			if(inRange && (tile = canWalkTo(creature, pos)))
 			{
 				//The cost (g) for this neighbour
-				int32_t cost = nodes.getMapWalkCost(creature, n, tile, pos);
-				int32_t extraCost = nodes.getTileWalkCost(creature, tile);
-				int32_t newf = n->f + cost + extraCost;
+				int32_t cost = nodes.getMapWalkCost(creature, n, tile, pos),
+					extraCost = nodes.getTileWalkCost(creature, tile),
+					newf = n->f + cost + extraCost;
 
 				//Check if the node is already in the closed/open list
 				//If it exists and the nodes already on them has a lower cost (g) then we can ignore this neighbour node
 				AStarNode* neighbourNode = nodes.getNodeInList(pos.x, pos.y);
 				if(neighbourNode)
 				{
-					if(neighbourNode->f <= newf)
-					{
-						//The node on the closed/open list is cheaper than this one
+					if(neighbourNode->f <= newf) //The node on the closed/open list is cheaper than this one
 						continue;
-					}
 
 					nodes.openNode(neighbourNode);
 				}
-				else
+				else if(!(neighbourNode = nodes.createOpenNode())) //Does not exist in the open/closed list, create a new node
 				{
-					//Does not exist in the open/closed list, create a new node
-					neighbourNode = nodes.createOpenNode();
-					if(!neighbourNode)
-					{
-						if(found)
-						{
-							//not quite what we want, but we found something
-							break;
-						}
+					if(found) //not quite what we want, but we found something
+						break;
 
-						//seems we ran out of nodes
-						dirList.clear();
-						return false;
-					}
+					//seems we ran out of nodes
+					dirList.clear();
+					return false;
 				}
 
 				//This node is the best node so far with this state
 				neighbourNode->x = pos.x;
 				neighbourNode->y = pos.y;
+
 				neighbourNode->parent = n;
 				neighbourNode->f = newf;
 			}
@@ -891,11 +851,10 @@ bool Map::getPathMatching(const Creature* creature, std::list<Direction>& dirLis
 		nodes.closeNode(n);
 	}
 
-	int32_t prevx = endPos.x, prevy = endPos.y, dx, dy;
-
 	if(!found)
 		return false;
 
+	int32_t prevx = endPos.x, prevy = endPos.y, dx, dy;
 	found = found->parent;
 	while(found)
 	{
@@ -908,6 +867,7 @@ bool Map::getPathMatching(const Creature* creature, std::list<Direction>& dirLis
 		prevx = pos.x;
 		prevy = pos.y;
 
+		found = found->parent;
 		if(dx == 1 && dy == 1)
 			dirList.push_front(NORTHWEST);
 		else if(dx == -1 && dy == 1)
@@ -924,8 +884,6 @@ bool Map::getPathMatching(const Creature* creature, std::list<Direction>& dirLis
 			dirList.push_front(NORTH);
 		else if(dy == -1)
 			dirList.push_front(SOUTH);
-
-		found = found->parent;
 	}
 
 	return true;
@@ -944,10 +902,11 @@ AStarNode* AStarNodes::createOpenNode()
 	if(curNode >= MAX_NODES)
 		return NULL;
 
-	uint32_t ret_node = curNode;
+	uint32_t retNode = curNode;
 	curNode++;
-	openNodes[ret_node] = 1;
-	return &nodes[ret_node];
+
+	openNodes[retNode] = 1;
+	return &nodes[retNode];
 }
 
 AStarNode* AStarNodes::getBestNode()
@@ -1008,7 +967,7 @@ uint32_t AStarNodes::countClosedNodes()
 	uint32_t counter = 0;
 	for(uint32_t i = 0; i < curNode; i++)
 	{
-		if(openNodes[i] == 0)
+		if(!openNodes[i])
 			counter++;
 	}
 
@@ -1061,7 +1020,7 @@ int32_t AStarNodes::getMapWalkCost(const Creature* creature, AStarNode* node,
 int32_t AStarNodes::getTileWalkCost(const Creature* creature, const Tile* tile)
 {
 	int32_t cost = 0;
-	if(tile->creatures && !tile->creatures->empty()) //destroy creature cost
+	if(tile->getTopVisibleCreature(creature)) //destroy creature cost
 		cost += MAP_NORMALWALKCOST * 3;
 
 	if(const MagicField* field = tile->getFieldItem())
@@ -1076,8 +1035,8 @@ int32_t AStarNodes::getTileWalkCost(const Creature* creature, const Tile* tile)
 int32_t AStarNodes::getEstimatedDistance(uint16_t x, uint16_t y, uint16_t xGoal, uint16_t yGoal)
 {
 	int32_t diagonal = std::min(std::abs(x - xGoal), std::abs(y - yGoal));
-	int32_t straight = (std::abs(x - xGoal) + std::abs(y - yGoal));
-	return MAP_DIAGONALWALKCOST * diagonal + MAP_NORMALWALKCOST * (straight - 2 * diagonal);
+	return (MAP_DIAGONALWALKCOST * diagonal) + (MAP_NORMALWALKCOST * ((std::abs(
+		x - xGoal) + std::abs(y - yGoal)) - (2 * diagonal)));
 }
 
 //*********** Floor constructor **************

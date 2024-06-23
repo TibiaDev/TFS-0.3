@@ -7,115 +7,102 @@ local decreasingItems = {[417] = 416, [425] = 426, [447] = 446, [3217] = 3216, [
 local depots = {2589, 2590, 2591, 2592}
 
 local checkCreature = {isPlayer, isMonster, isNpc}
+local function pushBack(cid, position, fromPosition, displayMessage)
+	doTeleportThing(cid, fromPosition, false)
+	doSendMagicEffect(position, CONST_ME_MAGIC_BLUE)
+	if(displayMessage) then
+		doPlayerSendTextMessage(cid, MESSAGE_INFO_DESCR, "The tile seems to be protected against unwanted intruders.")
+	end
+end
+
 function onStepIn(cid, item, position, fromPosition)
 	if(not increasingItems[item.itemid]) then
-		return FALSE
+		return false
 	end
 
-	if(isPlayer(cid) ~= TRUE or isPlayerGhost(cid) ~= TRUE) then
+	if(not isPlayerGhost(cid)) then
 		doTransformItem(item.uid, increasingItems[item.itemid])
 	end
 
 	if(item.actionid >= 194 and item.actionid <= 196) then
 		local f = checkCreature[item.actionid - 193]
-		if(f(cid) == TRUE) then
-			doTeleportThing(cid, fromPosition, FALSE)
-			doSendMagicEffect(position, CONST_ME_MAGIC_BLUE)
+		if(f(cid)) then
+			pushBack(cid, position, fromPosition, false)
 		end
 
-		return TRUE
+		return true
 	end
 
 	if(item.actionid >= 191 and item.actionid <= 193) then
 		local f = checkCreature[item.actionid - 190]
-		if(f(cid) ~= TRUE) then
-			doTeleportThing(cid, fromPosition, FALSE)
-			doSendMagicEffect(position, CONST_ME_MAGIC_BLUE)
+		if(not f(cid)) then
+			pushBack(cid, position, fromPosition, false)
 		end
 
-		return TRUE
+		return true
 	end
 
-	if(isPlayer(cid) ~= TRUE) then
-		return TRUE
+	if(not isPlayer(cid)) then
+		return true
 	end
 
-	if(item.actionid == 189 and isPremium(cid) ~= TRUE) then
-		doTeleportThing(cid, fromPosition, FALSE)
-		doSendMagicEffect(position, CONST_ME_MAGIC_BLUE)
-
-		doPlayerSendTextMessage(cid, MESSAGE_INFO_DESCR, "The tile seems to be protected against unwanted intruders.")
-		return TRUE
+	if(item.actionid == 189 and not isPremium(cid)) then
+		pushBack(cid, position, fromPosition, true)
+		return true
 	end
 
 	local gender = item.actionid - 186
-	if(isInArray({PLAYERSEX_FEMALE,  PLAYERSEX_MALE, PLAYERSEX_GAMEMASTER}, gender) == TRUE) then
-		local playerGender = getPlayerSex(cid)
-		if(playerGender ~= gender) then
-			doPlayerSendTextMessage(cid, MESSAGE_INFO_DESCR, "The tile seems to be protected against unwanted intruders.")
-			doTeleportThing(cid, fromPosition, FALSE)
-			doSendMagicEffect(position, CONST_ME_MAGIC_BLUE)
+	if(isInArray({PLAYERSEX_FEMALE,  PLAYERSEX_MALE, PLAYERSEX_GAMEMASTER}, gender)) then
+		if(gender ~= getPlayerSex(cid)) then
+			pushBack(cid, position, fromPosition, true)
 		end
 
-		return TRUE
+		return true
 	end
 
 	local skull = item.actionid - 180
-	if(skull >= 0 and skull < 6) then
-		local playerSkull = getCreatureSkullType(cid)
-		if(playerSkull ~= skull) then
-			doPlayerSendTextMessage(cid, MESSAGE_INFO_DESCR, "The tile seems to be protected against unwanted intruders.")
-			doTeleportThing(cid, fromPosition, FALSE)
-			doSendMagicEffect(position, CONST_ME_MAGIC_BLUE)
+	if(skull >= SKULL_NONE and skull <= SKULL_BLACK) then
+		if(skull ~= getCreatureSkullType(cid)) then
+			pushBack(cid, position, fromPosition, true)
 		end
 
-		return TRUE
+		return true
 	end
 
 	local group = item.actionid - 150
 	if(group >= 0 and group < 30) then
-		local playerGroup = getPlayerGroupId(cid)
-		if(playerGroup < group) then
-			doPlayerSendTextMessage(cid, MESSAGE_INFO_DESCR, "The tile seems to be protected against unwanted intruders.")
-			doTeleportThing(cid, fromPosition, FALSE)
-			doSendMagicEffect(position, CONST_ME_MAGIC_BLUE)
+		if(group > getPlayerGroupId(cid)) then
+			pushBack(cid, position, fromPosition, true)
 		end
 
-		return TRUE
+		return true
 	end
 
 	local vocation = item.actionid - 100
 	if(vocation >= 0 and vocation < 50) then
 		local playerVocationInfo = getVocationInfo(getPlayerVocation(cid))
 		if(playerVocationInfo.id ~= vocation and playerVocationInfo.fromVocation ~= vocation) then
-			doPlayerSendTextMessage(cid, MESSAGE_INFO_DESCR, "The tile seems to be protected against unwanted intruders.")
-			doTeleportThing(cid, fromPosition, FALSE)
-			doSendMagicEffect(position, CONST_ME_MAGIC_BLUE)
+			pushBack(cid, position, fromPosition, true)
 		end
 
-		return TRUE
+		return true
 	end
 
 	if(item.actionid >= 1000 and item.actionid <= config.maxLevel) then
 		if(getPlayerLevel(cid) < item.actionid - 1000) then
-			doPlayerSendTextMessage(cid, MESSAGE_INFO_DESCR, "The tile seems to be protected against unwanted intruders.")
-			doTeleportThing(cid, fromPosition, FALSE)
-			doSendMagicEffect(position, CONST_ME_MAGIC_BLUE)
+			pushBack(cid, position, fromPosition, true)
 		end
 
-		return TRUE
+		return true
 	end
 
 	if(item.actionid ~= 0 and getPlayerStorageValue(cid, item.actionid) <= 0) then
-		doTeleportThing(cid, fromPosition, FALSE)
-		doSendMagicEffect(position, CONST_ME_MAGIC_BLUE)
-
-		doPlayerSendTextMessage(cid, MESSAGE_INFO_DESCR, "The tile seems to be protected against unwanted intruders.")
-		return TRUE
+		pushBack(cid, position, fromPosition, true)
+		return true
 	end
 
 	if(getTileInfo(position).protection) then
-		local depotPos, depot = getPlayerLookPos(cid), {}
+		local depotPos, depot = getCreatureLookPosition(cid), {}
 		depotPos.stackpos = STACKPOS_GROUND
 		while(true) do
 			depotPos.stackpos = depotPos.stackpos + 1
@@ -124,28 +111,28 @@ function onStepIn(cid, item, position, fromPosition)
 				break
 			end
 
-			if(isInArray(depots, depot.itemid) == TRUE) then
+			if(isInArray(depots, depot.itemid)) then
 				local depotItems = getPlayerDepotItems(cid, getDepotId(depot.uid))
 				doPlayerSendTextMessage(cid, MESSAGE_STATUS_DEFAULT, "Your depot contains " .. depotItems .. " item" .. (depotItems > 1 and "s" or "") .. ".")
 				break
 			end
 		end
 
-		return TRUE
+		return true
 	end
 
-	return FALSE
+	return false
 end
 
 function onStepOut(cid, item, position, fromPosition)
 	if(not decreasingItems[item.itemid]) then
-		return FALSE
+		return false
 	end
 
-	if(isPlayer(cid) ~= TRUE or isPlayerGhost(cid) ~= TRUE) then
+	if(not isPlayerGhost(cid)) then
 		doTransformItem(item.uid, decreasingItems[item.itemid])
-		return TRUE
+		return true
 	end
 
-	return FALSE
+	return false
 end

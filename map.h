@@ -1,40 +1,37 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// the map of OpenTibia
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_MAP_H__
-#define __OTSERV_MAP_H__
+#ifndef __MAP__
+#define __MAP__
 #include "tools.h"
-#include "fileloader.h"
 
+#include "fileloader.h"
 #include "position.h"
+
 #include "waypoints.h"
 #include "tile.h"
 
-using boost::shared_ptr;
 class Creature;
 class Player;
 class Game;
 class Tile;
 class Map;
-struct FindPathParams;
 
+struct FindPathParams;
 struct AStarNode
 {
 	uint16_t x, y;
@@ -42,7 +39,9 @@ struct AStarNode
 	int32_t f, g, h;
 };
 
+using boost::shared_ptr;
 #define MAP_MAX_LAYERS 16
+
 #define MAX_NODES 512
 #define GET_NODE_INDEX(a) (a - &nodes[0])
 
@@ -55,38 +54,35 @@ class AStarNodes
 		AStarNodes();
 		virtual ~AStarNodes() {}
 
+		void openNode(AStarNode* node);
+		void closeNode(AStarNode* node);
+
+		uint32_t countOpenNodes();
+		uint32_t countClosedNodes();
+
 		AStarNode* getBestNode();
 		AStarNode* createOpenNode();
-
-		void closeNode(AStarNode* node);
-		void openNode(AStarNode* node);
-
-		uint32_t countClosedNodes();
-		uint32_t countOpenNodes();
+		AStarNode* getNodeInList(uint16_t x, uint16_t y);
 
 		bool isInList(uint16_t x, uint16_t y);
-		AStarNode* getNodeInList(uint16_t x, uint16_t y);
+		int32_t getEstimatedDistance(uint16_t x, uint16_t y, uint16_t xGoal, uint16_t yGoal);
 
 		int32_t getMapWalkCost(const Creature* creature, AStarNode* node,
 			const Tile* neighbourTile, const Position& neighbourPos);
 		static int32_t getTileWalkCost(const Creature* creature, const Tile* tile);
-		int32_t getEstimatedDistance(uint16_t x, uint16_t y, uint16_t xGoal, uint16_t yGoal);
 
 	private:
 		AStarNode nodes[MAX_NODES];
+
 		std::bitset<MAX_NODES> openNodes;
 		uint32_t curNode;
 };
 
-template<class T> class lessPointer : public std::binary_function<T*, T*, bool>
+template<class T> class lessPointer: public std::binary_function<T*, T*, bool>
 {
 	public:
 		bool operator()(T*& t1, T*& t2) {return *t1 < *t2;}
 };
-
-typedef std::list<Creature*> SpectatorVec;
-typedef std::list<Player*> PlayerList;
-typedef std::map<Position, boost::shared_ptr<SpectatorVec> > SpectatorCache;
 
 #define FLOOR_BITS 3
 #define FLOOR_SIZE (1 << FLOOR_BITS)
@@ -107,9 +103,11 @@ class QTreeNode
 		QTreeNode();
 		virtual ~QTreeNode();
 
-		bool isLeaf(){return m_isLeaf;}
+		bool isLeaf() const {return m_isLeaf;}
+
 		QTreeLeafNode* getLeaf(uint16_t x, uint16_t y);
 		static QTreeLeafNode* getLeafStatic(QTreeNode* root, uint16_t x, uint16_t y);
+
 		QTreeLeafNode* createLeaf(uint16_t x, uint16_t y, uint16_t level);
 
 	protected:
@@ -137,10 +135,12 @@ class QTreeLeafNode : public QTreeNode
 
 	protected:
 		static bool newLeaf;
+
 		QTreeLeafNode* m_leafS;
 		QTreeLeafNode* m_leafE;
+
 		Floor* m_array[MAP_MAX_LAYERS];
-		CreatureVector creature_list;
+		CreatureVector creatureList;
 
 		friend class Map;
 		friend class QTreeNode;
@@ -157,8 +157,8 @@ class Map
 		Map();
 		virtual ~Map() {}
 
-		static const int32_t maxViewportX = 11;         //min value: maxClientViewportX + 1
-		static const int32_t maxViewportY = 11;         //min value: maxClientViewportY + 1
+		static const int32_t maxViewportX = 11; //min value: maxClientViewportX + 1
+		static const int32_t maxViewportY = 11; //min value: maxClientViewportY + 1
 		static const int32_t maxClientViewportX = 8;
 		static const int32_t maxClientViewportY = 6;
 
@@ -179,7 +179,7 @@ class Map
 		* Get a single tile.
 		* \returns A pointer to that tile.
 		*/
-		Tile* getTile(uint16_t x, uint16_t y, uint16_t z);
+		Tile* getTile(int32_t x, int32_t y, int32_t z);
 		Tile* getTile(const Position& pos) {return getTile(pos.x, pos.y, pos.z);}
 
 		/**
@@ -245,12 +245,13 @@ class Map
 		Waypoints waypoints;
 
 	protected:
+		QTreeNode root;
+
 		uint32_t mapWidth, mapHeight;
 		std::string spawnfile, housefile;
 		StringVec descriptions;
-		QTreeNode root;
-		SpectatorCache spectatorCache;
 
+		SpectatorCache spectatorCache;
 		void clearSpectatorCache() {spectatorCache.clear();}
 
 		// Actually scans the map for spectators
@@ -272,15 +273,13 @@ class Map
 
 inline void QTreeLeafNode::addCreature(Creature* c)
 {
-	creature_list.push_back(c);
+	creatureList.push_back(c);
 }
 
 inline void QTreeLeafNode::removeCreature(Creature* c)
 {
-	CreatureVector::iterator it = std::find(creature_list.begin(), creature_list.end(), c);
-	assert(it != creature_list.end());
-	std::swap(*it, creature_list.back());
-	creature_list.pop_back();
+	CreatureVector::iterator it = std::find(creatureList.begin(), creatureList.end(), c);
+	assert(it != creatureList.end());
+	creatureList.erase(it);
 }
-
 #endif

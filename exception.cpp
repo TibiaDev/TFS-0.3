@@ -16,8 +16,9 @@
 ////////////////////////////////////////////////////////////////////////
 #ifdef __EXCEPTION_TRACER__
 #include "otpch.h"
-#include "otsystem.h"
+
 #include "exception.h"
+#include "otsystem.h"
 
 #include <iostream>
 #include <fstream>
@@ -27,7 +28,9 @@
 #include <tlhelp32.h>
 #endif
 
+#include "tools.h"
 #include "configmanager.h"
+
 extern ConfigManager g_config;
 
 typedef std::map<uint32_t, char*> FunctionMap;
@@ -144,8 +147,8 @@ EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRec
 	_MEMORY_BASIC_INFORMATION mbi;
 
 	std::ostream *outdriver;
-	std::cout << ">> CRASH: Generating report file..." << std::endl;
-	std::ofstream output("report.txt", std::ios_base::app);
+	std::cout << ">> CRASH: Writing report file..." << std::endl;
+	std::ofstream output(getFilePath(FILE_TYPE_LOG, "server/exceptions.log").c_str(), std::ios_base::app);
 	if(output.fail())
 	{
 		outdriver = &std::cout;
@@ -271,7 +274,7 @@ EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRec
 
 		if(esp - stackstart < 20 || nparameters < 10 || std::abs(esp - next_ret) < 10 || frame_param_counter < 8)
 		{
-			*outdriver  << (uint32_t)esp << " | ";
+			*outdriver << (uint32_t)esp << " | ";
 			printPointer(outdriver,stack_val);
 			if(esp == next_ret)
 				*outdriver << " \\\\\\\\\\\\ stack frame //////";
@@ -305,7 +308,11 @@ EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRec
 		((std::ofstream*)outdriver)->close();
 
 	if(g_config.getBool(ConfigManager::TRACER_BOX))
-		MessageBoxA(NULL, "If you want developers review this crash log, please open a tracker ticket for the software at OtLand.net and attach the report.txt file.", "Error", MB_OK | MB_ICONERROR);
+	{
+		std::stringstream ss;
+		ss << "If you want developers review this crash log, please open a tracker ticket for the software at OtLand.net and attach the " << getFilePath(FILE_TYPE_LOG, "server/exceptions.log") << " file.";
+		MessageBoxA(NULL, ss.str().c_str(), "Error", MB_OK | MB_ICONERROR);
+	}
 
 	std::cout << "> Crash report generated, killing server." << std::endl;
 	exit(1);
@@ -318,7 +325,6 @@ void printPointer(std::ostream* output,uint32_t p)
 	if(IsBadReadPtr((void*)p, 4) == 0)
 		*output << " -> " << *(uint32_t*)p;
 }
-
 #endif
 
 bool ExceptionHandler::LoadMap()
@@ -420,8 +426,8 @@ void ExceptionHandler::dumpStack()
 	uint32_t foundRetAddress = 0;
 	_MEMORY_BASIC_INFORMATION mbi;
 
-	std::cout << ">> CRASH: Generating report file..." << std::endl;
-	std::ofstream output("report.txt", std::ios_base::app);
+	std::cout << ">> CRASH: Writing report file..." << std::endl;
+	std::ofstream output(getFilePath(FILE_TYPE_LOG, "server/exceptions.log").c_str(), std::ios_base::app);
 	output.flags(std::ios::hex | std::ios::showbase);
 	time_t rawtime;
 	time(&rawtime);
@@ -459,7 +465,7 @@ void ExceptionHandler::dumpStack()
 
 		if(esp - stackstart < 20 || nparameters < 10 || std::abs(esp - next_ret) < 10 || frame_param_counter < 8)
 		{
-			output  << (uint32_t)esp << " | ";
+			output << (uint32_t)esp << " | ";
 			printPointer(&output, stack_val);
 			if(esp == next_ret)
 				output << " \\\\\\\\\\\\ stack frame //////";

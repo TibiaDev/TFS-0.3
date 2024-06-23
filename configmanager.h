@@ -1,27 +1,22 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef _CONFIG_MANAGER_H
-#define _CONFIG_MANAGER_H
-
-#include <string>
+#ifndef __CONFIG_MANAGER__
+#define __CONFIG_MANAGER__
 #include "luascript.h"
 
 extern "C"
@@ -70,6 +65,7 @@ class ConfigManager
 			DATA_DIRECTORY,
 			PREFIX_CHANNEL_LOGS,
 			CORES_USED,
+			MAILBOX_DISABLED_TOWNS,
 			LAST_STRING_CONFIG /* this must be the last one */
 		};
 
@@ -86,9 +82,9 @@ class ConfigManager
 			SQL_KEEPALIVE,
 			MAX_PLAYERS,
 			PZ_LOCKED,
+			HUNTING_DURATION,
 			DEFAULT_DESPAWNRANGE,
 			DEFAULT_DESPAWNRADIUS,
-			ALLOW_CLONES,
 			RATE_SPAWN,
 			SPAWNPOS_X,
 			SPAWNPOS_Y,
@@ -98,15 +94,12 @@ class ConfigManager
 			START_LEVEL,
 			START_MAGICLEVEL,
 			HOUSE_PRICE,
-			KILLS_TO_RED,
-			KILLS_TO_BAN,
 			HIGHSCORES_TOP,
 			MAX_MESSAGEBUFFER,
 			HIGHSCORES_UPDATETIME,
 			ACTIONS_DELAY_INTERVAL,
 			EX_ACTIONS_DELAY_INTERVAL,
 			CRITICAL_HIT_CHANCE,
-			KICK_AFTER_MINUTES,
 			PROTECTION_LEVEL,
 			PASSWORDTYPE,
 			STATUSQUERY_TIMEOUT,
@@ -116,7 +109,8 @@ class ConfigManager
 			LEVEL_TO_BUY_HOUSE,
 			HOUSES_PER_ACCOUNT,
 			WHITE_SKULL_TIME,
-			FRAG_TIME,
+			RED_SKULL_LENGTH,
+			BLACK_SKULL_LENGTH,
 			MAX_VIOLATIONCOMMENT_SIZE,
 			NOTATIONS_TO_BAN,
 			WARNINGS_TO_FINALBAN,
@@ -149,6 +143,26 @@ class ConfigManager
 			PUSH_CREATURE_DELAY,
 			DEATH_CONTAINER,
 			MAXIMUM_DOOR_LEVEL,
+			DEATH_ASSISTS,
+			RED_DAILY_LIMIT,
+			RED_WEEKLY_LIMIT,
+			RED_MONTHLY_LIMIT,
+			BLACK_DAILY_LIMIT,
+			BLACK_WEEKLY_LIMIT,
+			BLACK_MONTHLY_LIMIT,
+			BAN_DAILY_LIMIT,
+			BAN_WEEKLY_LIMIT,
+			BAN_MONTHLY_LIMIT,
+			BLACK_SKULL_DEATH_HEALTH,
+			BLACK_SKULL_DEATH_MANA,
+			DEATHLIST_REQUIRED_TIME,
+			EXPERIENCE_SHARE_ACTIVITY,
+			ITEMLIMIT_PROTECTIONZONE,
+			ITEMLIMIT_HOUSETILE,
+			SQUARE_COLOR,
+			LOOT_MESSAGE,
+			LOOT_MESSAGE_TYPE,
+			NAME_REPORT_TYPE,
 			LAST_NUMBER_CONFIG /* this must be the last one */
 		};
 
@@ -164,6 +178,9 @@ class ConfigManager
 			RATE_STAMINA_THRESHOLD,
 			RATE_STAMINA_ABOVE,
 			RATE_STAMINA_UNDER,
+			EFP_MIN_THRESHOLD,
+			EFP_MAX_THRESHOLD,
+			RATE_PVP_EXPERIENCE,
 			LAST_DOUBLE_CONFIG /* this must be the last one */
 		};
 
@@ -176,7 +193,6 @@ class ConfigManager
 			REMOVE_WEAPON_AMMO,
 			REMOVE_WEAPON_CHARGES,
 			REMOVE_RUNE_CHARGES,
-			EXPERIENCE_FROM_PLAYERS,
 			RANDOMIZE_TILES,
 			SHUTDOWN_AT_GLOBALSAVE,
 			CLEAN_MAP_AT_GLOBALSAVE,
@@ -194,6 +210,7 @@ class ConfigManager
 			SPELL_NAME_INSTEAD_WORDS,
 			EMOTE_SPELLS,
 			REPLACE_KICK_ON_LOGIN,
+			ALLOW_CLONES,
 			PREMIUM_FOR_PROMOTION,
 			SHOW_HEALING_DAMAGE,
 			BROADCAST_BANISHMENTS,
@@ -233,6 +250,13 @@ class ConfigManager
 			BUFFER_SPELL_FAILURE,
 			CONFIM_OUTDATED_VERSION,
 			PREMIUM_SKIP_WAIT,
+			GUILD_HALLS,
+			DEATH_LIST,
+			BIND_IP_ONLY,
+			GHOST_SPELL_EFFECTS,
+			PVPZONE_ADDMANASPENT,
+			USE_BLACK_SKULL,
+			ALLOW_FIGHTBACK,
 			LAST_BOOL_CONFIG /* this must be the last one */
 		};
 
@@ -255,7 +279,7 @@ class ConfigManager
 		{
 			return LuaScriptInterface::getGlobalString(L, _identifier, _default);
 		}
-		bool getGlobalBool(const std::string& _identifier, const std::string& _default = "no")
+		bool getGlobalBool(const std::string& _identifier, bool _default = false)
 		{
 			return LuaScriptInterface::getGlobalBool(L, _identifier, _default);
 		}
@@ -277,5 +301,4 @@ class ConfigManager
 		int32_t m_confNumber[LAST_NUMBER_CONFIG];
 		double m_confDouble[LAST_DOUBLE_CONFIG];
 };
-
-#endif /* _CONFIG_MANAGER_H */
+#endif

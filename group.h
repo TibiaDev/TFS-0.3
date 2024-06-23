@@ -1,25 +1,22 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_GROUP_H__
-#define __OTSERV_GROUP_H__
+#ifndef __GROUP__
+#define __GROUP__
 #include "otsystem.h"
 
 class Group
@@ -30,12 +27,14 @@ class Group
 		Group()
 		{
 			m_name = m_fullName = "";
-			m_access = m_violationAccess = m_outfit = m_depotLimit = m_maxVips = m_flags = m_customFlags = 0;
+			m_access = m_ghostAccess = m_outfit = m_depotLimit = m_maxVips = m_flags = m_customFlags = 0;
+			m_violationReasons = m_nameViolationFlags = m_statementViolationFlags = 0;
 		}
 		Group(uint32_t id): m_id(id)
 		{
 			m_name = m_fullName = "";
-			m_access = m_violationAccess = m_outfit = m_depotLimit = m_maxVips = m_flags = m_customFlags = 0;
+			m_access = m_ghostAccess = m_outfit = m_depotLimit = m_maxVips = m_flags = m_customFlags = 0;
+			m_violationReasons = m_nameViolationFlags = m_statementViolationFlags = 0;
 		}
 
 		std::string getName() const {return m_name;}
@@ -48,8 +47,12 @@ class Group
 		void setAccess(uint16_t v) {m_access = v;}
 		uint16_t getGhostAccess() const {return m_ghostAccess;}
 		void setGhostAccess(uint16_t v) {m_ghostAccess = v;}
-		uint16_t getViolationAccess() const {return m_violationAccess;}
-		void setViolationAccess(uint16_t v) {m_violationAccess = v;}
+		uint8_t getViolationReasons() const {return m_violationReasons;}
+		void setViolationReasons(uint8_t v) {m_violationReasons = v;}
+		uint8_t getStatementViolationFlags() const {return m_statementViolationFlags;}
+		void setStatementViolationFlags(uint8_t v) {m_statementViolationFlags = v;}
+		uint8_t getNameViolationFlags() const {return m_nameViolationFlags;}
+		void setNameViolationFlags(uint8_t v) {m_nameViolationFlags = v;}
 		uint16_t getOutfit() const {return m_outfit;}
 		void setOutfit(uint16_t v) {m_outfit = v;}
 
@@ -70,14 +73,14 @@ class Group
 
 	private:
 		std::string m_name, m_fullName;
-		uint16_t m_access, m_ghostAccess, m_violationAccess, m_outfit;
+		uint8_t m_violationReasons, m_nameViolationFlags, m_statementViolationFlags;
+		uint16_t m_access, m_ghostAccess, m_outfit;
 		uint32_t m_id, m_depotLimit, m_maxVips;
 		uint64_t m_flags, m_customFlags;
 };
 
 
 typedef std::map<uint32_t, Group*> GroupsMap;
-
 class Groups
 {
 	public:
@@ -88,8 +91,11 @@ class Groups
 			return &instance;
 		}
 
-		bool reload();
 		bool loadFromXml();
+		bool parseGroupNode(xmlNodePtr p);
+
+		void clear();
+		bool reload();
 
 		Group* getGroup(uint32_t groupId);
 		int32_t getGroupId(const std::string& name);
@@ -98,11 +104,8 @@ class Groups
 		GroupsMap::iterator getLastGroup() {return groupsMap.end();}
 
 	private:
+		Groups() {}
 		GroupsMap groupsMap;
 		static Group defGroup;
-
-		Groups() {}
-		void clear();
 };
-
 #endif

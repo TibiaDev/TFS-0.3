@@ -1,25 +1,22 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_ITEMLOADER_H__
-#define __OTSERV_ITEMLOADER_H__
+#ifndef __ITEMLOADER__
+#define __ITEMLOADER__
 #include "fileloader.h"
 
 typedef uint8_t attribute_t;
@@ -46,7 +43,6 @@ enum itemgroup_t
 	ITEM_GROUP_LAST
 };
 
-/////////OTB specific//////////////
 enum clientVersion_t
 {
 	CLIENT_VERSION_750 = 1,
@@ -63,7 +59,8 @@ enum clientVersion_t
 	CLIENT_VERSION_830 = 11,
 	CLIENT_VERSION_840 = 12,
 	CLIENT_VERSION_841 = 13,
-	CLIENT_VERSION_842 = 14
+	CLIENT_VERSION_842 = 14,
+	CLIENT_VERSION_850 = 15
 };
 
 enum rootattrib_
@@ -133,12 +130,11 @@ enum itemflags_t
 	FLAG_CANNOTDECAY = 1 << 19,
 	FLAG_ALLOWDISTREAD = 1 << 20,
 	FLAG_UNUSED = 1 << 21,
-	FLAG_CLIENTCHARGES = 1 << 22
+	FLAG_CLIENTCHARGES = 1 << 22,
+	FLAG_LOOKTHROUGH = 1 << 23
 };
 
-//1-byte aligned structs
 #pragma pack(1)
-
 struct VERSIONINFO
 {
 	uint32_t dwMajorVersion;
@@ -152,7 +148,5 @@ struct lightBlock2
 	uint16_t lightLevel;
 	uint16_t lightColor;
 };
-
 #pragma pack()
-/////////OTB specific//////////////
 #endif

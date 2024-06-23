@@ -15,20 +15,18 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-#include <iostream>
-#if defined __WINDOWS__ || defined WIN32
-#include <winsock2.h>
-#endif
+#include "scheduler.h"
 
 #include "database.h"
 #include "databasemysql.h"
+
 #ifdef __MYSQL_ALT_INCLUDE__
 #include "errmsg.h"
 #else
 #include <mysql/errmsg.h>
 #endif
+#include <iostream>
 
-#include "scheduler.h"
 #include "configmanager.h"
 extern ConfigManager g_config;
 
@@ -37,7 +35,7 @@ DatabaseMySQL::DatabaseMySQL()
 	m_connected = false;
 	if(!mysql_init(&m_handle))
 	{
-		std::cout << "Failed to initialize MySQL connection handler." << std::endl;
+		std::cout << std::endl << "Failed to initialize MySQL connection handler." << std::endl;
 		return;
 	}
 
@@ -54,7 +52,22 @@ DatabaseMySQL::DatabaseMySQL()
 	{
 		//MySQL servers <= 5.0.19 has a bug where MYSQL_OPT_RECONNECT is (incorrectly) reset by mysql_real_connect calls
 		//See http://dev.mysql.com/doc/refman/5.0/en/mysql-options.html for more information.
-		std::cout << "> WARNING: Outdated MySQL server detected, consider upgrading to a newer version." << std::endl;
+		std::cout << std::endl << "> WARNING: Outdated MySQL server detected, consider upgrading to a newer version." << std::endl;
+	}
+
+	if(g_config.getBool(ConfigManager::HOUSE_STORAGE))
+	{
+		//we cannot lock mutex here :)
+		if(DBResult* result = storeQuery("SHOW variables LIKE 'max_allowed_packet';"))
+		{
+			if(result->getDataLong("Value") < 16776192)
+			{
+				std::cout << std::endl << "> WARNING: max_allowed_packet might be set too low for binary map storage." << std::endl;
+				std::cout << "Use the following query to raise max_allow_packet: SET GLOBAL max_allowed_packet = 16776192;" << std::endl;
+			}
+
+			result->free();
+		}
 	}
 
 	int32_t keepAlive = g_config.getNumber(ConfigManager::SQL_KEEPALIVE);

@@ -1,3 +1,7 @@
+local config = {
+	level = 2
+}
+
 local SKINS = {
 	-- Minotaurs
 	[2830] = {25000, 5878},
@@ -19,35 +23,34 @@ local SKINS = {
 	[2881] = {25000, 5948},
 
 	-- Behemoths
-	[2931] = {25000, 5930, 90000, 5893},
+	[2931] = {25000, 5893},
 
 	-- Bone Beasts
 	[3031] = {25000, 5925}
 }
 
 function onUse(cid, item, fromPosition, itemEx, toPosition)
-	if(getPlayerLevel(cid) <= 1) then
-		doPlayerSendCancel(cid, "You have to be at least Level 2 to use this tool.")
-		return TRUE
+	if(getPlayerLevel(cid) < config.level) then
+		doPlayerSendCancel(cid, "You have to be at least Level " .. config.level .. " to use this tool.")
+		return true
 	end
 
 	local skin = SKINS[itemEx.itemid]
-	if(skin == nil) then
-		doPlayerSendCancel(cid, "Sorry, not possible.")
-		return TRUE
+	if(not skin) then
+		doPlayerSendDefaultCancel(cid, RETURNVALUE_NOTPOSSIBLE)
+		return true
 	end
 
-	local random = math.random(1, 100000)
+	local random, effect = math.random(1, 100000), CONST_ME_GROUNDSHAKER
 	if(random <= skin[1]) then
-		doSendMagicEffect(toPosition, CONST_ME_GROUNDSHAKER)
 		doPlayerAddItem(cid, skin[2], 1)
 	elseif(skin[3] and random >= skin[3]) then
-		doSendMagicEffect(toPosition, CONST_ME_GROUNDSHAKER)
 		doPlayerAddItem(cid, skin[4], 1)
 	else
-		doSendMagicEffect(toPosition, CONST_ME_POFF)
+		effect = CONST_ME_POFF
 	end
 
+	doSendMagicEffect(toPosition, effect)
 	doTransformItem(itemEx.uid, itemEx.itemid + 1)
-	return TRUE
+	return true
 end

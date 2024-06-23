@@ -1,30 +1,28 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_CONNECTION_H__
-#define __OTSERV_CONNECTION_H__
+#ifndef __CONNECTION__
+#define __CONNECTION__
 #include "otsystem.h"
-#include "networkmessage.h"
 
+#include "networkmessage.h"
 class Connection;
 class Protocol;
+
 class OutputMessage;
 typedef boost::shared_ptr<OutputMessage>OutputMessage_ptr;
 class ServiceBase;
@@ -34,7 +32,7 @@ typedef boost::shared_ptr<ServicePort> ServicePort_ptr;
 
 #ifdef __DEBUG_NET__
 #define PRINT_ASIO_ERROR(desc) \
-	std::cout << "[Error - " << __FUNCTION__ << "]: " << desc << " - Value: " <<  \
+	std::cout << "[Error - " << __FUNCTION__ << "]: " << desc << " - Value: " << \
 		error.value() << " Message: " << error.message() << std::endl;
 #else
 #define PRINT_ASIO_ERROR(desc)
@@ -62,7 +60,8 @@ class ConnectionManager
 			return &instance;
 		}
 
-		Connection* createConnection(boost::asio::ip::tcp::socket* socket, ServicePort_ptr servicer);
+		Connection* createConnection(boost::asio::ip::tcp::socket* socket,
+			boost::asio::io_service& io_service, ServicePort_ptr servicer);
 		void releaseConnection(Connection* connection);
 
 		bool isDisabled(uint32_t clientIp, int32_t protocolId);
@@ -98,7 +97,8 @@ class Connection : boost::noncopyable
 		};
 
 	private:
-		Connection(boost::asio::ip::tcp::socket* socket, ServicePort_ptr servicer): m_socket(socket), m_port(servicer)
+		Connection(boost::asio::ip::tcp::socket* socket, boost::asio::io_service& io_service, ServicePort_ptr servicer):
+			m_timer(io_service), m_socket(socket), m_io_service(io_service), m_port(servicer)
 		{
 			m_protocol = NULL;
 			m_closeState = CLOSE_STATE_NONE;
@@ -116,13 +116,11 @@ class Connection : boost::noncopyable
 	public:
 		virtual ~Connection()
 		{
-			ConnectionManager::getInstance()->releaseConnection(this);
 			OTSYS_THREAD_LOCKVARRELEASE(m_connectionLock);
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 
 			connectionCount--;
 #endif
-			delete m_socket;
 		}
 
 		boost::asio::ip::tcp::socket& getHandle() {return *m_socket;}
@@ -149,25 +147,26 @@ class Connection : boost::noncopyable
 
 		bool write();
 		void onWrite(OutputMessage_ptr msg, const boost::system::error_code& error);
+		void onStop();
 
+		void handleTimeout(const boost::system::error_code& error);
 		void handleReadError(const boost::system::error_code& error);
 		void handleWriteError(const boost::system::error_code& error);
 
 		NetworkMessage m_msg;
 		Protocol* m_protocol;
+		boost::asio::deadline_timer m_timer;
 
 		boost::asio::ip::tcp::socket* m_socket;
+		boost::asio::io_service& m_io_service;
 		ServicePort_ptr m_port;
 
+		static bool m_logError;
 		bool m_receivedFirst, m_socketClosed, m_writeError, m_readError;
 
-		uint32_t m_closeState, m_refCount;
 		int32_t m_pendingWrite, m_pendingRead;
-
-		typedef std::list<OutputMessage_ptr> OutputQueue;
-		OutputQueue m_outputQueue;
+		uint32_t m_closeState, m_refCount;
 
 		OTSYS_THREAD_LOCKVAR m_connectionLock;
 };
-
 #endif

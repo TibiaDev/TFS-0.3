@@ -1,26 +1,27 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
 #ifdef __REMOTE_CONTROL__
-#ifndef __OTSERV_ADMIN_H__
-#define __OTSERV_ADMIN_H__
+#ifndef __ADMIN__
+#define __ADMIN__
+
+#include "otsystem.h"
+#include "player.h"
+
 // -> server
 // command(1 byte) | size(2 bytes) | parameters(size bytes)
 // commands:
@@ -75,18 +76,6 @@
 //  error
 //		message(string)
 //
-#include "otsystem.h"
-#include "player.h"
-
-class NetworkMessage;
-class RSA;
-
-enum LogType_t
-{
-	LOGTYPE_EVENT,
-	LOGTYPE_WARNING,
-	LOGTYPE_ERROR,
-};
 
 enum
 {
@@ -117,14 +106,17 @@ enum
 	CMD_PAY_HOUSES = 3,
 	CMD_OPEN_SERVER = 4,
 	CMD_SHUTDOWN_SERVER = 5,
-	//CMD_RELOAD_SCRIPTS = 6,
+	CMD_RELOAD_SCRIPTS = 6,
 	//CMD_PLAYER_INFO = 7,
 	//CMD_GETONLINE = 8,
 	CMD_KICK = 9,
 	//CMD_BAN_MANAGER = 10,
 	//CMD_SERVER_INFO = 11,
 	//CMD_GETHOUSE = 12,
-	CMD_SETOWNER = 13
+	CMD_SAVE_SERVER = 13,
+	CMD_SEND_MAIL = 14,
+	CMD_SHALLOW_SAVE_SERVER = 15,
+	CMD_SETOWNER = 16
 };
 
 
@@ -139,25 +131,8 @@ enum
 	ENCRYPTION_RSA1024XTEA = 1,
 };
 
-class Loggar
-{
-	public:
-		virtual ~Loggar();
-		static Loggar* getInstance()
-		{
-			static Loggar instance;
-			return &instance;
-		}
-
-		void logMessage(const char* channel, LogType_t type, int32_t level, std::string message, const char* func);
-
-	private:
-		Loggar();
-		FILE* m_file;
-};
-
-#define LOG_MESSAGE(channel, type, level, message) \
-	Loggar::getInstance()->logMessage(channel, type, level, message, __OTSERV_PRETTY_FUNCTION__);
+class NetworkMessage;
+class RSA;
 
 class Admin
 {
@@ -184,10 +159,12 @@ class Admin
 
 		uint16_t getProtocolPolicy();
 		uint32_t getProtocolOptions();
+
 		RSA* getRSAKey(uint8_t type);
 
+		static Item* createMail(const std::string xmlData, std::string& name, uint32_t& depotId);
 		bool allowIP(uint32_t ip);
-		bool passwordMatch(std::string& password);
+		bool passwordMatch(const std::string& password);
 
 		bool enabled() const {return m_enabled;}
 		bool onlyLocalHost() const {return m_onlyLocalHost;}
@@ -209,6 +186,8 @@ class ProtocolAdmin : public Protocol
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 		static uint32_t protocolAdminCount;
 #endif
+		virtual void onRecvFirstMessage(NetworkMessage& msg);
+
 		ProtocolAdmin(Connection* connection): Protocol(connection)
 		{
 			m_state = NO_CONNECTED;
@@ -218,7 +197,6 @@ class ProtocolAdmin : public Protocol
 			protocolAdminCount++;
 #endif
 		}
-
 		virtual ~ProtocolAdmin()
 		{
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
@@ -231,17 +209,17 @@ class ProtocolAdmin : public Protocol
 		enum {hasChecksum = false};
 		static const char* protocolName() {return "admin protocol";}
 
-		virtual void onRecvFirstMessage(NetworkMessage& msg);
-
 	protected:
 		virtual void parsePacket(NetworkMessage& msg);
 		virtual void deleteProtocolTask();
 
 		void adminCommandPayHouses();
+		void adminCommandReload(int8_t reload);
 		void adminCommandKickPlayer(const std::string& name);
 		void adminCommandSetOwner(const std::string& param);
+		void adminCommandSendMail(const std::string& xmlData);
 
-		enum ConnectionState_t
+		enum ProtocolState_t
 		{
 			NO_CONNECTED,
 			ENCRYPTION_NO_SET,
@@ -252,9 +230,8 @@ class ProtocolAdmin : public Protocol
 
 	private:
 		int32_t m_loginTries;
-		ConnectionState_t m_state;
+		ProtocolState_t m_state;
 		uint32_t m_lastCommand, m_startTime;
 };
-
 #endif
 #endif

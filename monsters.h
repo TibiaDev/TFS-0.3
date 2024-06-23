@@ -1,36 +1,44 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_MONSTERS_H__
-#define __OTSERV_MONSTERS_H__
+#ifndef __MONSTERS__
+#define __MONSTERS__
+#include "otsystem.h"
+
 #include "creature.h"
-
 #define MAX_LOOTCHANCE 100000
 #define MAX_STATICWALK 100
 
 struct LootBlock;
 typedef std::list<LootBlock> LootItems;
 
+enum LootMessage_t
+{
+	LOOTMSG_IGNORE = -1,
+	LOOTMSG_NONE = 0,
+	LOOTMSG_PLAYER = 1,
+	LOOTMSG_PARTY = 2,
+	LOOTMSG_BOTH = 3
+};
+
 struct LootBlock
 {
-	uint16_t id, countmax;
+	std::vector<uint16_t> ids;
+	uint16_t count;
 	int32_t subType, actionId, uniqueId;
 	uint32_t chance;
 	std::string text;
@@ -38,9 +46,8 @@ struct LootBlock
 
 	LootBlock()
 	{
-		id = countmax = chance = 0;
+		count = chance = 0;
 		subType = actionId = uniqueId = -1;
-		text = "";
 	}
 };
 
@@ -71,7 +78,6 @@ typedef std::list<spellBlock_t> SpellList;
 typedef std::vector<voiceBlock_t> VoiceVector;
 typedef std::list<std::string> MonsterScriptList;
 typedef std::map<CombatType_t, int32_t> ElementMap;
-typedef std::vector<Item*> ItemVector;
 
 class MonsterType
 {
@@ -81,20 +87,22 @@ class MonsterType
 
 		void reset();
 
-		void createLoot(Container* corpse);
-		bool createLootContainer(Container* parent, const LootBlock& lootblock, ItemVector& itemVector);
-		Item* createLootItem(const LootBlock& lootblock);
+		void dropLoot(Container* corpse);
+		Item* createLoot(const LootBlock& lootBlock);
+		bool createChildLoot(Container* parent, const LootBlock& lootBlock);
 
 		bool isSummonable, isIllusionable, isConvinceable, isAttackable, isHostile, isLureable,
-			canPushItems, canPushCreatures, pushable, hideName, hideHealth;
+			isWalkable, canPushItems, canPushCreatures, pushable, hideName, hideHealth;
 
 		Outfit_t outfit;
 		RaceType_t race;
 		Skulls_t skull;
 		PartyShields_t partyShield;
+		LootMessage_t lootMessage;
 
-		int32_t defense, armor, health, healthMax, baseSpeed, lookCorpse, maxSummons, targetDistance, runAwayHealth,
-			conditionImmunities, damageImmunities, lightLevel, lightColor, changeTargetSpeed, changeTargetChance;
+		int32_t defense, armor, health, healthMax, baseSpeed, lookCorpse, corpseUnique, maxSummons,
+			targetDistance, runAwayHealth, conditionImmunities, damageImmunities, lightLevel,
+			lightColor, changeTargetSpeed, changeTargetChance;
 		uint32_t yellChance, yellSpeedTicks, staticAttackChance, manaCost;
 		uint64_t experience;
 
@@ -119,19 +127,20 @@ class Monsters
 		bool reload() {return loadFromXml(true);}
 		bool loadFromXml(bool reloading = false);
 
+		bool loadMonster(const std::string& file, const std::string& monsterName, bool reloading = false);
+
 		MonsterType* getMonsterType(const std::string& name);
 		MonsterType* getMonsterType(uint32_t mid);
 
 		uint32_t getIdByName(const std::string& name);
-		bool isLoaded(){return loaded;}
-		static uint32_t getLootRandom();
+		bool isLoaded() const {return loaded;}
+		static uint16_t getLootRandom();
 
 	private:
 		bool loaded;
 
-		bool loadMonster(const std::string& file, const std::string& monster_name, bool reloading = false);
-		bool loadLootContainer(xmlNodePtr, LootBlock&);
-		bool loadLootItem(xmlNodePtr, LootBlock&);
+		bool loadLoot(xmlNodePtr, LootBlock&);
+		bool loadChildLoot(xmlNodePtr, LootBlock&);
 
 		ConditionDamage* getDamageCondition(ConditionType_t conditionType,
 			int32_t maxDamage, int32_t minDamage, int32_t startDamage, uint32_t tickInterval);
@@ -143,5 +152,4 @@ class Monsters
 		typedef std::map<uint32_t, MonsterType*> MonsterMap;
 		MonsterMap monsters;
 };
-
 #endif

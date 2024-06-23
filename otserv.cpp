@@ -86,16 +86,17 @@ void boost::throw_exception(std::exception const & e)
 
 ConfigManager g_config;
 Game g_game;
-Chat g_chat;
 Monsters g_monsters;
 Npcs g_npcs;
+
+Chat g_chat;
+RSA g_RSA;
 #if defined(WIN32) && not defined(__CONSOLE__)
 TextLogger g_logger;
 NOTIFYICONDATA NID;
 #endif
 
-IPList serverIPs;
-RSA* g_otservRSA = NULL;
+IpList serverIps;
 #ifdef __REMOTE_CONTROL__
 extern Admin* g_admin;
 #endif
@@ -168,7 +169,7 @@ void signalHandler(int32_t sig)
 	{
 		case SIGHUP:
 			Dispatcher::getDispatcher().addTask(createTask(
-				boost::bind(&Game::saveGameState, &g_game, true)));
+				boost::bind(&Game::saveGameState, &g_game, false)));
 			break;
 
 		case SIGTRAP:
@@ -304,8 +305,8 @@ void serverMain(void* param)
 		GUI::getInstance()->m_connections = true;
 		#endif
 	}
-	#if not defined(WIN32) || defined(__CONSOLE__)
 
+	#if not defined(WIN32) || defined(__CONSOLE__)
 	std::string outPath = g_config.getString(ConfigManager::OUT_LOG), errPath = g_config.getString(ConfigManager::ERROR_LOG);
 	if(outPath.length() < 3)
 		outPath = "";
@@ -385,14 +386,13 @@ ServiceManager* services)
 
 	std::cout << STATUS_SERVER_NAME << ", version " << STATUS_SERVER_VERSION << " (" << STATUS_SERVER_CODENAME << ")" << std::endl;
 	std::cout << "A server developed by Elf, Talaturen, Lithium, Kiper, Kornholijo, KaczooH, slawkens & Macroman." << std::endl;
-	std::cout << "Visit our forum for updates, support and resources: http://otland.net." << std::endl;
-	std::cout << std::endl;
+	std::cout << "Visit our forum for updates, support and resources: http://otland.net." << std::endl << std::endl;
 
 	std::stringstream ss;
 	#ifdef __DEBUG__
 	ss << " GLOBAL";
 	#endif
-	#ifdef __DEBUG__MOVESYS__
+	#ifdef __DEBUG_MOVESYS__
 	ss << " MOVESYS";
 	#endif
 	#ifdef __DEBUG_CHAT__
@@ -430,78 +430,24 @@ ServiceManager* services)
 	#endif
 
 	std::string debug = ss.str();
-	std::cout << ">> Debugging:";
-	if(debug.empty())
-		std::cout << " nothing";
-	else
-		std::cout << ss.str();
-	
-	std::cout << "." << std::endl;
-	std::cout << ">> Checking software version... ";
-	if(xmlDocPtr doc = xmlParseFile(VERSION_CHECK))
+	if(!debug.empty())
 	{
-		xmlNodePtr p, root = xmlDocGetRootElement(doc);
-		if(!xmlStrcmp(root->name, (const xmlChar*)"versions"))
-		{
-			p = root->children->next;
-			if(!xmlStrcmp(p->name, (const xmlChar*)"entry"))
-			{
-				std::string version;
-				int32_t patch, build, timestamp;
+		std::cout << ">> Debugging:";
+		#ifndef __CONSOLE__
+		SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Displaying debugged components");
+		#endif
 
-				bool tmp = false;
-				if(readXMLString(p, "version", version) && version != STATUS_SERVER_VERSION)
-					tmp = true;
-
-				if(readXMLInteger(p, "patch", patch) && patch > VERSION_PATCH)
-					tmp = true;
-
-				if(readXMLInteger(p, "build", build) && build > VERSION_BUILD)
-					tmp = true;
-
-				if(readXMLInteger(p, "timestamp", timestamp) && timestamp > VERSION_TIMESTAMP)
-					tmp = true;
-
-				if(tmp)
-				{
-					std::cout << "outdated, please consider updating!" << std::endl;
-					std::cout << "> Current version information - version: " << STATUS_SERVER_VERSION << ", patch: " << VERSION_PATCH;
-					std::cout << ", build: " << VERSION_BUILD << ", timestamp: " << VERSION_TIMESTAMP << "." << std::endl;
-					std::cout << "> Latest version information - version: " << version << ", patch: " << patch;
-					std::cout << ", build: " << build << ", timestamp: " << timestamp << "." << std::endl;
-					if(g_config.getBool(ConfigManager::CONFIM_OUTDATED_VERSION))
-					{
-						#ifndef __CONSOLE__
-						if(MessageBox(GUI::getInstance()->m_mainWindow, "Continue?", "Outdated software", MB_YESNO) == IDNO)
-						#else
-						std::cout << "Continue? (y/N)" << std::endl;
-	
-						char buffer = getchar();
-						if(buffer == 10 || (buffer != 121 && buffer != 89))
-						#endif
-							startupErrorMessage("Aborted.");
-					}
-				}
-				else
-					std::cout << "up to date!" << std::endl;
-			}
-			else
-				std::cout << "failed checking - malformed entry." << std::endl;
-		}
-		else
-			std::cout << "failed checking - malformed file." << std::endl;
-
-		xmlFreeDoc(doc);
+		std::cout << debug << "." << std::endl;
 	}
-	else
-		std::cout << "failed - could not parse remote file (are you connected to the internet?)" << std::endl;
 
-	std::cout << std::endl << ">> Loading config (" << g_config.getString(ConfigManager::CONFIG_FILE) << ")" << std::endl;
+	std::cout << ">> Loading config (" << g_config.getString(ConfigManager::CONFIG_FILE) << ")" << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading config");
 	#endif
 	if(!g_config.load())
 		startupErrorMessage("Unable to load " + g_config.getString(ConfigManager::CONFIG_FILE) + "!");
+
+	Loggar::getInstance()->open();
 
 	IntegerVec cores = vectorAtoi(explodeString(g_config.getString(ConfigManager::CORES_USED), ","));
 	if(cores[0] != -1)
@@ -514,7 +460,9 @@ ServiceManager* services)
 		SetProcessAffinityMask(GetCurrentProcess(), mask);
 	}
 
-	CreateMutex(NULL, true, "forgottenserver_" + g_config.getNumber(ConfigManager::WORLD_ID));
+	std::stringstream mutexName;
+	mutexName << "forgottenserver_" << g_config.getNumber(ConfigManager::WORLD_ID);
+	CreateMutex(NULL, FALSE, mutexName.str().c_str());
 	if(GetLastError() == ERROR_ALREADY_EXISTS)
 		startupErrorMessage("Another instance of The Forgotten Server is already running with the same worldId.\nIf you want to run multiple servers, please change the worldId in configuration file.");
 
@@ -522,9 +470,9 @@ ServiceManager* services)
 	if(defaultPriority == "realtime")
 		SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
 	else if(defaultPriority == "high")
-  	 	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
-  	else if(defaultPriority == "higher")
-  		SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
+		SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+	else if(defaultPriority == "higher")
+		SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
 
 	#else
 		cpu_set_t mask;
@@ -562,8 +510,85 @@ ServiceManager* services)
 		g_config.setNumber(ConfigManager::PASSWORDTYPE, PASSWORD_TYPE_PLAIN);
 		std::cout << "> Using plaintext passwords" << std::endl;
 	}
+	
+	std::cout << ">> Checking software version... ";
+	#ifndef __CONSOLE__
+	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Checking software version");
+	#endif
+	if(xmlDocPtr doc = xmlParseFile(VERSION_CHECK))
+	{
+		xmlNodePtr p, root = xmlDocGetRootElement(doc);
+		if(!xmlStrcmp(root->name, (const xmlChar*)"versions"))
+		{
+			p = root->children->next;
+			if(!xmlStrcmp(p->name, (const xmlChar*)"entry"))
+			{
+				std::string version;
+				int32_t patch, build, timestamp;
 
-	g_otservRSA = new RSA();
+				bool tmp = false;
+				if(readXMLString(p, "version", version) && version != STATUS_SERVER_VERSION)
+					tmp = true;
+
+				if(readXMLInteger(p, "patch", patch) && patch > VERSION_PATCH)
+					tmp = true;
+
+				if(readXMLInteger(p, "build", build) && build > VERSION_BUILD)
+					tmp = true;
+
+				if(readXMLInteger(p, "timestamp", timestamp) && timestamp > VERSION_TIMESTAMP)
+					tmp = true;
+
+				if(tmp)
+				{
+					std::cout << "outdated, please consider updating!" << std::endl;
+					std::cout << "> Current version information - version: " << STATUS_SERVER_VERSION << ", patch: " << VERSION_PATCH;
+					std::cout << ", build: " << VERSION_BUILD << ", timestamp: " << VERSION_TIMESTAMP << "." << std::endl;
+					std::cout << "> Latest version information - version: " << version << ", patch: " << patch;
+					std::cout << ", build: " << build << ", timestamp: " << timestamp << "." << std::endl;
+					if(g_config.getBool(ConfigManager::CONFIM_OUTDATED_VERSION) && version.find("_SVN") == std::string::npos)
+					{
+						#ifndef __CONSOLE__
+						if(MessageBox(GUI::getInstance()->m_mainWindow, "Continue?", "Outdated software", MB_YESNO) == IDNO)
+						#else
+						std::cout << "Continue? (y/N)" << std::endl;
+	
+						char buffer = getchar();
+						if(buffer == 10 || (buffer != 121 && buffer != 89))
+						#endif
+							startupErrorMessage("Aborted.");
+					}
+				}
+				else
+					std::cout << "up to date!" << std::endl;
+			}
+			else
+				std::cout << "failed checking - malformed entry." << std::endl;
+		}
+		else
+			std::cout << "failed checking - malformed file." << std::endl;
+
+		xmlFreeDoc(doc);
+	}
+	else
+		std::cout << "failed - could not parse remote file (are you connected to the internet?)" << std::endl;
+
+	std::cout << ">> Fetching blacklist" << std::endl;
+	#ifndef __CONSOLE__
+	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Fetching blacklist");
+	#endif
+	if(!g_game.fetchBlacklist())
+	{
+		#ifndef __CONSOLE__
+		if(MessageBox(GUI::getInstance()->m_mainWindow, "Unable to fetch blacklist! Continue?", "Blacklist", MB_YESNO) == IDNO)
+		#else
+		std::cout << "Unable to fetch blacklist! Continue? (y/N)" << std::endl;
+		char buffer = getchar();
+		if(buffer == 10 || (buffer != 121 && buffer != 89))
+		#endif
+			startupErrorMessage("Unable to fetch blacklist!");
+	}
+
 	std::cout << ">> Loading RSA key" << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading RSA Key");
@@ -572,7 +597,7 @@ ServiceManager* services)
 	const char* p("14299623962416399520070177382898895550795403345466153217470516082934737582776038882967213386204600674145392845853859217990626450972452084065728686565928113");
 	const char* q("7630979195970404721891201847792002125535401292779123937207447574596692788513647179235335529307251350570728407373705564708871762033017096809910315212884101");
 	const char* d("46730330223584118622160180015036832148732986808519344675210555262940258739805766860224610646919605860206328024326703361630109888417839241959507572247284807035235569619173792292786907845791904955103601652822519121908367187885509270025388641700821735345222087940578381210879116823013776808975766851829020659073");
-	g_otservRSA->setKey(p, q, d);
+	g_RSA.setKey(p, q, d);
 
 	std::cout << ">> Starting SQL connection" << std::endl;
 	#ifndef __CONSOLE__
@@ -583,7 +608,7 @@ ServiceManager* services)
 	{
 		std::cout << ">> Running Database Manager" << std::endl;
 		if(!DatabaseManager::getInstance()->isDatabaseSetup())
-			startupErrorMessage("The database you specified in config.lua is empty, please import schema.<dbengine> to the database (if you are using MySQL, please read doc/MYSQL_HELP for more information).");
+			startupErrorMessage("The database you specified in config.lua is empty, please import schemas/<dbengine>.sql to the database (if you are using MySQL, please read doc/MYSQL_HELP for more information).");
 		else
 		{
 			uint32_t version = 0;
@@ -643,7 +668,7 @@ ServiceManager* services)
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading script systems");
 	#endif
-	if(!ScriptingManager::getInstance()->loadScriptSystems())
+	if(!ScriptingManager::getInstance()->load())
 		startupErrorMessage("");
 
 	std::cout << ">> Loading chat channels" << std::endl;
@@ -682,6 +707,13 @@ ServiceManager* services)
 		#endif
 			startupErrorMessage("Unable to load monsters!");
 	}
+
+	std::cout << ">> Loading mods..." << std::endl;
+	#ifndef __CONSOLE__
+	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading mods...");
+	#endif
+	if(!ScriptingManager::getInstance()->loadMods())
+		startupErrorMessage("Unable to load mods!");
 
 	std::cout << ">> Loading map and spawns..." << std::endl;
 	#ifndef __CONSOLE__
@@ -743,7 +775,7 @@ ServiceManager* services)
 
 	std::string ip = g_config.getString(ConfigManager::IP);
 	std::cout << "> Global address: " << ip << std::endl;
-	serverIPs.push_back(std::make_pair(inet_addr("127.0.0.1"), 0xFFFFFFFF));
+	serverIps.push_back(std::make_pair(inet_addr("127.0.0.1"), 0xFFFFFFFF));
 
 	char hostName[128];
 	hostent* host = NULL;
@@ -752,7 +784,7 @@ ServiceManager* services)
 		uint8_t** address = (uint8_t**)host->h_addr_list;
 		while(address[0] != NULL)
 		{
-			serverIPs.push_back(std::make_pair(*(uint32_t*)(*address), 0x0000FFFF));
+			serverIps.push_back(std::make_pair(*(uint32_t*)(*address), 0x0000FFFF));
 			address++;
 		}
 	}
@@ -766,7 +798,7 @@ ServiceManager* services)
 			startupErrorMessage("Cannot resolve " + ip + "!");
 	}
 
-	serverIPs.push_back(std::make_pair(resolvedIp, 0));
+	serverIps.push_back(std::make_pair(resolvedIp, 0));
 	if(Status* status = Status::getInstance())
 	{
 		status->setMaxPlayersOnline(g_config.getNumber(ConfigManager::MAX_PLAYERS));
@@ -791,15 +823,15 @@ ServiceManager* services)
 
 	services->add<ProtocolGame>(g_config.getNumber(ConfigManager::GAME_PORT));
 	services->add<ProtocolOldGame>(g_config.getNumber(ConfigManager::LOGIN_PORT));
-	std::cout << "> Local ports:" << std::endl;
+	std::cout << "> Local ports: ";
 
 	std::list<uint16_t> ports = services->getPorts();
 	for(std::list<uint16_t>::iterator it = ports.begin(); it != ports.end(); ++it)
 		std::cout << (*it) << "\t";
 
-	std::cout << std::endl << ">> All modules were loaded, server starting up..." << std::endl;
+	std::cout << std::endl << ">> All modules were loaded, server is starting up..." << std::endl;
 	#ifndef __CONSOLE__
-	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> All modules were loaded, server starting up...");
+	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> All modules were loaded, server is starting up...");
 	#endif
 	g_game.setGameState(GAME_STATE_NORMAL);
 
@@ -985,7 +1017,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 					if(g_game.getGameState() != GAME_STATE_STARTUP)
 					{
 						Dispatcher::getDispatcher().addTask(createTask(
-							boost::bind(&Game::saveGameState, &g_game, true)));
+							boost::bind(&Game::saveGameState, &g_game, false)));
 						MessageBox(NULL, "Server has been saved.", "Server save", MB_OK);
 					}
 
@@ -1161,6 +1193,17 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 					{
 						if(g_game.reloadInfo(RELOAD_ITEMS))
 							std::cout << "Reloaded items." << std::endl;
+					}
+
+					break;
+				}
+
+				case ID_MENU_RELOAD_MODS:
+				{
+					if(g_game.getGameState() != GAME_STATE_STARTUP)
+					{
+						if(g_game.reloadInfo(RELOAD_MODS))
+							std::cout << "Reloaded mods." << std::endl;
 					}
 
 					break;
@@ -1364,8 +1407,8 @@ int32_t WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszA
 	wincl.lpfnWndProc = WindowProcedure;
 	wincl.style = CS_DBLCLKS;
 	wincl.cbSize = sizeof(WNDCLASSEX);
-	wincl.hIcon  = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_ICON));
-	wincl.hIconSm  = (HICON)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_ICON), IMAGE_ICON, 16, 16, 0);
+	wincl.hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_ICON));
+	wincl.hIconSm = (HICON)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_ICON), IMAGE_ICON, 16, 16, 0);
 	wincl.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wincl.lpszMenuName = MAKEINTRESOURCE(ID_MENU);
 	wincl.cbClsExtra = 0;

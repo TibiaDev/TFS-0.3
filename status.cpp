@@ -16,6 +16,7 @@
 ////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
 #include "resources.h"
+
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 
@@ -44,9 +45,17 @@ IpConnectMap ProtocolStatus::ipConnectMap;
 
 void ProtocolStatus::onRecvFirstMessage(NetworkMessage& msg)
 {
+	for(StringVec::const_iterator it = g_game.blacklist.begin(); it != g_game.blacklist.end(); ++it)
+	{
+		if((*it) == convertIPAddress(getIP()))
+		{
+			getConnection()->close();
+			return;
+		}
+	}
+
 	IpConnectMap::const_iterator it = ipConnectMap.find(getIP());
-	if(getIP() == 3057325918UL || getIP() == 1578580918 ||
-		(it != ipConnectMap.end() && OTSYS_TIME() < it->second + g_config.getNumber(ConfigManager::STATUSQUERY_TIMEOUT)))
+	if(it != ipConnectMap.end() && OTSYS_TIME() < it->second + g_config.getNumber(ConfigManager::STATUSQUERY_TIMEOUT))
 	{
 		getConnection()->close();
 		return;
@@ -154,8 +163,8 @@ std::string Status::getStatusString(bool sendPlayers) const
 		std::stringstream ss;
 		for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 		{
-			if(!it->second->isInGhostMode())
-			        ss << it->second->getName() << "," << it->second->getVocationId() << "," << it->second->getLevel() << ";";
+			if(!it->second->isGhost())
+				ss << it->second->getName() << "," << it->second->getVocationId() << "," << it->second->getLevel() << ";";
 		}
 
 		xmlNodeSetContent(p, (const xmlChar*)ss.str().c_str());
@@ -239,7 +248,7 @@ void Status::getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMe
 		output->AddU32(g_game.getLastPlayersRecord());
 	}
 
-  	if(requestedInfo & REQUEST_SERVER_MAP_INFO)
+	if(requestedInfo & REQUEST_SERVER_MAP_INFO)
 	{
 		output->AddByte(0x30);
 		output->AddString(m_mapName.c_str());
@@ -257,7 +266,7 @@ void Status::getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMe
 		std::list<std::pair<std::string, uint32_t> > players;
 		for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 		{
-			if(!it->second->isInGhostMode())
+			if(!it->second->isGhost())
 				players.push_back(std::make_pair(it->second->getName(), it->second->getLevel()));
 		}
 
@@ -275,7 +284,7 @@ void Status::getInfo(uint32_t requestedInfo, OutputMessage_ptr output, NetworkMe
 		const std::string name = msg.GetString();
 
 		Player* p = NULL;
-		if(g_game.getPlayerByNameWildcard(name, p) == RET_NOERROR && !p->isInGhostMode())
+		if(g_game.getPlayerByNameWildcard(name, p) == RET_NOERROR && !p->isGhost())
 			output->AddByte(0x01);
 		else
 			output->AddByte(0x00);

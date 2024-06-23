@@ -44,12 +44,12 @@ bool Vocations::parseVocationNode(xmlNodePtr p)
 	std::string strValue;
 	int32_t intValue;
 	float floatValue;
-	if(xmlStrcmp(p->name, (const xmlChar*)"vocation") != 0)
+	if(xmlStrcmp(p->name, (const xmlChar*)"vocation"))
 		return false;
 
 	if(!readXMLInteger(p, "id", intValue))
 	{
-		std::cout << "Missing vocation id." << std::endl;
+		std::cout << "[Error - Vocations::parseVocationNode] Missing vocation id." << std::endl;
 		return false;
 	}
 
@@ -67,22 +67,22 @@ bool Vocations::parseVocationNode(xmlNodePtr p)
 		voc->setGainCap(intValue);
 
 	if(readXMLInteger(p, "gainhp", intValue) || readXMLInteger(p, "gainhealth", intValue))
-		voc->setGainHealth(intValue);
+		voc->setGain(GAIN_HEALTH, intValue);
 
 	if(readXMLInteger(p, "gainmana", intValue))
-		voc->setGainMana(intValue);
+		voc->setGain(GAIN_MANA, intValue);
 
 	if(readXMLInteger(p, "gainhpticks", intValue) || readXMLInteger(p, "gainhealthticks", intValue))
-		voc->setGainHealthTicks(intValue);
+		voc->setGainTicks(GAIN_HEALTH, intValue);
 
 	if(readXMLInteger(p, "gainhpamount", intValue) || readXMLInteger(p, "gainhealthamount", intValue))
-		voc->setGainHealthAmount(intValue);
+		voc->setGainAmount(GAIN_HEALTH, intValue);
 
 	if(readXMLInteger(p, "gainmanaticks", intValue))
-		voc->setGainManaTicks(intValue);
+		voc->setGainTicks(GAIN_MANA, intValue);
 
 	if(readXMLInteger(p, "gainmanaamount", intValue))
-		voc->setGainManaAmount(intValue);
+		voc->setGainAmount(GAIN_MANA, intValue);
 
 	if(readXMLFloat(p, "manamultiplier", floatValue))
 		voc->setMultiplier(MULTIPLIER_MANA, floatValue);
@@ -94,10 +94,13 @@ bool Vocations::parseVocationNode(xmlNodePtr p)
 		voc->setBaseSpeed(intValue);
 
 	if(readXMLInteger(p, "soulmax", intValue))
-		voc->setSoulMax(intValue);
+		voc->setGain(GAIN_SOUL, intValue);
+
+	if(readXMLInteger(p, "gainsoulamount", intValue))
+		voc->setGainAmount(GAIN_SOUL, intValue);
 
 	if(readXMLInteger(p, "gainsoulticks", intValue))
-		voc->setSoulGainTicks(intValue);
+		voc->setGainTicks(GAIN_SOUL, intValue);
 
 	if(readXMLString(p, "attackable", strValue))
 		voc->setAttackable(booleanString(strValue));
@@ -113,25 +116,71 @@ bool Vocations::parseVocationNode(xmlNodePtr p)
 	{
 		if(!xmlStrcmp(configNode->name, (const xmlChar*)"skill"))
 		{
-			uint32_t skillId;
+			if(readXMLFloat(configNode, "fist", floatValue))
+				voc->setSkillMultiplier(SKILL_FIST, floatValue);
+
+			if(readXMLInteger(configNode, "fistBase", intValue))
+				voc->setSkillBase(SKILL_FIST, intValue);
+
+			if(readXMLFloat(configNode, "club", floatValue))
+				voc->setSkillMultiplier(SKILL_CLUB, floatValue);
+
+			if(readXMLInteger(configNode, "clubBase", intValue))
+				voc->setSkillBase(SKILL_CLUB, intValue);
+
+			if(readXMLFloat(configNode, "axe", floatValue))
+				voc->setSkillMultiplier(SKILL_AXE, floatValue);
+
+			if(readXMLInteger(configNode, "axeBase", intValue))
+				voc->setSkillBase(SKILL_AXE, intValue);
+
+			if(readXMLFloat(configNode, "sword", floatValue))
+				voc->setSkillMultiplier(SKILL_SWORD, floatValue);
+
+			if(readXMLInteger(configNode, "swordBase", intValue))
+				voc->setSkillBase(SKILL_SWORD, intValue);
+
+			if(readXMLFloat(configNode, "distance", floatValue) || readXMLFloat(configNode, "dist", floatValue))
+				voc->setSkillMultiplier(SKILL_DIST, floatValue);
+
+			if(readXMLInteger(configNode, "distanceBase", intValue) || readXMLInteger(configNode, "distBase", intValue))
+				voc->setSkillBase(SKILL_DIST, intValue);
+
+			if(readXMLFloat(configNode, "shielding", floatValue) || readXMLFloat(configNode, "shield", floatValue))
+				voc->setSkillMultiplier(SKILL_SHIELD, floatValue);
+
+			if(readXMLInteger(configNode, "shieldingBase", intValue) || readXMLInteger(configNode, "shieldBase", intValue))
+				voc->setSkillBase(SKILL_SHIELD, intValue);
+
+			if(readXMLFloat(configNode, "fishing", floatValue) || readXMLFloat(configNode, "fish", floatValue))
+				voc->setSkillMultiplier(SKILL_FISH, floatValue);
+
+			if(readXMLInteger(configNode, "fishingBase", intValue) || readXMLInteger(configNode, "fishBase", intValue))
+				voc->setSkillBase(SKILL_FISH, intValue);
+
+			if(readXMLFloat(configNode, "experience", floatValue) || readXMLFloat(configNode, "exp", floatValue))
+				voc->setSkillMultiplier(SKILL__LEVEL, floatValue);
+
 			if(readXMLInteger(configNode, "id", intValue))
 			{
-				skillId = intValue;
-				if(skillId < SKILL_FIRST || skillId > SKILL_LAST)
-					std::cout << "No valid skill id. " << skillId << std::endl;
-				else
+				skills_t skill = (skills_t)intValue;
+				if(intValue < SKILL_FIRST || intValue >= SKILL__LAST)
 				{
-					if(readXMLFloat(configNode, "multiplier", floatValue))
-						voc->setSkillMultiplier((skills_t)skillId, floatValue);
+					std::cout << "[Error - Vocations::parseVocationNode] No valid skill id (" << intValue << ")." << std::endl;
+					continue;
 				}
+
+				if(readXMLInteger(configNode, "base", intValue))
+					voc->setSkillBase(skill, intValue);
+
+				if(readXMLFloat(configNode, "multiplier", floatValue))
+					voc->setSkillMultiplier(skill, floatValue);
 			}
-			else
-				std::cout << "Missing skill id." << std::endl;
 		}
 		else if(!xmlStrcmp(configNode->name, (const xmlChar*)"formula"))
 		{
 			if(readXMLFloat(configNode, "meleeDamage", floatValue))
-				voc->setMultiplier(MULTIPLIER_DISTANCE, floatValue);
+				voc->setMultiplier(MULTIPLIER_MELEE, floatValue);
 
 			if(readXMLFloat(configNode, "distDamage", floatValue) || readXMLFloat(configNode, "distanceDamage", floatValue))
 				voc->setMultiplier(MULTIPLIER_DISTANCE, floatValue);
@@ -147,6 +196,9 @@ bool Vocations::parseVocationNode(xmlNodePtr p)
 
 			if(readXMLFloat(configNode, "defense", floatValue))
 				voc->setMultiplier(MULTIPLIER_DEFENSE, floatValue);
+
+			if(readXMLFloat(configNode, "magDefense", floatValue) || readXMLFloat(configNode, "magicDefense", floatValue))
+				voc->setMultiplier(MULTIPLIER_MAGICDEFENSE, floatValue);
 
 			if(readXMLFloat(configNode, "armor", floatValue))
 				voc->setMultiplier(MULTIPLIER_ARMOR, floatValue);
@@ -268,8 +320,6 @@ int32_t Vocations::getPromotedVocation(uint32_t vocationId)
 	return -1;
 }
 
-uint32_t Vocation::skillBase[SKILL_LAST + 1] = {50, 50, 50, 50, 30, 100, 20};
-
 Vocation::~Vocation()
 {
 	cacheMana.clear();
@@ -283,18 +333,26 @@ void Vocation::reset()
 	needPremium = false;
 	attackable = true;
 	lessLoss = fromVocation = 0;
-	gainHealthAmount = gainManaAmount = 1;
-	gainHealth = gainMana = gainCap = 5;
-	gainHealthTicks = gainManaTicks = 6;
-	soulMax = 100;
-	soulGainTicks = 120;
+	gain[GAIN_SOUL] = 100;
+	gainTicks[GAIN_SOUL] = 120;
 	baseSpeed = 220;
 	attackSpeed = 1500;
 	name = description = "";
 
-	skillMultipliers[0] = 1.5f;
-	skillMultipliers[6] = 1.1f;
-	for(int32_t i = 1; i < 6; i++)
+	gainAmount[GAIN_HEALTH] = gainAmount[GAIN_MANA] = gainAmount[GAIN_SOUL] = 1;
+	gain[GAIN_HEALTH] = gain[GAIN_MANA] = capGain = 5;
+	gainTicks[GAIN_HEALTH] = gainTicks[GAIN_MANA] = 6;
+
+	skillBase[SKILL_SHIELD] = 100;
+	skillBase[SKILL_DIST] = 30;
+	skillBase[SKILL_FISH] = 20;
+	for(int32_t i = SKILL_FIST; i < SKILL_DIST; i++)
+		skillBase[i] = 50;
+
+	skillMultipliers[SKILL_FIST] = 1.5f;
+	skillMultipliers[SKILL_FISH] = 1.1f;
+	skillMultipliers[SKILL__LEVEL] = 1.0f;
+	for(int32_t i = SKILL_CLUB; i < SKILL_FISH; i++)
 		skillMultipliers[i] = 2.0f;
 
 	formulaMultipliers[MULTIPLIER_MANA] = 4.0f;
@@ -312,7 +370,7 @@ uint32_t Vocation::getReqSkillTries(int32_t skill, int32_t level)
 	if(it != cacheSkill[skill].end())
 		return it->second;
 
-	skillMap[level] = (uint32_t)(skillBase[skill] * std::pow((float)skillMultipliers[skill], (float)(level - 11)));
+	skillMap[level] = (uint32_t)(skillBase[skill] * std::pow(skillMultipliers[skill], (level - 11)));
 	return skillMap[level];
 }
 
@@ -322,12 +380,6 @@ uint64_t Vocation::getReqMana(uint32_t magLevel)
 	if(it != cacheMana.end())
 		return it->second;
 
-	uint64_t reqMana = (uint64_t)(400 * pow(formulaMultipliers[MULTIPLIER_MANA], magLevel - 1));
-	if(reqMana % 20 < 10)
-		reqMana = reqMana - (reqMana % 20);
-	else
-		reqMana = reqMana - (reqMana % 20) + 20;
-
-	cacheMana[magLevel] = reqMana;
-	return reqMana;
+	cacheMana[magLevel] = (uint64_t)(1600 * std::pow(formulaMultipliers[MULTIPLIER_MANA], (float)(magLevel - 1)));
+	return cacheMana[magLevel];
 }

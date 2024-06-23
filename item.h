@@ -1,32 +1,30 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// Item represents an existing item.
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-
-#ifndef __OTSERV_ITEM_H__
-#define __OTSERV_ITEM_H__
-#include "thing.h"
-#include "items.h"
+#ifndef __ITEM__
+#define __ITEM__
+#include "otsystem.h"
 
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
-#include <iostream>
+
+#include "thing.h"
+#include "items.h"
+#include "raids.h"
 
 class Creature;
 class Player;
@@ -108,6 +106,13 @@ enum AttrTypes_t
 	ATTR_SCRIPTPROTECTED = 42
 };
 
+enum Attr_ReadValue
+{
+	ATTR_READ_CONTINUE,
+	ATTR_READ_ERROR,
+	ATTR_READ_END
+};
+
 // from iomap.h
 #pragma pack(1)
 struct TeleportDest
@@ -162,6 +167,7 @@ class ItemAttributes
 		const std::string& getWriter() const {return getStrAttr(ATTR_ITEM_WRITTENBY);}
 
 		void setActionId(uint16_t n) {setIntAttr(ATTR_ITEM_ACTIONID, (uint16_t)std::max((uint16_t)100, n));}
+		void resetActionId() {removeAttribute(ATTR_ITEM_ACTIONID);}
 		uint16_t getActionId() const {return getIntAttr(ATTR_ITEM_ACTIONID);}
 
 		void setUniqueId(uint16_t n) {setIntAttr(ATTR_ITEM_UNIQUEID, (uint16_t)std::max((uint16_t)1000, n));}
@@ -276,33 +282,44 @@ class ItemAttributes
 class Item : virtual public Thing, public ItemAttributes
 {
 	public:
+		static Items items;
+
 		//Factory member to create item of right type based on type
 		static Item* CreateItem(const uint16_t _type, uint16_t _count = 1);
 		static Item* CreateItem(PropStream& propStream);
-		static Items items;
+
+		static bool loadItem(xmlNodePtr node, Container* parent);
+		static bool loadContainer(xmlNodePtr node, Container* parent);
 
 		// Constructor for items
 		Item(const uint16_t _type, uint16_t _count = 0);
 		Item(const Item &i);
-		virtual ~Item();
+		virtual ~Item() {}
 
 		virtual Item* clone() const;
 		virtual void copyAttributes(Item* item);
 
 		virtual Item* getItem() {return this;}
 		virtual const Item* getItem() const {return this;}
+
 		virtual Container* getContainer() {return NULL;}
 		virtual const Container* getContainer() const {return NULL;}
+
 		virtual Teleport* getTeleport() {return NULL;}
 		virtual const Teleport* getTeleport() const {return NULL;}
+
 		virtual TrashHolder* getTrashHolder() {return NULL;}
 		virtual const TrashHolder* getTrashHolder() const {return NULL;}
+
 		virtual Mailbox* getMailbox() {return NULL;}
 		virtual const Mailbox* getMailbox() const {return NULL;}
+
 		virtual Door* getDoor() {return NULL;}
 		virtual const Door* getDoor() const {return NULL;}
+
 		virtual MagicField* getMagicField() {return NULL;}
 		virtual const MagicField* getMagicField() const {return NULL;}
+
 		virtual BedItem* getBed() {return NULL;}
 		virtual const BedItem* getBed() const {return NULL;}
 
@@ -315,7 +332,7 @@ class Item : virtual public Thing, public ItemAttributes
 		std::string getWeightDescription() const;
 
 		//serialization
-		virtual bool readAttr(AttrTypes_t attr, PropStream& propStream);
+		virtual Attr_ReadValue readAttr(AttrTypes_t attr, PropStream& propStream);
 		virtual bool unserializeAttr(PropStream& propStream);
 		virtual bool serializeAttr(PropWriteStream& propWriteStream) const;
 		virtual bool unserializeItemNode(FileLoader& f, NODE node, PropStream& propStream) {return unserializeAttr(propStream);}
@@ -403,21 +420,22 @@ class Item : virtual public Thing, public ItemAttributes
 		bool isWeapon() const {return (items[id].weaponType != WEAPON_NONE);}
 		bool isReadable() const {return items[id].canReadText;}
 
-		bool floorChangeDown() const {return items[id].floorChangeDown;}
-		bool floorChangeNorth() const {return items[id].floorChangeNorth;}
-		bool floorChangeSouth() const {return items[id].floorChangeSouth;}
-		bool floorChangeEast() const {return items[id].floorChangeEast;}
-		bool floorChangeWest() const {return items[id].floorChangeWest;}
-		bool floorChange() const {return floorChangeDown() || floorChangeNorth() || floorChangeSouth() || floorChangeEast() || floorChangeWest();}
+		bool floorChange(FloorChange_t change = CHANGE_NONE) const;
 
 		uint16_t getItemCount() const {return count;}
 		void setItemCount(uint16_t n) {count = n;}
+
+		Player* getHoldingPlayer();
+		const Player* getHoldingPlayer() const;
 
 		uint16_t getSubType() const;
 		void setSubType(uint16_t n);
 
 		bool isLoadedFromMap() const {return loadedFromMap;}
 		void setLoadedFromMap(bool value) {loadedFromMap = value;}
+
+		Raid* getRaid() {return raid;}
+		void setRaid(Raid* _raid) {raid = _raid;}
 
 		void setDefaultSubtype();
 		void setUniqueId(uint16_t n);
@@ -436,15 +454,30 @@ class Item : virtual public Thing, public ItemAttributes
 		virtual bool canRemove() const {return true;}
 		virtual bool canTransform() const {return true;}
 
-		virtual void onRemoved() {}
+		virtual void onRemoved();
 		virtual bool onTradeEvent(TradeEvents_t event, Player* owner, Player* seller) {return true;}
+		static uint32_t countByType(const Item* item, int32_t checkType, bool multiCount);
 
 	protected:
 		std::string getWeightDescription(double weight) const {return getWeightDescription(Item::items[id], weight, count);}
 
 		uint16_t id;
 		uint8_t count;
+		Raid* raid;
 		bool loadedFromMap;
 };
 
+inline uint32_t Item::countByType(const Item* item, int32_t checkType, bool multiCount)
+{
+	if(checkType != -1 && checkType != (int32_t)item->getSubType())
+		return 0;
+
+	if(multiCount)
+		return item->getItemCount();
+
+	if(item->isRune())
+		return item->getCharges();
+
+	return item->getItemCount();
+}
 #endif

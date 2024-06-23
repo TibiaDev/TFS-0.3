@@ -1,29 +1,27 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_SPAWN_H__
-#define __OTSERV_SPAWN_H__
+#ifndef __SPAWN__
+#define __SPAWN__
 #include "otsystem.h"
-#include "templates.h"
 
+#include "templates.h"
 #include "position.h"
+
 #include "tile.h"
 #include "monster.h"
 
@@ -32,10 +30,8 @@ typedef std::list<Spawn*> SpawnList;
 
 class Spawns
 {
-	private:
-		Spawns();
-
 	public:
+		virtual ~Spawns();
 		static Spawns* getInstance()
 		{
 			static Spawns instance;
@@ -44,9 +40,9 @@ class Spawns
 
 		bool isInZone(const Position& centerPos, int32_t radius, const Position& pos);
 
-		virtual ~Spawns();
-
 		bool loadFromXml(const std::string& _filename);
+		bool parseSpawnNode(xmlNodePtr p, bool checkDuplicate);
+
 		void startup();
 		void clear();
 
@@ -54,9 +50,12 @@ class Spawns
 		bool isStarted() {return started;}
 
 	private:
+		Spawns();
+		SpawnList spawnList;
+
 		typedef std::list<Npc*> NpcList;
 		NpcList npcList;
-		SpawnList spawnList;
+
 		bool loaded, started;
 		std::string filename;
 };
@@ -64,8 +63,9 @@ class Spawns
 struct spawnBlock_t
 {
 	MonsterType* mType;
-	Direction direction;
 	Position pos;
+	Direction direction;
+
 	uint32_t interval;
 	int64_t lastSpawn;
 };
@@ -79,19 +79,25 @@ class Spawn
 		bool addMonster(const std::string& _name, const Position& _pos, Direction _dir, uint32_t _interval);
 		void removeMonster(Monster* monster);
 
-		uint32_t getInterval() {return interval;}
-		void startup();
+		Position getPosition() const {return centerPos;}
+		uint32_t getInterval() const {return interval;}
 
-		void startSpawnCheck();
+		void startEvent();
 		void stopEvent();
 
-		bool isInSpawnZone(const Position& pos);
+		void startup();
+		bool isInSpawnZone(const Position& pos) {return Spawns::getInstance()->isInZone(centerPos, radius, pos);}
 
 	private:
+		uint32_t interval, checkSpawnEvent;
+
 		Position centerPos;
-		int32_t radius;
-		int32_t despawnRange;
-		int32_t despawnRadius;
+		int32_t radius, despawnRange, despawnRadius;
+
+		void checkSpawn();
+		bool spawnMonster(uint32_t spawnId, MonsterType* mType, const Position& pos, Direction dir, bool startup = false);
+
+		bool findPlayer(const Position& pos);
 
 		//map of creatures in the spawn
 		typedef std::map<uint32_t, spawnBlock_t> SpawnMap;
@@ -101,13 +107,5 @@ class Spawn
 		typedef std::multimap<uint32_t, Monster*, std::less<uint32_t> > SpawnedMap;
 		typedef SpawnedMap::value_type SpawnedPair;
 		SpawnedMap spawnedMap;
-
-		uint32_t interval;
-		uint32_t checkSpawnEvent;
-
-		bool findPlayer(const Position& pos);
-		bool spawnMonster(uint32_t spawnId, MonsterType* mType, const Position& pos, Direction dir, bool startup = false);
-		void checkSpawn();
 };
-
 #endif

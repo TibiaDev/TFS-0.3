@@ -1,28 +1,26 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-
-#ifndef __OTSERV_WEAPONS_H__
-#define __OTSERV_WEAPONS_H__
+#ifndef __WEAPONS__
+#define __WEAPONS__
 #include "otsystem.h"
+
 #include "const.h"
+#include "combat.h"
 
 #include "game.h"
 #include "baseevents.h"
@@ -31,7 +29,6 @@
 
 #include "actions.h"
 #include "talkaction.h"
-#include "combat.h"
 
 class Weapon;
 class WeaponMelee;
@@ -55,7 +52,7 @@ class Weapons : public BaseEvents
 		virtual void clear();
 
 		virtual Event* getEvent(const std::string& nodeName);
-		virtual bool registerEvent(Event* event, xmlNodePtr p);
+		virtual bool registerEvent(Event* event, xmlNodePtr p, bool override);
 
 		virtual LuaScriptInterface& getScriptInterface() {return m_scriptInterface;}
 		LuaScriptInterface m_scriptInterface;
@@ -83,7 +80,7 @@ class Weapon : public Event
 		uint16_t getID() const {return id;}
 		virtual int32_t getWeaponDamage(const Player* player, const Creature* target, const Item* item, bool maxDamage = false) const = 0;
 		virtual int32_t getElementDamage(const Player* player, const Creature* target) const {return 0;}
-		virtual bool interruptSwing() const {return false;}
+		virtual bool interruptSwing() const {return !swing;}
 
 		const uint32_t getReqLevel() const {return level;}
 		const uint32_t getReqMagLv() const {return magLevel;}
@@ -117,6 +114,7 @@ class Weapon : public Event
 		int32_t manaPercent;
 		int32_t soul;
 		AmmoAction_t ammoAction;
+		bool swing;
 		CombatParams params;
 
 	private:
@@ -157,17 +155,13 @@ class WeaponDistance : public Weapon
 		virtual int32_t playerWeaponCheck(Player* player, Creature* target) const;
 		virtual bool useWeapon(Player* player, Item* item, Creature* target) const;
 		virtual int32_t getWeaponDamage(const Player* player, const Creature* target, const Item* item, bool maxDamage = false) const;
-		virtual bool interruptSwing() const {return true;}
 
 	protected:
 		virtual void onUsedWeapon(Player* player, Item* item, Tile* destTile) const;
 		virtual void onUsedAmmo(Player* player, Item* item, Tile* destTile) const;
 		virtual bool getSkillType(const Player* player, const Item* item, skills_t& skill, uint32_t& skillpoint) const;
 
-		int32_t hitChance;
-		int32_t maxHitChance;
-		int32_t breakChance;
-		int32_t ammoAttackValue;
+		int32_t hitChance, maxHitChance, breakChance, ammoAttackValue;
 };
 
 class WeaponWand : public Weapon
@@ -184,8 +178,6 @@ class WeaponWand : public Weapon
 	protected:
 		virtual bool getSkillType(const Player* player, const Item* item, skills_t& skill, uint32_t& skillpoint) const {return false;}
 
-		int32_t minChange;
-		int32_t maxChange;
+		int32_t minChange, maxChange;
 };
-
 #endif

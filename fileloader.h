@@ -1,28 +1,23 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_FILELOADER_H__
-#define __OTSERV_FILELOADER_H__
+#ifndef __FILELOADER__
+#define __FILELOADER__
 #include "otsystem.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 struct NodeStruct;
 typedef NodeStruct* NODE;
@@ -34,19 +29,13 @@ struct NodeStruct
 		start = propsSize = type = 0;
 		next = child = 0;
 	}
-
 	virtual ~NodeStruct() {}
 
 	uint32_t start, propsSize, type;
 	NodeStruct* next;
 	NodeStruct* child;
 
-	static void clearNet(NodeStruct* root)
-	{
-		if(root)
-			clearChild(root);
-	}
-
+	static void clearNet(NodeStruct* root) {if(root) clearChild(root); }
 	private:
 		static void clearNext(NodeStruct* node)
 		{
@@ -76,7 +65,6 @@ struct NodeStruct
 };
 
 #define NO_NODE 0
-
 enum FILELOADER_ERRORS
 {
 	ERROR_NONE,
@@ -120,7 +108,6 @@ class FileLoader
 			NODE_END = 0xFF,
 			ESCAPE_CHAR = 0xFD,
 		};
-
 		bool parseNode(NODE node);
 
 		inline bool readByte(int32_t &value);
@@ -192,7 +179,6 @@ class PropStream
 			p = a;
 			end = a + size;
 		}
-
 		int32_t size() const {return end - p;}
 
 		template <typename T>
@@ -221,11 +207,8 @@ class PropStream
 		}
 
 		inline bool GET_TIME(time_t &ret) {return GET_VALUE(ret);}
-
 		inline bool GET_ULONG(uint32_t &ret) {return GET_VALUE(ret);}
-
 		inline bool GET_USHORT(uint16_t &ret) {return GET_VALUE(ret);}
-
 		inline bool GET_UCHAR(uint8_t &ret) {return GET_VALUE(ret);}
 
 		inline bool GET_STRING(std::string& ret)
@@ -302,7 +285,6 @@ class PropWriteStream
 			size = 0;
 			memset(buffer, 0, 32 * sizeof(char));
 		}
-
 		virtual ~PropWriteStream() {free(buffer);}
 
 		const char* getStream(uint32_t& _size) const
@@ -339,9 +321,7 @@ class PropWriteStream
 		}
 
 		inline void ADD_ULONG(uint32_t ret) {ADD_VALUE(ret);}
-
 		inline void ADD_USHORT(uint16_t ret) {ADD_VALUE(ret);}
-
 		inline void ADD_UCHAR(uint8_t ret) {ADD_VALUE(ret);}
 
 		inline void ADD_STRING(const std::string& add)
@@ -375,8 +355,7 @@ class PropWriteStream
 
 	protected:
 		char* buffer;
-		uint32_t bufferSize;
-		uint32_t size;
+		uint32_t bufferSize, size;
 };
-
 #endif
+

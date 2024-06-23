@@ -1,32 +1,29 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_SPELLS_H__
-#define __OTSERV_SPELLS_H__
+#ifndef __SPELLS__
+#define __SPELLS__
 #include "otsystem.h"
+
 #include "enums.h"
+#include "player.h"
+#include "luascript.h"
 
 #include "baseevents.h"
-#include "luascript.h"
-#include "player.h"
-
 #include "actions.h"
 #include "talkaction.h"
 
@@ -62,7 +59,7 @@ class Spells : public BaseEvents
 		virtual void clear();
 
 		virtual Event* getEvent(const std::string& nodeName);
-		virtual bool registerEvent(Event* event, xmlNodePtr p);
+		virtual bool registerEvent(Event* event, xmlNodePtr p, bool override);
 
 		virtual LuaScriptInterface& getScriptInterface() {return m_scriptInterface;}
 		LuaScriptInterface m_scriptInterface;
@@ -143,6 +140,7 @@ class Spell : public BaseSpell
 
 	protected:
 		bool playerSpellCheck(Player* player) const;
+		bool playerInstantSpellCheck(Player* player, Creature* creature);
 		bool playerInstantSpellCheck(Player* player, const Position& toPos);
 		bool playerRuneSpellCheck(Player* player, const Position& toPos);
 
@@ -177,7 +175,7 @@ class InstantSpell : public TalkAction, public Spell
 {
 	public:
 		InstantSpell(LuaScriptInterface* _interface);
-		virtual ~InstantSpell();
+		virtual ~InstantSpell() {}
 
 		virtual bool configureEvent(xmlNodePtr p);
 		virtual bool loadFunction(const std::string& functionName);
@@ -199,10 +197,6 @@ class InstantSpell : public TalkAction, public Spell
 		virtual std::string getScriptEventName() const {return "onCastSpell";}
 		virtual std::string getScriptEventParams() const {return "cid, var";}
 
-		static InstantSpellFunction HouseGuestList;
-		static InstantSpellFunction HouseSubOwnerList;
-		static InstantSpellFunction HouseDoorList;
-		static InstantSpellFunction HouseKick;
 		static InstantSpellFunction SearchPlayer;
 		static InstantSpellFunction SummonMonster;
 		static InstantSpellFunction Levitate;
@@ -223,7 +217,7 @@ class ConjureSpell : public InstantSpell
 {
 	public:
 		ConjureSpell(LuaScriptInterface* _interface);
-		virtual ~ConjureSpell();
+		virtual ~ConjureSpell() {}
 
 		virtual bool configureEvent(xmlNodePtr p);
 		virtual bool loadFunction(const std::string& functionName);
@@ -261,7 +255,7 @@ class RuneSpell : public Action, public Spell
 {
 	public:
 		RuneSpell(LuaScriptInterface* _interface);
-		virtual ~RuneSpell();
+		virtual ~RuneSpell() {}
 
 		virtual bool configureEvent(xmlNodePtr p);
 		virtual bool loadFunction(const std::string& functionName);
@@ -295,5 +289,4 @@ class RuneSpell : public Action, public Spell
 
 		RuneSpellFunction* function;
 };
-
 #endif

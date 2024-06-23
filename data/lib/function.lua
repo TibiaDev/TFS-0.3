@@ -1,41 +1,33 @@
 function doPlayerGiveItem(cid, itemid, amount, subType)
 	local item = 0
-	if(isItemStackable(itemid) == TRUE) then
+	if(isItemStackable(itemid)) then
 		item = doCreateItemEx(itemid, amount)
-		if(doPlayerAddItemEx(cid, item, TRUE) ~= RETURNVALUE_NOERROR) then
-			return LUA_ERROR
+		if(doPlayerAddItemEx(cid, item, true) ~= RETURNVALUE_NOERROR) then
+			return false
 		end
 	else
 		for i = 1, amount do
 			item = doCreateItemEx(itemid, subType)
-			if(doPlayerAddItemEx(cid, item, TRUE) ~= RETURNVALUE_NOERROR) then
-				return LUA_ERROR
+			if(doPlayerAddItemEx(cid, item, true) ~= RETURNVALUE_NOERROR) then
+				return false
 			end
 		end
 	end
 
-	return LUA_NO_ERROR
+	return true
 end
 
 function doPlayerTakeItem(cid, itemid, amount)
-	if(getPlayerItemCount(cid, itemid) < amount or doPlayerRemoveItem(cid, itemid, amount) ~= TRUE) then
-		return LUA_ERROR
-	end
-
-	return LUA_NO_ERROR
+	return getPlayerItemCount(cid, itemid) >= amount and doPlayerRemoveItem(cid, itemid, amount)
 end
 
 function doPlayerBuyItem(cid, itemid, count, cost, charges)
-	if(doPlayerRemoveMoney(cid, cost) ~= TRUE) then
-		return LUA_ERROR
-	end
-
-	return doPlayerGiveItem(cid, itemid, count, charges)
+	return doPlayerRemoveMoney(cid, cost) and doPlayerGiveItem(cid, itemid, count, charges)
 end
 
 function doPlayerBuyItemContainer(cid, containerid, itemid, count, cost, charges)
-	if(doPlayerRemoveMoney(cid, cost) ~= TRUE) then
-		return LUA_ERROR
+	if(not doPlayerRemoveMoney(cid, cost)) then
+		return false
 	end
 
 	for i = 1, count do
@@ -44,44 +36,67 @@ function doPlayerBuyItemContainer(cid, containerid, itemid, count, cost, charges
 			doAddContainerItem(container, itemid, charges)
 		end
 
-		if(doPlayerAddItemEx(cid, container, TRUE) ~= RETURNVALUE_NOERROR) then
-			return LUA_ERROR
+		if(doPlayerAddItemEx(cid, container, true) ~= RETURNVALUE_NOERROR) then
+			return false
 		end
 	end
 
-	return LUA_NO_ERROR
+	return true
 end
 
 function doPlayerSellItem(cid, itemid, count, cost)
-	if(doPlayerTakeItem(cid, itemid, count) ~= LUA_NO_ERROR) then
-		return LUA_ERROR
+	if(not doPlayerTakeItem(cid, itemid, count)) then
+		return false
 	end
 
-	if(doPlayerAddMoney(cid, cost) ~= TRUE) then
+	if(not doPlayerAddMoney(cid, cost)) then
 		error('[doPlayerSellItem] Could not add money to: ' .. getPlayerName(cid) .. ' (' .. cost .. 'gp).')
 	end
 
-	return LUA_NO_ERROR
+	return true
 end
 
-function isInRange(pos, fromPos, toPos)
-	return (pos.x >= fromPos.x and pos.y >= fromPos.y and pos.z >= fromPos.z and pos.x <= toPos.x and pos.y <= toPos.y and pos.z <= toPos.z) and TRUE or FALSE
+function doPlayerWithdrawMoney(cid, amount)
+	if(not getBooleanFromString(getConfigInfo('bankSystem'))) then
+		return false
+	end
+
+	local balance = getPlayerBalance(cid)
+	if(amount > balance or not doPlayerAddMoney(cid, amount)) then
+		return false
+	end
+
+	doPlayerSetBalance(cid, balance - amount)
+	return true
+end
+
+function doPlayerDepositMoney(cid, amount)
+	if(not getBooleanFromString(getConfigInfo('bankSystem'))) then
+		return false
+	end
+
+	if(not doPlayerRemoveMoney(cid, amount)) then
+		return false
+	end
+
+	doPlayerSetBalance(cid, getPlayerBalance(cid) + amount)
+	return true
 end
 
 function isPremium(cid)
-	return (isPlayer(cid) == TRUE and (getPlayerPremiumDays(cid) > 0 or getConfigInfo('freePremium') == "yes")) and TRUE or FALSE
+	return (isPlayer(cid) and (getPlayerPremiumDays(cid) > 0 or getBooleanFromString(getConfigInfo('freePremium'))))
 end
 
 function getMonthDayEnding(day)
-	if day == "01" or day == "21" or day == "31" then
+	if(day == "01" or day == "21" or day == "31") then
 		return "st"
-	elseif day == "02" or day == "22" then
+	elseif(day == "02" or day == "22") then
 		return "nd"
-	elseif day == "03" or day == "23" then
+	elseif(day == "03" or day == "23") then
 		return "rd"
-	else
-		return "th"
 	end
+
+	return "th"
 end
 
 function getMonthString(m)
@@ -93,18 +108,7 @@ function getArticle(str)
 end
 
 function isNumber(str)
-	return tonumber(str) ~= nil and TRUE or FALSE
-end
-
-function getDistanceBetween(firstPosition, secondPosition)
-	local xDif = math.abs(firstPosition.x - secondPosition.x)
-	local yDif = math.abs(firstPosition.y - secondPosition.y)
-
-	local posDif = math.max(xDif, yDif)
-	if(firstPosition.z ~= secondPosition.z) then
-		posDif = posDif + 9 + 6
-	end
-	return posDif
+	return tonumber(str) ~= nil
 end
 
 function doPlayerAddAddons(cid, addon)
@@ -115,110 +119,6 @@ function doPlayerAddAddons(cid, addon)
 	for i = 0, table.maxn(femaleOutfits) do
 		doPlayerAddOutfit(cid, femaleOutfits[i], addon)
 	end
-end
-
-function isSorcerer(cid)
-	if(isPlayer(cid) == FALSE) then
-		debugPrint("isSorcerer: Player not found.")
-		return false
-	end
-
-	return (isInArray({1,5}, getPlayerVocation(cid)) == TRUE)
-end
-
-function isDruid(cid)
-	if(isPlayer(cid) == FALSE) then
-		debugPrint("isDruid: Player not found.")
-		return false
-	end
-
-	return (isInArray({2,6}, getPlayerVocation(cid)) == TRUE)
-end
-
-function isPaladin(cid)
-	if(isPlayer(cid) == FALSE) then
-		debugPrint("isPaladin: Player not found.")
-		return false
-	end
-
-	return (isInArray({3,7}, getPlayerVocation(cid)) == TRUE)
-end
-
-function isKnight(cid)
-	if(isPlayer(cid) == FALSE) then
-		debugPrint("isKnight: Player not found.")
-		return false
-	end
-
-	return (isInArray({4,8}, getPlayerVocation(cid)) == TRUE)
-end
-
-function isRookie(cid)
-	if(isPlayer(cid) == FALSE) then
-		debugPrint("isRookie: Player not found.")
-		return false
-	end
-
-	return (isInArray({0}, getPlayerVocation(cid)) == TRUE)
-end
-
-function getDirectionTo(pos1, pos2)
-	local dir = NORTH
-	if(pos1.x > pos2.x) then
-		dir = WEST
-		if(pos1.y > pos2.y) then
-			dir = NORTHWEST
-		elseif(pos1.y < pos2.y) then
-			dir = SOUTHWEST
-		end
-	elseif(pos1.x < pos2.x) then
-		dir = EAST
-		if(pos1.y > pos2.y) then
-			dir = NORTHEAST
-		elseif(pos1.y < pos2.y) then
-			dir = SOUTHEAST
-		end
-	else
-		if(pos1.y > pos2.y) then
-			dir = NORTH
-		elseif(pos1.y < pos2.y) then
-			dir = SOUTH
-		end
-	end
-	return dir
-end
-
-function getPlayerLookPos(cid)
-	return getPosByDir(getThingPos(cid), getPlayerLookDir(cid))
-end
-
-function getPosByDir(fromPosition, direction, size)
-	local n = size or 1
-
-	local pos = fromPosition
-	if(direction == NORTH) then
-		pos.y = pos.y - n
-	elseif(direction == SOUTH) then
-		pos.y = pos.y + n
-	elseif(direction == WEST) then
-		pos.x = pos.x - n
-	elseif(direction == EAST) then
-		pos.x = pos.x + n
-	elseif(direction == NORTHWEST) then
-		pos.y = pos.y - n
-		pos.x = pos.x - n
-	elseif(direction == NORTHEAST) then
-		pos.y = pos.y - n
-		pos.x = pos.x + n
-	elseif(direction == SOUTHWEST) then
-		pos.y = pos.y + n
-		pos.x = pos.x - n
-	elseif(direction == SOUTHEAST) then
-		pos.y = pos.y + n
-		pos.x = pos.x + n
-	end
-
-	return pos
 end
 
 function doPlayerWithdrawAllMoney(cid)
@@ -290,6 +190,34 @@ function getPlayerMasterPos(cid)
 	return getTownTemplePosition(getPlayerTown(cid))
 end
 
+function getHouseOwner(houseId)
+	return getHouseInfo(houseId).owner
+end
+
+function getHouseName(houseId)
+	return getHouseInfo(houseId).name
+end
+
+function getHouseEntry(houseId)
+	return getHouseInfo(houseId).entry
+end
+
+function getHouseRent(houseId)
+	return getHouseInfo(houseId).rent
+end
+
+function getHousePrice(houseId)
+	return getHouseInfo(houseId).price
+end
+
+function getHouseTown(houseId)
+	return getHouseInfo(houseId).town
+end
+
+function getHouseTilesCount(houseId)
+	return getHouseInfo(houseId).tiles
+end
+
 function getItemNameById(itemid)
 	return getItemDescriptionsById(itemid).name
 end
@@ -331,7 +259,7 @@ function getItemDate(uid)
 end
 
 function getTilePzInfo(pos)
-	return getTileInfo(pos).protection and TRUE or FALSE
+	return getTileInfo(pos).protection
 end
 
 function getTileZoneInfo(pos)
@@ -347,21 +275,16 @@ function getTileZoneInfo(pos)
 	return 0
 end
 
-function debugPrint(text)
-	return io.stdout:write(text)
-end
-
 function doShutdown()
 	return doSetGameState(GAMESTATE_SHUTDOWN)
 end
 
 function doSummonCreature(name, pos)
 	local cid = doCreateMonster(name, pos)
-	if(cid ~= LUA_ERROR) then
-		return cid
+	if(not cid) then
+		cid = doCreateNpc(name, pos)
 	end
 
-	cid = doCreateNpc(name, pos)
 	return cid
 end
 
@@ -377,11 +300,27 @@ end
 
 function getPlayerByName(name)
 	local cid = getCreatureByName(name)
-	return isPlayer(cid) == TRUE and cid or nil
+	return isPlayer(cid) and cid or nil
+end
+
+function isPlayer(cid)
+	return isCreature(cid) and cid >= AUTOID_PLAYERS and cid < AUTOID_MONSTERS
 end
 
 function isPlayerGhost(cid)
-	return isPlayer(cid) == TRUE and getCreatureCondition(cid, CONDITION_GAMEMASTER, GAMEMASTER_INVISIBLE) or FALSE
+	if(not isPlayer(cid)) then
+		return false
+	end
+
+	return getCreatureCondition(cid, CONDITION_GAMEMASTER, GAMEMASTER_INVISIBLE) or getPlayerFlagValue(cid, PlayerFlag_CannotBeSeen)
+end
+
+function isMonster(cid)
+	return isCreature(cid) and cid >= AUTOID_MONSTERS and cid < AUTOID_NPCS
+end
+
+function isNpc(cid)
+	return isCreature(cid) and cid >= AUTOID_NPCS
 end
 
 function doPlayerSetExperienceRate(cid, value)
@@ -392,12 +331,32 @@ function doPlayerSetMagicRate(cid, value)
 	return doPlayerSetRate(cid, SKILL__MAGLEVEL, value)
 end
 
-function getPlayerFrags(cid)
-	return math.ceil((getPlayerRedSkullTicks(cid) / getConfigInfo('timeToDecreaseFrags')) + 1)
+function doPlayerAddLevel(cid, amount, round)
+	local experience, level = 0, getPlayerLevel(cid)
+	if(amount > 0) then
+		experience = getExperienceForLevel(level + amount) - (round and getPlayerExperience(cid) or getExperienceForLevel(level))
+	else
+		experience = -((round and getPlayerExperience(cid) or getExperienceForLevel(level)) - getExperienceForLevel(level + amount))
+	end
+
+	return doPlayerAddExperience(cid, experience)
 end
 
-function doPlayerAddFrags(cid, amount)
-	return doPlayerSetRedSkullTicks(cid, getPlayerRedSkullTicks(cid) + getConfigInfo('timeToDecreaseFrags') * amount)
+function doPlayerAddMagLevel(cid, amount)
+	for i = 1, amount do
+		doPlayerAddSpentMana(cid, (getPlayerRequiredMana(cid, getPlayerMagLevel(cid, true) + 1) - getPlayerSpentMana(cid)) / getConfigInfo('rateMagic'))
+	end
+	return true
+end  
+
+function doPlayerAddSkill(cid, skill, amount, round)
+	if(skill == SKILL__LEVEL) then
+		return doPlayerAddLevel(cid, amount, round)
+	elseif(skill == SKILL__MAGLEVEL) then
+		return doPlayerAddMagLevel(cid, amount)
+	end
+
+	return doPlayerAddSkillTry(cid, skill, (getPlayerRequiredSkillTries(cid, skill, getPlayerSkillLevel(cid, skill) + 1) - getPlayerSkillTries(cid, skill)) / getConfigInfo('rateSkill'))
 end
 
 function getPartyLeader(cid)
@@ -410,136 +369,84 @@ function getPartyLeader(cid)
 end
 
 function isInParty(cid)
-	return type(getPartyMembers(cid)) == 'table' and TRUE or FALSE
+	return type(getPartyMembers(cid)) == 'table'
 end
 
 function isPrivateChannel(channelId)
-	return channelId >= 65535 and TRUE or FALSE
+	return channelId >= CHANNEL_PRIVATE
 end
 
-function doConvertIntegerToIp(int, mask)
-	local b4 = bit.urshift(bit.uband(int, 4278190080), 24)
-	local b3 = bit.urshift(bit.uband(int, 16711680), 16)
-	local b2 = bit.urshift(bit.uband(int, 65280), 8)
-	local b1 = bit.urshift(bit.uband(int, 255), 0)
-	if(mask ~= nil) then
-		local m4 = bit.urshift(bit.uband(mask,  4278190080), 24)
-		local m3 = bit.urshift(bit.uband(mask,  16711680), 16)
-		local m2 = bit.urshift(bit.uband(mask,  65280), 8)
-		local m1 = bit.urshift(bit.uband(mask,  255), 0)
-		if((m1 == 255 or m1 == 0) and (m2 == 255 or m2 == 0) and (m3 == 255 or m3 == 0) and (m4 == 255 or m4 == 0)) then
-			if m1 == 0 then b1 = "x" end
-			if m2 == 0 then b2 = "x" end
-			if m3 == 0 then b3 = "x" end
-			if m4 == 0 then b4 = "x" end
-		elseif(m1 ~= 255 or m2 ~= 255 or m3 ~= 255 or m4 ~= 255) then
-			return b1 .. "." .. b2 .. "." .. b3 .. "." .. b4 .. " : " .. m1 .. "." .. m2 .. "." .. m3 .. "." .. m4
-		end
-	end
-	
-	return b1 .. "." .. b2 .. "." .. b3 .. "." .. b4
+function doPlayerResetIdleTime(cid)
+	return doPlayerSetIdleTime(cid, 0)
 end
 
-function doConvertIpToInteger(str)
-	local maskindex = str:find(":")
-	if(maskindex == nil) then
-		local ipint = 0
-		local maskint = 0
-
-		local index = 24		
-		for b in str:gmatch("([x%d]+)%.?") do
-			if(b ~= "x") then
-				if(b:find("x") ~= nil) then
-					return 0, 0
-				end
-
-				if(tonumber(b) > 255 or tonumber(b) < 0) then
-					return 0, 0
-				end
-
-				maskint = bit.ubor(maskint, bit.ulshift(255, index))
-				ipint = bit.ubor(ipint, bit.ulshift(b, index))
-			end
-
-			index = index - 8
-			if(index < 0) then
-				break
-			end
+function doBroadcastMessage(text, class)
+	local class = class or MESSAGE_STATUS_WARNING
+	if(type(class) == 'string') then
+		local className = MESSAGE_TYPES[class]
+		if(className == nil) then
+			return false
 		end
 
-		if(index ~= -8) then
-			return 0, 0
+		class = className
+	elseif(class < MESSAGE_FIRST or class > MESSAGE_LAST) then
+		return false
+	end
+
+	local players = getPlayersOnline()
+	for _, pid in ipairs(players) do
+		doPlayerSendTextMessage(pid, class, text)
+	end
+
+	print("> Broadcasted message: \"" .. text .. "\".")
+	return true
+end
+
+function doPlayerBroadcastMessage(cid, text, class, checkFlag, ghost)
+	local checkFlag, ghost, class = checkFlag or true, ghost or false, class or TALKTYPE_BROADCAST
+	if(checkFlag and not getPlayerFlagValue(cid, PLAYERFLAG_CANBROADCAST)) then
+		return false
+	end
+
+	if(type(class) == 'string') then
+		local className = TALKTYPE_TYPES[class]
+		if(className == nil) then
+			return false
 		end
 
-		return ipint, maskint
+		class = className
+	elseif(class < TALKTYPE_FIRST or class > TALKTYPE_LAST) then
+		return false
 	end
 
-	if(maskindex <= 1) then
-		return 0, 0
+	local players = getPlayersOnline()
+	for _, pid in ipairs(players) do
+		doCreatureSay(cid, text, class, ghost, pid)
 	end
 
-	local ipstring = str:sub(1, maskindex - 1)
-	local maskstring = str:sub(maskindex)
-			
-	local ipint = 0
-	local maskint = 0
-			
-	local index = 0
-	for b in ipstring:gmatch("(%d+).?") do
-		if(tonumber(b) > 255 or tonumber(b) < 0) then
-			return 0, 0
-		end
-
-		ipint = bit.ubor(ipint, bit.ulshift(b, index))
-		index = index + 8
-		if(index > 24) then
-			break
-		end
-	end
-
-	if(index ~= 32) then
-		return 0, 0
-	end
-			
-	index = 0
-	for b in maskstring:gmatch("(%d+)%.?") do
-		if(tonumber(b) > 255 or tonumber(b) < 0) then
-			return 0, 0
-		end
-
-		maskint = bit.ubor(maskint, bit.ulshift(b, index))
-		index = index + 8
-		if(index > 24) then
-			break
-		end
-	end
-
-	if(index ~= 32) then
-		return 0, 0
-	end
-			
-	return ipint, maskint
+	print("> " .. getCreatureName(cid) .. " broadcasted message: \"" .. text .. "\".")
+	return true
 end
 
 function getBooleanFromString(str)
-	return (str:lower() == "yes" or str:lower() == "true" or (tonumber(str) and tonumber(str) > 0)) and TRUE or FALSE
+	return (str:lower() == "yes" or str:lower() == "true" or (tonumber(str) and tonumber(str) > 0))
 end
 
 function doCopyItem(item, attributes)
-	local attributes = attributes or FALSE
+	local attributes = attributes or false
 
 	local ret = doCreateItemEx(item.itemid, item.type)
-	if(attributes == TRUE) then
+	if(attributes) then
 		if(item.actionid > 0) then
 			doSetItemActionId(ret, item.actionid)
 		end
 	end
 
-	if(isContainer(item.uid) == TRUE) then
+	if(isContainer(item.uid)) then
 		for i = (getContainerSize(item.uid) - 1), 0, -1 do
 			local tmp = getContainerItem(item.uid, i)
 			if(tmp.itemid > 0) then
-				doAddContainerItemEx(ret, doCopyItem(tmp, TRUE).uid)
+				doAddContainerItemEx(ret, doCopyItem(tmp, true).uid)
 			end
 		end
 	end
@@ -547,96 +454,10 @@ function doCopyItem(item, attributes)
 	return getThing(ret)
 end
 
-table.find = function (table, value)
-	for i, v in pairs(table) do
-		if(v == value) then
-			return i
-		end
+function doRemoveThing(uid)
+	if(isCreature(uid)) then
+		return doRemoveCreature(uid)
 	end
 
-	return nil
-end
-
-table.isStrIn = function (txt, str)
-	for i, v in pairs(str) do
-		if(txt:find(v) and not txt:find('(%w+)' .. v) and not txt:find(v .. '(%w+)')) then
-			return true
-		end
-	end
-
-	return false
-end
-
-table.countElements = function (table, item)
-	local count = 0
-	for i, n in pairs(table) do
-		if(item == n) then
-			count = count + 1
-		end
-	end
-
-	return count
-end
-
-table.getCombinations = function (table, num)
-	local a, number, select, newlist = {}, #table, num, {}
-	for i = 1, select do
-		a[#a + 1] = i
-	end
-
-	local newthing = {}
-	while(true) do
-		local newrow = {}
-		for i = 1, select do
-			newrow[#newrow + 1] = table[a[i]]
-		end
-
-		newlist[#newlist + 1] = newrow
-		i = select
-		while(a[i] == (number - select + i)) do
-			i = i - 1
-		end
-
-		if(i < 1) then
-			break
-		end
-
-		a[i] = a[i] + 1
-		for j = i, select do
-			a[j] = a[i] + j - i
-		end
-	end
-
-	return newlist
-end
-
-string.split = function (str)
-	local t = {}
-	local function helper(word)
-		table.insert(t, word)
-		return ""
-	end
-
-	if(not str:gsub("%w+", helper):find("%S")) then
-		return t
-	end
-end
-
-string.trim = function (str)
-	return (string.gsub(str, "^%s*(.-)%s*$", "%1"))
-end
-
-string.explode = function (str, sep)
-	local pos, t = 1, {}
-	if #sep == 0 or #str == 0 then
-		return
-	end
-
-	for s, e in function() return str:find(sep, pos) end do
-		table.insert(t, str:sub(pos, s - 1):trim())
-		pos = e + 1
-	end
-
-	table.insert(t, str:sub(pos):trim())
-	return t
+	return doRemoveItem(uid)
 end
