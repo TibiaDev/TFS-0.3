@@ -22,13 +22,11 @@
 #include "const.h"
 #include "combat.h"
 
-#include "game.h"
 #include "baseevents.h"
 #include "luascript.h"
-#include "player.h"
 
-#include "actions.h"
-#include "talkaction.h"
+#include "player.h"
+#include "item.h"
 
 class Weapon;
 class WeaponMelee;
@@ -39,7 +37,7 @@ class Weapons : public BaseEvents
 {
 	public:
 		Weapons();
-		virtual ~Weapons();
+		virtual ~Weapons() {clear();}
 
 		bool loadDefaults();
 		const Weapon* getWeapon(const Item* item) const;
@@ -54,8 +52,8 @@ class Weapons : public BaseEvents
 		virtual Event* getEvent(const std::string& nodeName);
 		virtual bool registerEvent(Event* event, xmlNodePtr p, bool override);
 
-		virtual LuaScriptInterface& getScriptInterface() {return m_scriptInterface;}
-		LuaScriptInterface m_scriptInterface;
+		virtual LuaScriptInterface& getInterface() {return m_interface;}
+		LuaScriptInterface m_interface;
 
 		typedef std::map<uint32_t, Weapon*> WeaponMap;
 		WeaponMap weapons;

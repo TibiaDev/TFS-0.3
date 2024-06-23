@@ -61,8 +61,8 @@ class Spells : public BaseEvents
 		virtual Event* getEvent(const std::string& nodeName);
 		virtual bool registerEvent(Event* event, xmlNodePtr p, bool override);
 
-		virtual LuaScriptInterface& getScriptInterface() {return m_scriptInterface;}
-		LuaScriptInterface m_scriptInterface;
+		virtual LuaScriptInterface& getInterface() {return m_interface;}
+		LuaScriptInterface m_interface;
 
 		RunesMap runes;
 		InstantsMap instants;
@@ -124,7 +124,7 @@ class Spell : public BaseSpell
 		int32_t getManaCost(const Player* player) const;
 		int32_t getSoulCost() const {return soul;}
 		uint32_t getLevel() const {return level;}
-		uint32_t getMagicLevel() const {return magLevel;}
+		int32_t getMagicLevel() const {return magLevel;}
 		int32_t getMana() const {return mana;}
 		int32_t getManaPercent() const {return manaPercent;}
 		uint32_t getExhaustion() const {return exhaustion;}

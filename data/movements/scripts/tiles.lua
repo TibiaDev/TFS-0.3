@@ -2,8 +2,8 @@ local config = {
 	maxLevel = getConfigInfo('maximumDoorLevel')
 }
 
-local increasingItems = {[416] = 417, [426] = 425, [446] = 447, [3216] = 3217, [3202] = 3215}
-local decreasingItems = {[417] = 416, [425] = 426, [447] = 446, [3217] = 3216, [3215] = 3202}
+local increasingItems = {[416] = 417, [426] = 425, [446] = 447, [3216] = 3217, [3202] = 3215, [10551] = 10552}
+local decreasingItems = {[417] = 416, [425] = 426, [447] = 446, [3217] = 3216, [3215] = 3202, [10552] = 10551}
 local depots = {2589, 2590, 2591, 2592}
 
 local checkCreature = {isPlayer, isMonster, isNpc}
@@ -105,6 +105,10 @@ function onStepIn(cid, item, position, fromPosition)
 		local depotPos, depot = getCreatureLookPosition(cid), {}
 		depotPos.stackpos = STACKPOS_GROUND
 		while(true) do
+			if(not getTileInfo(depotPos).depot) then
+				break
+			end
+
 			depotPos.stackpos = depotPos.stackpos + 1
 			depot = getThingFromPos(depotPos)
 			if(depot.uid == 0) then

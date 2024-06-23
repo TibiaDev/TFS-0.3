@@ -7,7 +7,7 @@
 
 		Most needed are the items (including floors, walls)
 		introduced in the most recent tibia updates
-		starting from 8.2 to 8.5
+		starting from 8.2 to 8.6
 
 		If you found something wrong with existing item(s), we're also waiting for you :)
 
@@ -1255,11 +1255,11 @@
 	</item>
 	<item id="1497" article="a" name="magic wall">
 		<attribute key="type" value="magicfield"/>
+		<attribute key="decayTo" value="0"/>
+		<attribute key="duration" value="20"/>
 	</item>
 	<item id="1498" article="a" name="magic wall">
 		<attribute key="type" value="magicfield"/>
-		<attribute key="decayTo" value="0"/>
-		<attribute key="duration" value="20"/>
 	</item>
 	<item id="1499" article="a" name="rush wood">
 		<attribute key="type" value="magicfield"/>
@@ -2678,7 +2678,7 @@
 		<attribute key="weight" value="500"/>
 	</item>
 	<item id="2098" article="a" name="globe"/>
-	<item id="2099" article="a" name="water pipe">
+	<item id="2099" article="a" name="water-pipe">
 		<attribute key="weight" value="300"/>
 	</item>
 	<item id="2100" name="god flowers">
@@ -3937,7 +3937,7 @@
 		<attribute key="weaponType" value="distance"/>
 		<attribute key="shootType" value="spear"/>
 		<attribute key="range" value="5"/>
-		<attribute key="breakChance" value="10"/>
+		<attribute key="breakChance" value="3"/>
 		<attribute key="ammoAction" value="moveback"/>
 	</item>
 	<item id="2390" article="a" name="magic longsword">
@@ -4183,7 +4183,8 @@
 	<item id="2424" article="a" name="silver mace">
 		<attribute key="weight" value="6700"/>
 		<attribute key="defense" value="30"/>
-		<attribute key="attack" value="40"/>
+		<attribute key="attack" value="41"/>
+		<attribute key="extradef" value="2"/>
 		<attribute key="weaponType" value="club"/>
 	</item>
 	<item id="2425" article="an" name="obsidian lance">
@@ -4275,7 +4276,7 @@
 		<attribute key="weaponType" value="club"/>
 		<attribute key="extradef" value="1"/>
 	</item>
-	<item id="2437" article="a" name="golden mace">
+	<item id="2437" article="a" name="light mace">
 		<attribute key="weight" value="5000"/>
 		<attribute key="defense" value="24"/>
 		<attribute key="attack" value="47"/>
@@ -4649,8 +4650,9 @@
 	</item>
 	<item id="2504" name="dwarven legs">
 		<attribute key="weight" value="4000"/>
-		<attribute key="armor" value="6"/>
+		<attribute key="armor" value="7"/>
 		<attribute key="slotType" value="legs"/>
+		<attribute key="absorbPercentPhysical" value="3"/>
 	</item>
 	<item id="2505" article="an" name="elven armor">
 		<attribute key="weight" value="11400"/>
@@ -4856,7 +4858,7 @@
 		<attribute key="weight" value="80"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="30"/>
-		<attribute key="hitChance" value="80"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="bolt"/>
 		<attribute key="shootType" value="bolt"/>
@@ -4866,7 +4868,7 @@
 		<attribute key="weight" value="70"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="25"/>
-		<attribute key="hitChance" value="90"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="arrow"/>
 		<attribute key="shootType" value="arrow"/>
@@ -4876,7 +4878,7 @@
 		<attribute key="weight" value="80"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="22"/>
-		<attribute key="hitChance" value="80"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="arrow"/>
 		<attribute key="shootType" value="poisonarrow"/>
@@ -4886,7 +4888,7 @@
 		<attribute key="weight" value="90"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="28"/>
-		<attribute key="hitChance" value="80"/>
+		<attribute key="hitChance" value="100"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="arrow"/>
 		<attribute key="shootType" value="burstarrow"/>
@@ -4896,6 +4898,7 @@
 		<attribute key="weight" value="80"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="40"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="bolt"/>
 		<attribute key="shootType" value="powerbolt"/>
@@ -7573,7 +7576,9 @@
 	<item id="3199" article="a" name="strange carving"/>
 	<item id="3200" article="a" name="strange carving"/>
 	<item id="3201" article="a" name="strange carving"/>
-	<item id="3202" article="a" name="strange carving"/>
+	<item id="3202" article="a" name="strange carving">
+		<attribute key="description" value="It seems to be a switch."/>
+	</item>
 	<item id="3203" article="a" name="strange carving"/>
 	<item id="3204" article="a" name="strange carving"/>
 	<item id="3205" article="a" name="strange carving"/>
@@ -7586,9 +7591,15 @@
 	<item id="3212" article="a" name="strange carving"/>
 	<item id="3213" article="a" name="strange carving"/>
 	<item id="3214" article="a" name="strange carving"/>
-	<item id="3215" article="a" name="strange carving"/>
-	<item id="3216" article="a" name="wooden tile"/>
-	<item id="3217" article="a" name="wooden tile"/>
+	<item id="3215" article="a" name="strange carving">
+		<attribute key="description" value="It seems to be a switch."/>
+	</item>
+	<item id="3216" article="a" name="wooden tile">
+		<attribute key="description" value="It seems to be a switch."/>
+	</item>
+	<item id="3217" article="a" name="wooden tile">
+		<attribute key="description" value="It seems to be a switch."/>
+	</item>
 	<item id="3218" article="a" name="stone roof"/>
 	<item id="3219" article="a" name="stone stairway">
 		<attribute key="floorchange" value="down"/>
@@ -8603,7 +8614,7 @@
 		<attribute key="weaponType" value="distance"/>
 		<attribute key="shootType" value="huntingspear"/>
 		<attribute key="range" value="5"/>
-		<attribute key="breakChance" value="10"/>
+		<attribute key="breakChance" value="6"/>
 		<attribute key="ammoAction" value="moveback"/>
 	</item>
 	<item id="3966" article="a" name="banana staff">
@@ -9618,45 +9629,48 @@
 		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4614" name="shallow water">
-		<attribute key="description" value="You see the silvery movement of fish."/>
+		<attribute key="decayTo" value="4608"/>
+		<attribute key="duration" value="60"/>
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
 		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4615" name="shallow water">
-		<attribute key="description" value="You see the silvery movement of fish."/>
+		<attribute key="decayTo" value="4609"/>
+		<attribute key="duration" value="60"/>
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
 		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4616" name="shallow water">
-		<attribute key="description" value="You see the silvery movement of fish."/>
+		<attribute key="decayTo" value="4610"/>
+		<attribute key="duration" value="60"/>
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
 		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4617" name="shallow water">
-		<attribute key="decayTo" value="4608"/>
-		<attribute key="duration" value="1200"/>
+		<attribute key="decayTo" value="4611"/>
+		<attribute key="duration" value="60"/>
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
 		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4618" name="shallow water">
-		<attribute key="decayTo" value="4609"/>
-		<attribute key="duration" value="1200"/>
+		<attribute key="decayTo" value="4612"/>
+		<attribute key="duration" value="60"/>
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
 		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4619" name="shallow water">
-		<attribute key="decayTo" value="4610"/>
-		<attribute key="duration" value="1200"/>
+		<attribute key="decayTo" value="4613"/>
+		<attribute key="duration" value="60"/>
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
@@ -9666,37 +9680,31 @@
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4621" name="shallow water">
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4622" name="shallow water">
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4623" name="shallow water">
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4624" name="shallow water">
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4625" name="shallow water">
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4632" name="shallow water">
 		<attribute key="fluidSource" value="water"/>
@@ -9815,10 +9823,14 @@
 		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4664" name="shallow water">
+		<attribute key="type" value="trashholder"/>
+		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
 		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4665" name="shallow water">
+		<attribute key="type" value="trashholder"/>
+		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
 		<attribute key="allowpickupable" value="1"/>
 	</item>
@@ -10097,63 +10109,45 @@
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4821" name="shallow water">
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4822" name="shallow water">
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4823" name="shallow water">
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4824" name="shallow water">
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4825" name="shallow water">
 		<attribute key="type" value="trashholder"/>
 		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4826" article="a" name="mountain"/>
 	<item id="4827" article="a" name="mountain"/>
 	<item id="4828" name="shallow water">
-		<attribute key="type" value="trashholder"/>
-		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4829" name="shallow water">
-		<attribute key="type" value="trashholder"/>
-		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4830" name="shallow water">
-		<attribute key="type" value="trashholder"/>
-		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4831" name="shallow water">
-		<attribute key="type" value="trashholder"/>
-		<attribute key="effect" value="bluebubble"/>
 		<attribute key="fluidSource" value="water"/>
-		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="4832" name="dirt"/>
 	<item id="4833" name="dirt"/>
@@ -10984,8 +10978,14 @@
 	</item>
 	<item fromid="5296" toid="5301" name="wooden plank"/>
 	<item id="5302" name="wooden planks"/>
-	<item id="5303" article="a" name="white stone wall window"/>
-	<item id="5304" article="a" name="white stone wall window"/>
+	<item id="5303" article="a" name="white stone wall window">
+		<attribute key="type" value="door"/>
+		<attribute key="blockprojectile" value="1"/>
+	</item>
+	<item id="5304" article="a" name="white stone wall window">
+		<attribute key="type" value="door"/>
+		<attribute key="blockprojectile" value="1"/>
+	</item>
 	<item id="5305" article="a" name="white stone railing"/>
 	<item id="5306" article="a" name="white stone railing"/>
 	<item id="5307" article="a" name="white stone railing"/>
@@ -11086,12 +11086,7 @@
 	<item id="5402" article="a" name="bamboo lamp"/>
 	<item id="5403" article="a" name="bamboo lamp"/>
 	<item id="5404" article="a" name="bamboo lamp"/>
-	<item id="5405" name="shallow water"/>
-	<item id="5406" name="shallow water"/>
-	<item id="5407" name="shallow water"/>
-	<item id="5408" name="shallow water"/>
-	<item id="5409" name="shallow water"/>
-	<item id="5410" name="shallow water"/>
+	<item fromid="5405" toid="5410" name="shallow water"/>
 	<item id="5411" name="rocks"/>
 	<item id="5412" name="rocks"/>
 	<item id="5413" article="a" name="coral reef"/>
@@ -11108,18 +11103,7 @@
 	<item id="5424" article="a" name="water wheel"/>
 	<item id="5425" article="a" name="water wheel"/>
 	<item id="5426" article="a" name="stearing wheell"/>
-	<item id="5427" name="shallow water"/>
-	<item id="5428" name="shallow water"/>
-	<item id="5429" name="shallow water"/>
-	<item id="5430" name="shallow water"/>
-	<item id="5431" name="shallow water"/>
-	<item id="5432" name="shallow water"/>
-	<item id="5433" name="shallow water"/>
-	<item id="5434" name="shallow water"/>
-	<item id="5435" name="shallow water"/>
-	<item id="5436" name="shallow water"/>
-	<item id="5437" name="shallow water"/>
-	<item id="5438" name="shallow water"/>
+	<item fromid="5427" toid="5438" name="shallow water"/>
 	<item id="5439" article="a" name="steering wheel"/>
 	<item id="5440" article="a" name="steering wheel"/>
 	<item id="5441" article="a" name="steering wheel"/>
@@ -11416,7 +11400,7 @@
 	<item id="5553" article="a" name="rum flask">
 		<attribute key="weight" value="280"/>
 	</item>
-	<item id="5554" article="a" name="firefly"/>
+	<item id="5554" article="a" name="gold fish"/>
 	<item id="5555" name="hay"/>
 	<item id="5556" name="hay"/>
 	<item id="5557" article="a" name="mossy wall"/>
@@ -13123,11 +13107,14 @@
 		<attribute key="description" value="It contains the fourth verse of a hymn."/>
 		<attribute key="weight" value="50"/>
 	</item>
-	<item id="6091" article="a" name="watch">
+	<item id="6091" article="a" name="very noble-looking watch">
+		<attribute key="description" value="Unfortunately it seems to be broken"/>
 		<attribute key="weight" value="50"/>
 	</item>
-	<item id="6092" article="a" name="watch">
+	<item id="6092" article="a" name="very noble-looking watch">
 		<attribute key="weight" value="50"/>
+		<attribute key="duration" value="259200"/>
+		<attribute key="decayTo" value="6091"/>
 	</item>
 	<item id="6093" article="a" name="crystal ring">
 		<attribute key="description" value="The initials E.S. are engraved on it."/>
@@ -14076,8 +14063,12 @@
 	<item id="6447" article="a" name="stone window">
 		<attribute key="type" value="door"/>
 	</item>
-	<item id="6448" article="a" name="marble window"/>
-	<item id="6449" article="a" name="marble window"/>
+	<item id="6448" article="a" name="marble window">
+		<attribute key="type" value="door"/>
+	</item>
+	<item id="6449" article="a" name="marble window">
+		<attribute key="type" value="door"/>
+	</item>
 	<item id="6450" article="a" name="tree window">
 		<attribute key="type" value="door"/>
 		<attribute key="blockprojectile" value="1"/>
@@ -14287,6 +14278,7 @@
 		<attribute key="weight" value="90"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="43"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="bolt"/>
 		<attribute key="shootType" value="infernalbolt"/>
@@ -14434,13 +14426,13 @@
 	<item id="6574" article="a" name="bar of chocolate">
 		<attribute key="weight" value="10"/>
 	</item>
-	<item id="6575" article="a" name="green balloon">
+	<item id="6575" article="a" name="red balloon">
 		<attribute key="weight" value="10"/>
 	</item>
 	<item id="6576" article="a" name="fireworks rocket">
 		<attribute key="weight" value="100"/>
 	</item>
-	<item id="6577" article="a" name="red balloon">
+	<item id="6577" article="a" name="green balloon">
 		<attribute key="weight" value="10"/>
 	</item>
 	<item id="6578" article="a" name="party hat">
@@ -14468,7 +14460,7 @@
 	<item id="6594" name="snow">
 		<attribute key="description" value="Someone must have walked here recently."/>
 		<attribute key="decayTo" value="670"/>
-		<attribute key="duration" value="240"/>
+		<attribute key="duration" value="30"/>
 	</item>
 	<item id="6595" name="snow">
 		<attribute key="description" value="Someone must have walked here recently."/>
@@ -14482,7 +14474,7 @@
 	<item id="6598" name="snow">
 		<attribute key="description" value="Someone must have walked here recently."/>
 		<attribute key="decayTo" value="6594"/>
-		<attribute key="duration" value="240"/>
+		<attribute key="duration" value="10"/>
 	</item>
 	<item id="6599" name="snow">
 		<attribute key="description" value="Someone must have walked here recently."/>
@@ -14532,74 +14524,18 @@
 	<item id="6624" name="snow"/>
 	<item id="6625" name="snow"/>
 	<item id="6626" name="snow"/>
-	<item id="6627" name="shallow water"/>
-	<item id="6628" name="shallow water"/>
-	<item id="6629" name="shallow water"/>
-	<item id="6630" name="shallow water"/>
-	<item id="6631" name="shallow water"/>
-	<item id="6632" name="shallow water"/>
-	<item id="6633" name="shallow water"/>
-	<item id="6634" name="shallow water"/>
-	<item id="6635" name="shallow water"/>
-	<item id="6636" name="shallow water"/>
-	<item id="6637" name="shallow water"/>
-	<item id="6638" name="shallow water"/>
-	<item id="6639" name="shallow water"/>
-	<item id="6640" name="shallow water"/>
-	<item id="6641" name="shallow water"/>
-	<item id="6642" name="shallow water"/>
-	<item id="6643" name="shallow water"/>
-	<item id="6644" name="shallow water"/>
-	<item id="6645" name="shallow water"/>
-	<item id="6646" name="shallow water"/>
-	<item id="6647" name="shallow water"/>
-	<item id="6648" name="shallow water"/>
-	<item id="6649" name="shallow water"/>
-	<item id="6650" name="shallow water"/>
-	<item id="6651" name="shallow water"/>
-	<item id="6652" name="shallow water"/>
-	<item id="6653" name="shallow water"/>
-	<item id="6654" name="shallow water"/>
-	<item id="6655" name="shallow water"/>
-	<item id="6656" name="shallow water"/>
-	<item id="6657" name="shallow water"/>
-	<item id="6658" name="shallow water"/>
-	<item id="6659" name="shallow water"/>
-	<item id="6660" name="shallow water"/>
-	<item id="6661" name="shallow water"/>
-	<item id="6662" name="shallow water"/>
-	<item id="6663" name="shallow water"/>
-	<item id="6664" name="shallow water"/>
-	<item id="6665" name="shallow water"/>
-	<item id="6666" name="shallow water"/>
-	<item id="6667" name="shallow water"/>
-	<item id="6668" name="shallow water"/>
-	<item id="6669" name="shallow water"/>
-	<item id="6670" name="shallow water"/>
-	<item id="6671" name="shallow water"/>
-	<item id="6672" name="shallow water"/>
-	<item id="6673" name="shallow water"/>
-	<item id="6674" name="shallow water"/>
-	<item id="6675" name="shallow water"/>
-	<item id="6676" name="shallow water"/>
-	<item id="6677" name="shallow water"/>
-	<item id="6678" name="shallow water"/>
-	<item id="6679" name="shallow water"/>
-	<item id="6680" name="shallow water"/>
-	<item id="6681" name="shallow water"/>
-	<item id="6682" name="shallow water"/>
+	<item fromid="6627" toid="6682" name="shallow water">
+		<attribute key="allowpickupable" value="1"/>
+		<attribute key="fluidSource" value="water"/>
+	</item>
 	<item id="6683" name="ice"/>
 	<item id="6684" name="ice"/>
 	<item id="6685" name="ice"/>
 	<item id="6686" name="ice"/>
-	<item id="6687" name="shallow water"/>
-	<item id="6688" name="shallow water"/>
-	<item id="6689" name="shallow water"/>
-	<item id="6690" name="shallow water"/>
-	<item id="6691" name="shallow water"/>
-	<item id="6692" name="shallow water"/>
-	<item id="6693" name="shallow water"/>
-	<item id="6694" name="shallow water"/>
+	<item fromid="6687" toid="6694" name="shallow water">
+		<attribute key="allowpickupable" value="1"/>
+		<attribute key="fluidSource" value="water"/>
+	</item>
 	<item id="6695" name="ice"/>
 	<item id="6696" name="ice"/>
 	<item id="6697" name="ice"/>
@@ -15763,6 +15699,7 @@
 		<attribute key="weight" value="80"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="33"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="bolt"/>
 		<attribute key="shootType" value="piercingbolt"/>
@@ -15772,16 +15709,17 @@
 		<attribute key="weight" value="70"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="28"/>
+		<attribute key="maxHitChance" value="100"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="arrow"/>
 		<attribute key="shootType" value="sniperarrow"/>
-		<attribute key="maxHitChance" value="100"/>
 		<attribute key="ammoAction" value="removecount"/>
 	</item>
 	<item id="7365" article="an" name="onyx arrow" plural="onyx arrows">
 		<attribute key="weight" value="70"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="38"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="arrow"/>
 		<attribute key="shootType" value="onyxarrow"/>
@@ -15790,7 +15728,6 @@
 	<item id="7366" article="a" name="viper star" plural="viper stars">
 		<attribute key="weight" value="200"/>
 		<attribute key="attack" value="28"/>
-		<attribute key="hitChance" value="80"/>
 		<attribute key="weaponType" value="distance"/>
 		<attribute key="shootType" value="greenstar"/>
 		<attribute key="range" value="5"/>
@@ -15811,8 +15748,8 @@
 		<attribute key="attack" value="65"/>
 		<attribute key="weaponType" value="distance"/>
 		<attribute key="shootType" value="redstar"/>
-		<attribute key="range" value="5"/>
-		<attribute key="breakChance" value="30"/>
+		<attribute key="range" value="4"/>
+		<attribute key="breakChance" value="33"/>
 		<attribute key="ammoAction" value="moveback"/>
 	</item>
 	<item id="7369" article="a" name="golden trophy">
@@ -15848,7 +15785,7 @@
 		<attribute key="weaponType" value="distance"/>
 		<attribute key="shootType" value="royalspear"/>
 		<attribute key="range" value="5"/>
-		<attribute key="breakChance" value="10"/>
+		<attribute key="breakChance" value="2"/>
 		<attribute key="ammoAction" value="moveback"/>
 	</item>
 	<item id="7379" name="brutetamer's staff">
@@ -15936,7 +15873,7 @@
 		<attribute key="weaponType" value="sword"/>
 		<attribute key="extradef" value="3"/>
 	</item>
-	<item id="7391" article="an" name="thaian sword">
+	<item id="7391" article="a" name="thaian sword">
 		<attribute key="weight" value="6100"/>
 		<attribute key="defense" value="29"/>
 		<attribute key="attack" value="46"/>
@@ -16276,7 +16213,7 @@
 		<attribute key="weaponType" value="sword"/>
 		<attribute key="slotType" value="two-handed"/>
 	</item>
-	<item id="7450" article="the" name="ice hammer">
+	<item id="7450" article="the" name="hammer of prophecy">
 		<attribute key="weight" value="5500"/>
 	</item>
 	<item id="7451" article="a" name="shadow sceptre">
@@ -17613,7 +17550,7 @@
 		<attribute key="weight" value="70"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="25"/>
-		<attribute key="hitChance" value="90"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="arrow"/>
 		<attribute key="ammoAction" value="removecount"/>
@@ -17623,7 +17560,7 @@
 		<attribute key="weight" value="70"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="25"/>
-		<attribute key="hitChance" value="90"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="arrow"/>
 		<attribute key="ammoAction" value="removecount"/>
@@ -17633,7 +17570,7 @@
 		<attribute key="weight" value="70"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="25"/>
-		<attribute key="hitChance" value="90"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="arrow"/>
 		<attribute key="ammoAction" value="removecount"/>
@@ -17681,7 +17618,7 @@
 		<attribute key="weight" value="70"/>
 		<attribute key="slotType" value="ammo"/>
 		<attribute key="attack" value="25"/>
-		<attribute key="hitChance" value="90"/>
+		<attribute key="maxHitChance" value="90"/>
 		<attribute key="weaponType" value="ammunition"/>
 		<attribute key="ammoType" value="arrow"/>
 		<attribute key="ammoAction" value="removecount"/>
@@ -18271,51 +18208,39 @@
 		<attribute key="floorchange" value="west"/>
 	</item>
 	<item id="7943" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7944" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7945" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7946" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7947" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7948" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7949" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7950" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7951" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7952" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7953" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7954" name="shallow water">
-		<attribute key="allowpickupable" value="1"/>
 		<attribute key="fluidSource" value="water"/>
 	</item>
 	<item id="7955" article="a" name="parcel"/>
@@ -18689,7 +18614,7 @@
 		<attribute key="weight" value="60000"/>
 		<attribute key="containerSize" value="10"/>
 		<attribute key="decayTo" value="8308"/>
-		<attribute key="duration" value="60"/>
+		<attribute key="duration" value="10"/>
 		<attribute key="corpseType" value="blood"/>
 		<attribute key="fluidSource" value="blood"/>
 	</item>
@@ -18697,7 +18622,7 @@
 		<attribute key="weight" value="55000"/>
 		<attribute key="containerSize" value="10"/>
 		<attribute key="decayTo" value="8311"/>
-		<attribute key="duration" value="120"/>
+		<attribute key="duration" value="900"/>
 		<attribute key="corpseType" value="blood"/>
 		<attribute key="fluidSource" value="blood"/>
 	</item>
@@ -18711,12 +18636,13 @@
 		<attribute key="weight" value="45000"/>
 		<attribute key="containerSize" value="10"/>
 		<attribute key="decayTo" value="8312"/>
-		<attribute key="duration" value="180"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="blood"/>
 	</item>
 	<item id="8312" name="slain sea serpent">
 		<attribute key="weight" value="30000"/>
 		<attribute key="decayTo" value="0"/>
+		<attribute key="duration" value="600"/>
 	</item>
 	<item id="8313" article="a" name="birch"/>
 	<item id="8314" article="a" name="bare pine"/>
@@ -19885,7 +19811,7 @@
 		<attribute key="slotType" value="legs"/>
 	</item>
 	<item id="8924" article="a" name="hellforged axe">
-		<attribute key="weight" value="11000"/>
+		<attribute key="weight" value="8800"/>
 		<attribute key="defense" value="28"/>
 		<attribute key="attack" value="51"/>
 		<attribute key="weaponType" value="axe"/>
@@ -19913,32 +19839,39 @@
 		<attribute key="extradef" value="-1"/>
 	</item>
 	<item id="8928" article="an" name="obsidian truncheon">
-		<attribute key="weight" value="9500"/>
+		<attribute key="weight" value="6500"/>
 		<attribute key="defense" value="30"/>
 		<attribute key="attack" value="50"/>
 		<attribute key="weaponType" value="club"/>
 		<attribute key="extradef" value="2"/>
 	</item>
 	<item id="8929" article="the" name="stomper">
-		<attribute key="weight" value="9000"/> <!-- Not Correct -->
+		<attribute key="weight" value="11500"/>
 		<attribute key="defense" value="20"/>
 		<attribute key="attack" value="51"/>
 		<attribute key="weaponType" value="club"/>
-		<attribute key="extradef" value="3"/>
+		<attribute key="slotType" value="two-handed"/>
 	</item>
 	<item id="8930" article="an" name="emerald sword">
-		<attribute key="weight" value="4200"/>
+		<attribute key="weight" value="4100"/>
 		<attribute key="defense" value="33"/>
 		<attribute key="attack" value="49"/>
 		<attribute key="weaponType" value="sword"/>
-		<attribute key="extradef" value="2"/>
+		<attribute key="extradef" value="3"/>
 	</item>
-	<item id="8931"/>
+	<item id="8931" article="a" name="flame blade">
+		<attribute key="weight" value="6700"/>
+		<attribute key="defense" value="30"/>
+		<attribute key="attack" value="54"/>
+		<attribute key="weaponType" value="sword"/>
+		<attribute key="extradef" value="3"/>
+	</item>
 	<item id="8932" article="the" name="calamity">
 		<attribute key="weight" value="6800"/>
 		<attribute key="defense" value="35"/>
 		<attribute key="attack" value="51"/>
 		<attribute key="weaponType" value="sword"/>
+		<attribute key="slotType" value="two-handed"/>
 	</item>
 	<item id="8933" article="a" name="slain earth elemental">
 		<attribute key="weight" value="50000"/>
@@ -20005,20 +19938,20 @@
 		<attribute key="weight" value="35000"/>
 		<attribute key="containerSize" value="8"/>
 		<attribute key="decayTo" value="8943"/>
-		<attribute key="duration" value="500"/>
+		<attribute key="duration" value="900"/>
 		<attribute key="corpseType" value="blood"/>
 	</item>
 	<item id="8943" article="a" name="slain wyrm">
 		<attribute key="weight" value="20000"/>
 		<attribute key="containerSize" value="8"/>
 		<attribute key="decayTo" value="8944"/>
-		<attribute key="duration" value="300"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="blood"/>
 	</item>
 	<item id="8944" article="a" name="slain wyrm">
 		<attribute key="weight" value="5000"/>
 		<attribute key="decayTo" value="0"/>
-		<attribute key="duration" value="150"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="blood"/>
 	</item>
 	<item id="8945"/>
@@ -20041,13 +19974,13 @@
 		<attribute key="weight" value="30000"/>
 		<attribute key="containerSize" value="8"/>
 		<attribute key="decayTo" value="8950"/>
-		<attribute key="duration" value="500"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="blood"/>
 	</item>
 	<item id="8950" article="a" name="slain rotworm queen">
 		<attribute key="weight" value="20000"/>
 		<attribute key="decayTo" value="0"/>
-		<attribute key="duration" value="300"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="blood"/>
 	</item>
 	<item id="8951" article="a" name="slain bog raider">
@@ -20068,13 +20001,13 @@
 		<attribute key="weight" value="20000"/>
 		<attribute key="containerSize" value="8"/>
 		<attribute key="decayTo" value="8954"/>
-		<attribute key="duration" value="500"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="venom"/>
 	</item>
 	<item id="8954" article="a" name="slain bog raider">
 		<attribute key="weight" value="10000"/>
 		<attribute key="decayTo" value="0"/>
-		<attribute key="duration" value="300"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="venom"/>
 	</item>
 	<item id="8955" article="a" name="slain reaper">
@@ -20095,13 +20028,13 @@
 		<attribute key="weight" value="30000"/>
 		<attribute key="containerSize" value="8"/>
 		<attribute key="decayTo" value="8958"/>
-		<attribute key="duration" value="500"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="undead"/>
 	</item>
 	<item id="8958" article="a" name="slain reaper">
 		<attribute key="weight" value="20000"/>
 		<attribute key="decayTo" value="0"/>
-		<attribute key="duration" value="300"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="undead"/>
 	</item>
 	<item id="8959" article="a" name="white marble tile"/>
@@ -20123,13 +20056,13 @@
 		<attribute key="weight" value="30000"/>
 		<attribute key="containerSize" value="8"/>
 		<attribute key="decayTo" value="8963"/>
-		<attribute key="duration" value="500"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="undead"/>
 	</item>
 	<item id="8963" article="a" name="slain halloween pumpkin">
 		<attribute key="weight" value="30000"/>
 		<attribute key="decayTo" value="0"/>
-		<attribute key="duration" value="300"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="undead"/>
 	</item>
 	<item id="8964" article="a" name="slain fire elemental">
@@ -20155,19 +20088,19 @@
 		<attribute key="weight" value="10000"/>
 		<attribute key="containerSize" value="8"/>
 		<attribute key="decayTo" value="0"/>
-		<attribute key="duration" value="500"/>
+		<attribute key="duration" value="600"/>
 	</item>
 	<item id="8968" article="a" name="slain ice elemental">
 		<attribute key="weight" value="10000"/>
 		<attribute key="containerSize" value="8"/>
 		<attribute key="decayTo" value="0"/>
-		<attribute key="duration" value="500"/>
+		<attribute key="duration" value="600"/>
 	</item>
 	<item id="8969" article="a" name="slain fire elemental">
 		<attribute key="weight" value="10000"/>
 		<attribute key="containerSize" value="8"/>
 		<attribute key="decayTo" value="0"/>
-		<attribute key="duration" value="500"/>
+		<attribute key="duration" value="600"/>
 		<attribute key="corpseType" value="fire"/>
 	</item>
 	<item id="8970" name="Santiago's piano"/>
@@ -21719,6 +21652,29 @@
 	<item id="10523" article="a" name="egg of the many">
 		<attribute key="weight" value="5000"/>
 	</item>
+	<item id="10524" article="a" name="dead medusa">
+		<attribute key="containerSize" value="10"/>
+		<attribute key="decayTo" value="10525"/>
+		<attribute key="duration" value="600"/>
+		<attribute key="corpseType" value="blood"/>
+		<attribute key="fluidSource" value="blood"/>
+	</item>
+	<item id="10525" article="a" name="dead medusa">
+		<attribute key="containerSize" value="10"/>
+		<attribute key="decayTo" value="10526"/>
+		<attribute key="duration" value="600"/>
+		<attribute key="corpseType" value="blood"/>
+		<attribute key="fluidSource" value="blood"/>
+	</item>
+	<item id="10526" article="a" name="dead medusa">
+		<attribute key="decayTo" value="10527"/>
+		<attribute key="duration" value="600"/>
+		<attribute key="corpseType" value="blood"/>
+	</item>
+	<item id="10527" article="a" name="dead medusa">
+		<attribute key="duration" value="600"/>
+		<attribute key="corpseType" value="blood"/>
+	</item>
 	<item id="10529" article="a" name="sea serpent trophy">
 		<attribute key="weight" value="500"/>
 	</item>
@@ -21759,6 +21715,105 @@
 	<item id="10496" name="pavement"/>
 	<item id="10497" name="pavement"/>
 	<item id="10498" name="pavement"/>
+	<item fromid="10551" toid="10552" name="glowing switch"/>
+	<item id="10777" article="a" name="closed door">
+		<attribute key="type" value="door"/>
+		<attribute key="blockprojectile" value="1"/>
+		<attribute key="description" value="It is locked."/>
+	</item>
+	<item id="10778" article="a" name="closed door">
+		<attribute key="type" value="door"/>
+		<attribute key="blockprojectile" value="1"/>
+	</item>
+	<item id="10779" article="an" name="open door">
+		<attribute key="type" value="door"/>
+	</item>
+	<item id="10782" article="a" name="gate of expertise">
+		<attribute key="type" value="door"/>
+		<attribute key="levelDoor" value="1000"/>
+		<attribute key="blockprojectile" value="1"/>
+	</item>
+	<item id="10783" article="a" name="gate of expertise">
+		<attribute key="type" value="door"/>
+	</item>
+	<item id="10784" article="a" name="closed door">
+		<attribute key="type" value="door"/>
+		<attribute key="blockprojectile" value="1"/>
+	</item>
+	<item id="10785" article="a" name="open door">
+		<attribute key="type" value="door"/>
+	</item>
+	<item id="10786" article="a" name="closed door">
+		<attribute key="type" value="door"/>
+		<attribute key="blockprojectile" value="1"/>
+		<attribute key="description" value="It is locked."/>
+	</item>
+	<item id="10787" article="a" name="closed door">
+		<attribute key="type" value="door"/>
+		<attribute key="blockprojectile" value="1"/>
+	</item>
+	<item id="10788" article="an" name="open door">
+		<attribute key="type" value="door"/>
+	</item>
+	<item id="10791" article="a" name="gate of expertise">
+		<attribute key="type" value="door"/>
+		<attribute key="levelDoor" value="1000"/>
+		<attribute key="blockprojectile" value="1"/>
+	</item>
+	<item id="10792" article="a" name="gate of expertise">
+		<attribute key="type" value="door"/>
+	</item>
+	<item id="10793" article="a" name="closed door">
+		<attribute key="type" value="door"/>
+		<attribute key="blockprojectile" value="1"/>
+	</item>
+	<item id="10794" article="a" name="open door">
+		<attribute key="type" value="door"/>
+	</item>
+	<item fromid="11056" toid="11067" article="a" name="window"/>
+	<item id="11094" article="a" name="magic wall">
+		<attribute key="type" value="magicfield"/>
+		<attribute key="decayTo" value="0"/>
+		<attribute key="duration" value="20"/>
+	</item>
+	<item id="11095" article="a" name="rush wood">
+		<attribute key="type" value="magicfield"/>
+		<attribute key="decayTo" value="0"/>
+		<attribute key="duration" value="45"/>
+	</item>
+	<item id="11114" article="a" name="heart backpack">
+		<attribute key="weight" value="1800"/>
+		<attribute key="containerSize" value="20"/>
+		<attribute key="slotType" value="backpack"/>
+	</item>
+	<item id="11116" article="a" name="stone stairs">
+		<attribute key="floorchange" value="north"/>
+	</item>
+	<item id="11234" article="a" name="expedition backpack">
+		<attribute key="weight" value="1800"/>
+		<attribute key="containerSize" value="20"/>
+		<attribute key="slotType" value="backpack"/>
+	</item>
+	<item id="11235" article="a" name="expedition bag">
+		<attribute key="weight" value="800"/>
+		<attribute key="containerSize" value="8"/>
+		<attribute key="slotType" value="backpack"/>
+	</item>
+	<item id="11236" article="a" name="lizard backpack">
+		<attribute key="weight" value="1800"/>
+		<attribute key="containerSize" value="20"/>
+		<attribute key="slotType" value="backpack"/>
+	</item>
+	<item id="11237" article="a" name="minotaur backpack">
+		<attribute key="weight" value="1800"/>
+		<attribute key="containerSize" value="20"/>
+		<attribute key="slotType" value="backpack"/>
+	</item>
+	<item id="11256" article="a" name="fluffy santa backpack">
+		<attribute key="weight" value="1800"/>
+		<attribute key="containerSize" value="20"/>
+		<attribute key="slotType" value="backpack"/>
+	</item>
 	<item id="20001" name="water"/>
 	<item id="20002" name="blood"/>
 	<item id="20003" name="beer"/>

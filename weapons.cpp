@@ -15,30 +15,23 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
+#include "weapons.h"
+
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 
-#include "weapons.h"
-#include "tools.h"
-
-#include "combat.h"
-#include "items.h"
-
+#include "game.h"
 #include "configmanager.h"
+#include "tools.h"
 
 extern Game g_game;
 extern ConfigManager g_config;
 extern Weapons* g_weapons;
 
 Weapons::Weapons():
-	m_scriptInterface("Weapon Interface")
+	m_interface("Weapon Interface")
 {
-	m_scriptInterface.initState();
-}
-
-Weapons::~Weapons()
-{
-	clear();
+	m_interface.initState();
 }
 
 const Weapon* Weapons::getWeapon(const Item* item) const
@@ -59,12 +52,12 @@ void Weapons::clear()
 		delete it->second;
 
 	weapons.clear();
-	m_scriptInterface.reInitState();
+	m_interface.reInitState();
 }
 
 bool Weapons::loadDefaults()
 {
-	for(uint32_t i = 0; i < Item::items.size(); ++i)
+	for(uint32_t i = 0; i <= Item::items.size(); ++i)
 	{
 		const ItemType* it = Item::items.getElement(i);
 		if(!it || weapons.find(it->id) != weapons.end())
@@ -79,11 +72,12 @@ bool Weapons::loadDefaults()
 				case WEAPON_CLUB:
 				case WEAPON_FIST:
 				{
-					if(WeaponMelee* weapon = new WeaponMelee(&m_scriptInterface))
+					if(WeaponMelee* weapon = new WeaponMelee(&m_interface))
 					{
 						weapon->configureWeapon(*it);
 						weapons[it->id] = weapon;
 					}
+
 					break;
 				}
 
@@ -93,11 +87,12 @@ bool Weapons::loadDefaults()
 					if(it->weaponType == WEAPON_DIST && it->ammoType != AMMO_NONE)
 						continue;
 
-					if(WeaponDistance* weapon = new WeaponDistance(&m_scriptInterface))
+					if(WeaponDistance* weapon = new WeaponDistance(&m_interface))
 					{
 						weapon->configureWeapon(*it);
 						weapons[it->id] = weapon;
 					}
+
 					break;
 				}
 
@@ -114,13 +109,13 @@ Event* Weapons::getEvent(const std::string& nodeName)
 {
 	std::string tmpNodeName = asLowerCaseString(nodeName);
 	if(tmpNodeName == "melee")
-		return new WeaponMelee(&m_scriptInterface);
+		return new WeaponMelee(&m_interface);
 
 	if(tmpNodeName == "distance" || tmpNodeName == "ammunition")
-		return new WeaponDistance(&m_scriptInterface);
+		return new WeaponDistance(&m_interface);
 
 	if(tmpNodeName == "wand" || tmpNodeName == "rod")
-		return new WeaponWand(&m_scriptInterface);
+		return new WeaponWand(&m_interface);
 
 	return NULL;
 }
@@ -408,7 +403,7 @@ bool Weapon::internalUseWeapon(Player* player, Item* item, Tile* tile) const
 	else
 	{
 		Combat::postCombatEffects(player, tile->getPosition(), params);
-		g_game.addMagicEffect(tile->getPosition(), NM_ME_POFF);
+		g_game.addMagicEffect(tile->getPosition(), MAGIC_EFFECT_POFF);
 	}
 
 	onUsedAmmo(player, item, tile);
@@ -427,13 +422,15 @@ void Weapon::onUsedWeapon(Player* player, Item* item, Tile* destTile) const
 	}
 
 	if(!player->hasFlag(PlayerFlag_HasNoExhaustion) && exhaustion > 0)
-		player->addExhaust(exhaustion, EXHAUST_WEAPON);
+		player->addExhaust(exhaustion, EXHAUST_COMBAT);
 
 	int32_t manaCost = getManaCost(player);
 	if(manaCost > 0)
 	{
-		player->addManaSpent(manaCost);
 		player->changeMana(-manaCost);
+		if(!player->hasFlag(PlayerFlag_NotGainMana) && (player->getZone() != ZONE_PVP
+			|| !g_config.getBool(ConfigManager::PVPZONE_ADDMANASPENT)))
+			player->addManaSpent(manaCost);
 	}
 
 	if(!player->hasFlag(PlayerFlag_HasInfiniteSoul) && soul > 0)
@@ -488,9 +485,9 @@ int32_t Weapon::getManaCost(const Player* player) const
 bool Weapon::executeUseWeapon(Player* player, const LuaVariant& var) const
 {
 	//onUseWeapon(cid, var)
-	if(m_scriptInterface->reserveScriptEnv())
+	if(m_interface->reserveEnv())
 	{
-		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
+		ScriptEnviroment* env = m_interface->getEnv();
 		if(m_scripted == EVENT_SCRIPT_BUFFER)
 		{
 			env->setRealPos(player->getPosition());
@@ -501,13 +498,13 @@ bool Weapon::executeUseWeapon(Player* player, const LuaVariant& var) const
 
 			scriptstream << m_scriptData;
 			bool result = true;
-			if(m_scriptInterface->loadBuffer(scriptstream.str()) != -1)
+			if(m_interface->loadBuffer(scriptstream.str()))
 			{
-				lua_State* L = m_scriptInterface->getLuaState();
-				result = m_scriptInterface->getGlobalBool(L, "_result", true);
+				lua_State* L = m_interface->getState();
+				result = m_interface->getGlobalBool(L, "_result", true);
 			}
 
-			m_scriptInterface->releaseScriptEnv();
+			m_interface->releaseEnv();
 			return result;
 		}
 		else
@@ -518,17 +515,17 @@ bool Weapon::executeUseWeapon(Player* player, const LuaVariant& var) const
 			env->setEventDesc(desc);
 			#endif
 
-			env->setScriptId(m_scriptId, m_scriptInterface);
+			env->setScriptId(m_scriptId, m_interface);
 			env->setRealPos(player->getPosition());
 
-			lua_State* L = m_scriptInterface->getLuaState();
-			m_scriptInterface->pushFunction(m_scriptId);
+			lua_State* L = m_interface->getState();
+			m_interface->pushFunction(m_scriptId);
 
 			lua_pushnumber(L, env->addThing(player));
-			m_scriptInterface->pushVariant(L, var);
+			m_interface->pushVariant(L, var);
 
-			bool result = m_scriptInterface->callFunction(2);
-			m_scriptInterface->releaseScriptEnv();
+			bool result = m_interface->callFunction(2);
+			m_interface->releaseEnv();
 			return result;
 		}
 	}
@@ -713,7 +710,7 @@ bool WeaponDistance::configureWeapon(const ItemType& it)
 	if(it.ammoAction != AMMOACTION_NONE)
 		ammoAction = it.ammoAction;
 
-	params.distanceEffect = it.shootType;
+	params.effects.distance = it.shootType;
 	ammoAttackValue = it.attack;
 	return Weapon::configureWeapon(it);
 }
@@ -999,7 +996,7 @@ bool WeaponWand::configureEvent(xmlNodePtr p)
 
 bool WeaponWand::configureWeapon(const ItemType& it)
 {
-	params.distanceEffect = it.shootType;
+	params.effects.distance = it.shootType;
 	return Weapon::configureWeapon(it);
 }
 

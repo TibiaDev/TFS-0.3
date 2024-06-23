@@ -26,7 +26,7 @@
 #include "configmanager.h"
 extern ConfigManager g_config;
 
-std::string transformToSHA1(std::string plainText, bool upperCase /*= false*/)
+std::string transformToSHA1(std::string plainText, bool upperCase)
 {
 	SHA1 sha1;
 	unsigned sha1Hash[5];
@@ -46,7 +46,7 @@ std::string transformToSHA1(std::string plainText, bool upperCase /*= false*/)
 	return hexStr;
 }
 
-std::string transformToMD5(std::string plainText, bool upperCase /*= false*/)
+std::string transformToMD5(std::string plainText, bool upperCase)
 {
 	MD5_CTX m_md5;
 	std::stringstream hexStream;
@@ -66,26 +66,31 @@ std::string transformToMD5(std::string plainText, bool upperCase /*= false*/)
 	return hexStr;
 }
 
-bool passwordTest(const std::string &plain, std::string &hash)
+void _encrypt(std::string& str, bool upperCase)
 {
-	switch(g_config.getNumber(ConfigManager::PASSWORDTYPE))
+	switch(g_config.getNumber(ConfigManager::ENCRYPTION))
 	{
-		case PASSWORD_TYPE_MD5:
-		{
-			std::transform(hash.begin(), hash.end(), hash.begin(), upchar);
-			return transformToMD5(plain, true) == hash;
-		}
-
-		case PASSWORD_TYPE_SHA1:
-		{
-			std::transform(hash.begin(), hash.end(), hash.begin(), upchar);
-			return transformToSHA1(plain, true) == hash;
-		}
-
+		case ENCRYPTION_MD5:
+			str = transformToMD5(str, upperCase);
+			break;
+		case ENCRYPTION_SHA1:
+			str = transformToSHA1(str, upperCase);
+			break;
 		default:
-			return plain == hash;
+		{
+			if(upperCase)
+				std::transform(str.begin(), str.end(), str.begin(), upchar);
+
+			break;
+		}
 	}
-	return false;
+}
+
+bool encryptTest(std::string plain, std::string& hash)
+{
+	std::transform(hash.begin(), hash.end(), hash.begin(), upchar);
+	_encrypt(plain, true);
+	return plain == hash;
 }
 
 void replaceString(std::string& text, const std::string key, const std::string value)
@@ -141,85 +146,73 @@ bool booleanString(std::string source)
 bool readXMLInteger(xmlNodePtr node, const char* tag, int& value)
 {
 	char* nodeValue = (char*)xmlGetProp(node, (xmlChar*)tag);
-	if(nodeValue)
-	{
-		value = atoi(nodeValue);
-		xmlFreeOTSERV(nodeValue);
-		return true;
-	}
+	if(!nodeValue)
+		return false;
 
-	return false;
+	value = atoi(nodeValue);
+	xmlFree(nodeValue);
+	return true;
 }
 
-#if (defined __WINDOWS__ || defined WIN32) && !defined __GNUC__
+#if defined WINDOWS && !defined __GNUC__
 bool readXMLInteger(xmlNodePtr node, const char* tag, int32_t& value)
 {
 	char* nodeValue = (char*)xmlGetProp(node, (xmlChar*)tag);
-	if(nodeValue)
-	{
-		value = atoi(nodeValue);
-		xmlFreeOTSERV(nodeValue);
-		return true;
-	}
+	if(!nodeValue)
+		return false;
 
-	return false;
+	value = atoi(nodeValue);
+	xmlFree(nodeValue);
+	return true;
 }
 #endif
 
 bool readXMLInteger64(xmlNodePtr node, const char* tag, int64_t& value)
 {
 	char* nodeValue = (char*)xmlGetProp(node, (xmlChar*)tag);
-	if(nodeValue)
-	{
-		value = ATOI64(nodeValue);
-		xmlFreeOTSERV(nodeValue);
-		return true;
-	}
+	if(!nodeValue)
+		return false;
 
-	return false;
+	value = atoll(nodeValue);
+	xmlFree(nodeValue);
+	return true;
 }
 
 bool readXMLFloat(xmlNodePtr node, const char* tag, float& value)
 {
 	char* nodeValue = (char*)xmlGetProp(node, (xmlChar*)tag);
-	if(nodeValue)
-	{
-		value = atof(nodeValue);
-		xmlFreeOTSERV(nodeValue);
-		return true;
-	}
+	if(!nodeValue)
+		return false;
 
-	return false;
+	value = atof(nodeValue);
+	xmlFree(nodeValue);
+	return true;
 }
 
 bool readXMLString(xmlNodePtr node, const char* tag, std::string& value)
 {
 	char* nodeValue = (char*)xmlGetProp(node, (xmlChar*)tag);
-	if(nodeValue)
-	{
-		if(!utf8ToLatin1(nodeValue, value))
-			value = nodeValue;
+	if(!nodeValue)
+		return false;
 
-		xmlFreeOTSERV(nodeValue);
-		return true;
-	}
+	if(!utf8ToLatin1(nodeValue, value))
+		value = nodeValue;
 
-	return false;
+	xmlFree(nodeValue);
+	return true;
 }
 
 bool readXMLContentString(xmlNodePtr node, std::string& value)
 {
 	char* nodeValue = (char*)xmlNodeGetContent(node);
-	if(nodeValue)
-	{
-		if(!utf8ToLatin1(nodeValue, value))
-			value = nodeValue;
+	if(!nodeValue)
+		return false;
 
-		xmlFreeOTSERV(nodeValue);
-		return true;
-	}
+	if(!utf8ToLatin1(nodeValue, value))
+		value = nodeValue;
 
-	return false;
+	xmlFree(nodeValue);
+	return true;
 }
 
 bool parseXMLContentString(xmlNodePtr node, std::string& value)
@@ -376,11 +369,7 @@ int32_t random_range(int32_t lowestNumber, int32_t highestNumber, DistributionTy
 		return lowestNumber;
 
 	if(lowestNumber > highestNumber)
-	{
-		int32_t tmp = highestNumber;
-		highestNumber = lowestNumber;
-		lowestNumber = tmp;
-	}
+		std::swap(lowestNumber, highestNumber);
 
 	switch(type)
 	{
@@ -836,13 +825,13 @@ struct AmmoTypeNames
 struct MagicEffectNames
 {
 	const char* name;
-	MagicEffectClasses magicEffect;
+	MagicEffect_t magicEffect;
 };
 
 struct ShootTypeNames
 {
 	const char* name;
-	ShootType_t shootType;
+	ShootEffect_t shootType;
 };
 
 struct CombatTypeNames
@@ -871,120 +860,122 @@ struct SkillIdNames
 
 MagicEffectNames magicEffectNames[] =
 {
-	{"redspark",		NM_ME_DRAW_BLOOD},
-	{"bluebubble",		NM_ME_LOSE_ENERGY},
-	{"poff",		NM_ME_POFF},
-	{"yellowspark",		NM_ME_BLOCKHIT},
-	{"explosionarea",	NM_ME_EXPLOSION_AREA},
-	{"explosion",		NM_ME_EXPLOSION_DAMAGE},
-	{"firearea",		NM_ME_FIRE_AREA},
-	{"yellowbubble",	NM_ME_YELLOW_RINGS},
-	{"greenbubble",		NM_ME_POISON_RINGS},
-	{"blackspark",		NM_ME_HIT_AREA},
-	{"teleport",		NM_ME_TELEPORT},
-	{"energy",		NM_ME_ENERGY_DAMAGE},
-	{"blueshimmer",		NM_ME_MAGIC_ENERGY},
-	{"redshimmer",		NM_ME_MAGIC_BLOOD},
-	{"greenshimmer",	NM_ME_MAGIC_POISON},
-	{"fire",		NM_ME_HITBY_FIRE},
-	{"greenspark",		NM_ME_POISON},
-	{"mortarea",		NM_ME_MORT_AREA},
-	{"greennote",		NM_ME_SOUND_GREEN},
-	{"rednote",		NM_ME_SOUND_RED},
-	{"poison",		NM_ME_POISON_AREA},
-	{"yellownote",		NM_ME_SOUND_YELLOW},
-	{"purplenote",		NM_ME_SOUND_PURPLE},
-	{"bluenote",		NM_ME_SOUND_BLUE},
-	{"whitenote",		NM_ME_SOUND_WHITE},
-	{"bubbles",		NM_ME_BUBBLES},
-	{"dice",		NM_ME_CRAPS},
-	{"giftwraps",		NM_ME_GIFT_WRAPS},
-	{"yellowfirework",	NM_ME_FIREWORK_YELLOW},
-	{"redfirework",		NM_ME_FIREWORK_RED},
-	{"bluefirework",	NM_ME_FIREWORK_BLUE},
-	{"stun",		NM_ME_STUN},
-	{"sleep",		NM_ME_SLEEP},
-	{"watercreature",	NM_ME_WATERCREATURE},
-	{"groundshaker",	NM_ME_GROUNDSHAKER},
-	{"hearts",		NM_ME_HEARTS},
-	{"fireattack",		NM_ME_FIREATTACK},
-	{"energyarea",		NM_ME_ENERGY_AREA},
-	{"smallclouds",		NM_ME_SMALLCLOUDS},
-	{"holydamage",		NM_ME_HOLYDAMAGE},
-	{"bigclouds",		NM_ME_BIGCLOUDS},
-	{"icearea",		NM_ME_ICEAREA},
-	{"icetornado",		NM_ME_ICETORNADO},
-	{"iceattack",		NM_ME_ICEATTACK},
-	{"stones",		NM_ME_STONES},
-	{"smallplants",		NM_ME_SMALLPLANTS},
-	{"carniphila",		NM_ME_CARNIPHILA},
-	{"purpleenergy",	NM_ME_PURPLEENERGY},
-	{"yellowenergy",	NM_ME_YELLOWENERGY},
-	{"holyarea",		NM_ME_HOLYAREA},
-	{"bigplants",		NM_ME_BIGPLANTS},
-	{"cake",		NM_ME_CAKE},
-	{"giantice",		NM_ME_GIANTICE},
-	{"watersplash",		NM_ME_WATERSPLASH},
-	{"plantattack",		NM_ME_PLANTATTACK},
-	{"tutorialarrow",	NM_ME_TUTORIALARROW},
-	{"tutorialsquare",	NM_ME_TUTORIALSQUARE},
-	{"mirrorhorizontal",	NM_ME_MIRRORHORIZONTAL},
-	{"mirrorvertical",	NM_ME_MIRRORVERTICAL},
-	{"skullhorizontal",	NM_ME_SKULLHORIZONTAL},
-	{"skullvertical",	NM_ME_SKULLVERTICAL},
-	{"assassin",		NM_ME_ASSASSIN},
-	{"stepshorizontal",	NM_ME_STEPSHORIZONTAL},
-	{"bloodysteps",		NM_ME_BLOODYSTEPS},
-	{"stepsvertical",	NM_ME_STEPSVERTICAL},
-	{"yalaharighost",	NM_ME_YALAHARIGHOST},
-	{"smoke",		NM_ME_SMOKE}
+	{"redspark",		MAGIC_EFFECT_DRAW_BLOOD},
+	{"bluebubble",		MAGIC_EFFECT_LOSE_ENERGY},
+	{"poff",		MAGIC_EFFECT_POFF},
+	{"yellowspark",		MAGIC_EFFECT_BLOCKHIT},
+	{"explosionarea",	MAGIC_EFFECT_EXPLOSION_AREA},
+	{"explosion",		MAGIC_EFFECT_EXPLOSION_DAMAGE},
+	{"firearea",		MAGIC_EFFECT_FIRE_AREA},
+	{"yellowbubble",	MAGIC_EFFECT_YELLOW_RINGS},
+	{"greenbubble",		MAGIC_EFFECT_POISON_RINGS},
+	{"blackspark",		MAGIC_EFFECT_HIT_AREA},
+	{"teleport",		MAGIC_EFFECT_TELEPORT},
+	{"energy",		MAGIC_EFFECT_ENERGY_DAMAGE},
+	{"blueshimmer",		MAGIC_EFFECT_WRAPS_BLUE},
+	{"redshimmer",		MAGIC_EFFECT_WRAPS_RED},
+	{"greenshimmer",	MAGIC_EFFECT_WRAPS_GREEN},
+	{"fire",		MAGIC_EFFECT_HITBY_FIRE},
+	{"greenspark",		MAGIC_EFFECT_POISON},
+	{"mortarea",		MAGIC_EFFECT_MORT_AREA},
+	{"greennote",		MAGIC_EFFECT_SOUND_GREEN},
+	{"rednote",		MAGIC_EFFECT_SOUND_RED},
+	{"poison",		MAGIC_EFFECT_POISON_AREA},
+	{"yellownote",		MAGIC_EFFECT_SOUND_YELLOW},
+	{"purplenote",		MAGIC_EFFECT_SOUND_PURPLE},
+	{"bluenote",		MAGIC_EFFECT_SOUND_BLUE},
+	{"whitenote",		MAGIC_EFFECT_SOUND_WHITE},
+	{"bubbles",		MAGIC_EFFECT_BUBBLES},
+	{"dice",		MAGIC_EFFECT_CRAPS},
+	{"giftwraps",		MAGIC_EFFECT_GIFT_WRAPS},
+	{"yellowfirework",	MAGIC_EFFECT_FIREWORK_YELLOW},
+	{"redfirework",		MAGIC_EFFECT_FIREWORK_RED},
+	{"bluefirework",	MAGIC_EFFECT_FIREWORK_BLUE},
+	{"stun",		MAGIC_EFFECT_STUN},
+	{"sleep",		MAGIC_EFFECT_SLEEP},
+	{"watercreature",	MAGIC_EFFECT_WATERCREATURE},
+	{"groundshaker",	MAGIC_EFFECT_GROUNDSHAKER},
+	{"hearts",		MAGIC_EFFECT_HEARTS},
+	{"fireattack",		MAGIC_EFFECT_FIREATTACK},
+	{"energyarea",		MAGIC_EFFECT_ENERGY_AREA},
+	{"smallclouds",		MAGIC_EFFECT_SMALLCLOUDS},
+	{"holydamage",		MAGIC_EFFECT_HOLYDAMAGE},
+	{"bigclouds",		MAGIC_EFFECT_BIGCLOUDS},
+	{"icearea",		MAGIC_EFFECT_ICEAREA},
+	{"icetornado",		MAGIC_EFFECT_ICETORNADO},
+	{"iceattack",		MAGIC_EFFECT_ICEATTACK},
+	{"stones",		MAGIC_EFFECT_STONES},
+	{"smallplants",		MAGIC_EFFECT_SMALLPLANTS},
+	{"carniphila",		MAGIC_EFFECT_CARNIPHILA},
+	{"purpleenergy",	MAGIC_EFFECT_PURPLEENERGY},
+	{"yellowenergy",	MAGIC_EFFECT_YELLOWENERGY},
+	{"holyarea",		MAGIC_EFFECT_HOLYAREA},
+	{"bigplants",		MAGIC_EFFECT_BIGPLANTS},
+	{"cake",		MAGIC_EFFECT_CAKE},
+	{"giantice",		MAGIC_EFFECT_GIANTICE},
+	{"watersplash",		MAGIC_EFFECT_WATERSPLASH},
+	{"plantattack",		MAGIC_EFFECT_PLANTATTACK},
+	{"tutorialarrow",	MAGIC_EFFECT_TUTORIALARROW},
+	{"tutorialsquare",	MAGIC_EFFECT_TUTORIALSQUARE},
+	{"mirrorhorizontal",	MAGIC_EFFECT_MIRRORHORIZONTAL},
+	{"mirrorvertical",	MAGIC_EFFECT_MIRRORVERTICAL},
+	{"skullhorizontal",	MAGIC_EFFECT_SKULLHORIZONTAL},
+	{"skullvertical",	MAGIC_EFFECT_SKULLVERTICAL},
+	{"assassin",		MAGIC_EFFECT_ASSASSIN},
+	{"stepshorizontal",	MAGIC_EFFECT_STEPSHORIZONTAL},
+	{"bloodysteps",		MAGIC_EFFECT_BLOODYSTEPS},
+	{"stepsvertical",	MAGIC_EFFECT_STEPSVERTICAL},
+	{"yalaharighost",	MAGIC_EFFECT_YALAHARIGHOST},
+	{"bats",		MAGIC_EFFECT_BATS},
+	{"smoke",		MAGIC_EFFECT_SMOKE},
+	{"insects",		MAGIC_EFFECT_INSECTS}
 };
 
 ShootTypeNames shootTypeNames[] =
 {
-	{"spear",		NM_SHOOT_SPEAR},
-	{"bolt",		NM_SHOOT_BOLT},
-	{"arrow",		NM_SHOOT_ARROW},
-	{"fire",		NM_SHOOT_FIRE},
-	{"energy",		NM_SHOOT_ENERGY},
-	{"poisonarrow",		NM_SHOOT_POISONARROW},
-	{"burstarrow",		NM_SHOOT_BURSTARROW},
-	{"throwingstar",	NM_SHOOT_THROWINGSTAR},
-	{"throwingknife",	NM_SHOOT_THROWINGKNIFE},
-	{"smallstone",		NM_SHOOT_SMALLSTONE},
-	{"death",		NM_SHOOT_DEATH},
-	{"largerock",		NM_SHOOT_LARGEROCK},
-	{"snowball",		NM_SHOOT_SNOWBALL},
-	{"powerbolt",		NM_SHOOT_POWERBOLT},
-	{"poison",		NM_SHOOT_POISONFIELD},
-	{"infernalbolt",	NM_SHOOT_INFERNALBOLT},
-	{"huntingspear",	NM_SHOOT_HUNTINGSPEAR},
-	{"enchantedspear",	NM_SHOOT_ENCHANTEDSPEAR},
-	{"redstar",		NM_SHOOT_REDSTAR},
-	{"greenstar",		NM_SHOOT_GREENSTAR},
-	{"royalspear",		NM_SHOOT_ROYALSPEAR},
-	{"sniperarrow",		NM_SHOOT_SNIPERARROW},
-	{"onyxarrow",		NM_SHOOT_ONYXARROW},
-	{"piercingbolt",	NM_SHOOT_PIERCINGBOLT},
-	{"whirlwindsword",	NM_SHOOT_WHIRLWINDSWORD},
-	{"whirlwindaxe",	NM_SHOOT_WHIRLWINDAXE},
-	{"whirlwindclub",	NM_SHOOT_WHIRLWINDCLUB},
-	{"etherealspear",	NM_SHOOT_ETHEREALSPEAR},
-	{"ice",			NM_SHOOT_ICE},
-	{"earth",		NM_SHOOT_EARTH},
-	{"holy",		NM_SHOOT_HOLY},
-	{"suddendeath",		NM_SHOOT_SUDDENDEATH},
-	{"flasharrow",		NM_SHOOT_FLASHARROW},
-	{"flammingarrow",	NM_SHOOT_FLAMMINGARROW},
-	{"flamingarrow",	NM_SHOOT_FLAMMINGARROW},
-	{"shiverarrow",		NM_SHOOT_SHIVERARROW},
-	{"energyball",		NM_SHOOT_ENERGYBALL},
-	{"smallice",		NM_SHOOT_SMALLICE},
-	{"smallholy",		NM_SHOOT_SMALLHOLY},
-	{"smallearth",		NM_SHOOT_SMALLEARTH},
-	{"eartharrow",		NM_SHOOT_EARTHARROW},
-	{"explosion",		NM_SHOOT_EXPLOSION},
-	{"cake",		NM_SHOOT_CAKE}
+	{"spear",		SHOOT_EFFECT_SPEAR},
+	{"bolt",		SHOOT_EFFECT_BOLT},
+	{"arrow",		SHOOT_EFFECT_ARROW},
+	{"fire",		SHOOT_EFFECT_FIRE},
+	{"energy",		SHOOT_EFFECT_ENERGY},
+	{"poisonarrow",		SHOOT_EFFECT_POISONARROW},
+	{"burstarrow",		SHOOT_EFFECT_BURSTARROW},
+	{"throwingstar",	SHOOT_EFFECT_THROWINGSTAR},
+	{"throwingknife",	SHOOT_EFFECT_THROWINGKNIFE},
+	{"smallstone",		SHOOT_EFFECT_SMALLSTONE},
+	{"death",		SHOOT_EFFECT_DEATH},
+	{"largerock",		SHOOT_EFFECT_LARGEROCK},
+	{"snowball",		SHOOT_EFFECT_SNOWBALL},
+	{"powerbolt",		SHOOT_EFFECT_POWERBOLT},
+	{"poison",		SHOOT_EFFECT_POISONFIELD},
+	{"infernalbolt",	SHOOT_EFFECT_INFERNALBOLT},
+	{"huntingspear",	SHOOT_EFFECT_HUNTINGSPEAR},
+	{"enchantedspear",	SHOOT_EFFECT_ENCHANTEDSPEAR},
+	{"redstar",		SHOOT_EFFECT_REDSTAR},
+	{"greenstar",		SHOOT_EFFECT_GREENSTAR},
+	{"royalspear",		SHOOT_EFFECT_ROYALSPEAR},
+	{"sniperarrow",		SHOOT_EFFECT_SNIPERARROW},
+	{"onyxarrow",		SHOOT_EFFECT_ONYXARROW},
+	{"piercingbolt",	SHOOT_EFFECT_PIERCINGBOLT},
+	{"whirlwindsword",	SHOOT_EFFECT_WHIRLWINDSWORD},
+	{"whirlwindaxe",	SHOOT_EFFECT_WHIRLWINDAXE},
+	{"whirlwindclub",	SHOOT_EFFECT_WHIRLWINDCLUB},
+	{"etherealspear",	SHOOT_EFFECT_ETHEREALSPEAR},
+	{"ice",			SHOOT_EFFECT_ICE},
+	{"earth",		SHOOT_EFFECT_EARTH},
+	{"holy",		SHOOT_EFFECT_HOLY},
+	{"suddendeath",		SHOOT_EFFECT_SUDDENDEATH},
+	{"flasharrow",		SHOOT_EFFECT_FLASHARROW},
+	{"flammingarrow",	SHOOT_EFFECT_FLAMMINGARROW},
+	{"flamingarrow",	SHOOT_EFFECT_FLAMMINGARROW},
+	{"shiverarrow",		SHOOT_EFFECT_SHIVERARROW},
+	{"energyball",		SHOOT_EFFECT_ENERGYBALL},
+	{"smallice",		SHOOT_EFFECT_SMALLICE},
+	{"smallholy",		SHOOT_EFFECT_SMALLHOLY},
+	{"smallearth",		SHOOT_EFFECT_SMALLEARTH},
+	{"eartharrow",		SHOOT_EFFECT_EARTHARROW},
+	{"explosion",		SHOOT_EFFECT_EXPLOSION},
+	{"cake",		SHOOT_EFFECT_CAKE}
 };
 
 CombatTypeNames combatTypeNames[] =
@@ -1085,7 +1076,7 @@ SkillIdNames skillIdNames[] =
 	{"magic level",		SKILL__MAGLEVEL}
 };
 
-MagicEffectClasses getMagicEffect(const std::string& strValue)
+MagicEffect_t getMagicEffect(const std::string& strValue)
 {
 	for(uint32_t i = 0; i < sizeof(magicEffectNames) / sizeof(MagicEffectNames); ++i)
 	{
@@ -1093,10 +1084,10 @@ MagicEffectClasses getMagicEffect(const std::string& strValue)
 			return magicEffectNames[i].magicEffect;
 	}
 
-	return NM_ME_UNK;
+	return MAGIC_EFFECT_UNKNOWN;
 }
 
-ShootType_t getShootType(const std::string& strValue)
+ShootEffect_t getShootType(const std::string& strValue)
 {
 	for(uint32_t i = 0; i < sizeof(shootTypeNames) / sizeof(ShootTypeNames); ++i)
 	{
@@ -1104,7 +1095,7 @@ ShootType_t getShootType(const std::string& strValue)
 			return shootTypeNames[i].shootType;
 	}
 
-	return NM_SHOOT_UNK;
+	return SHOOT_EFFECT_UNKNOWN;
 }
 
 CombatType_t getCombatType(const std::string& strValue)

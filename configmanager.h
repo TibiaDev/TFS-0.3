@@ -19,13 +19,6 @@
 #define __CONFIG_MANAGER__
 #include "luascript.h"
 
-extern "C"
-{
-	#include <lua.h>
-	#include <lauxlib.h>
-	#include <lualib.h>
-}
-
 class ConfigManager
 {
 	public:
@@ -57,7 +50,7 @@ class ConfigManager
 			SQL_TYPE,
 			#endif
 			SQL_FILE,
-			PASSWORD_TYPE,
+			ENCRYPTION_TYPE,
 			MAP_AUTHOR,
 			RUNFILE,
 			OUT_LOG,
@@ -90,6 +83,7 @@ class ConfigManager
 			SPAWNPOS_Y,
 			SPAWNPOS_Z,
 			SPAWNTOWN_ID,
+			ALLOW_CLONES,
 			GLOBALSAVE_H,
 			START_LEVEL,
 			START_MAGICLEVEL,
@@ -101,7 +95,7 @@ class ConfigManager
 			EX_ACTIONS_DELAY_INTERVAL,
 			CRITICAL_HIT_CHANCE,
 			PROTECTION_LEVEL,
-			PASSWORDTYPE,
+			ENCRYPTION,
 			STATUSQUERY_TIMEOUT,
 			LEVEL_TO_FORM_GUILD,
 			MIN_GUILDNAME,
@@ -116,6 +110,7 @@ class ConfigManager
 			WARNINGS_TO_FINALBAN,
 			WARNINGS_TO_DELETION,
 			BAN_LENGTH,
+			KILLS_BAN_LENGTH,
 			FINALBAN_LENGTH,
 			IPBANISHMENT_LENGTH,
 			MAX_PLAYER_SUMMONS,
@@ -163,6 +158,7 @@ class ConfigManager
 			LOOT_MESSAGE,
 			LOOT_MESSAGE_TYPE,
 			NAME_REPORT_TYPE,
+			HOUSE_CLEAN_OLD,
 			LAST_NUMBER_CONFIG /* this must be the last one */
 		};
 
@@ -181,6 +177,10 @@ class ConfigManager
 			EFP_MIN_THRESHOLD,
 			EFP_MAX_THRESHOLD,
 			RATE_PVP_EXPERIENCE,
+			RATE_MONSTER_HEALTH,
+			RATE_MONSTER_MANA,
+			RATE_MONSTER_ATTACK,
+			RATE_MONSTER_DEFENSE,
 			LAST_DOUBLE_CONFIG /* this must be the last one */
 		};
 
@@ -210,7 +210,6 @@ class ConfigManager
 			SPELL_NAME_INSTEAD_WORDS,
 			EMOTE_SPELLS,
 			REPLACE_KICK_ON_LOGIN,
-			ALLOW_CLONES,
 			PREMIUM_FOR_PROMOTION,
 			SHOW_HEALING_DAMAGE,
 			BROADCAST_BANISHMENTS,
@@ -257,6 +256,8 @@ class ConfigManager
 			PVPZONE_ADDMANASPENT,
 			USE_BLACK_SKULL,
 			ALLOW_FIGHTBACK,
+			VIPLIST_PER_PLAYER,
+			USE_FRAG_HANDLER,
 			LAST_BOOL_CONFIG /* this must be the last one */
 		};
 

@@ -48,9 +48,11 @@ enum FileType_t
 	FILE_TYPE_MOD
 };
 
-std::string transformToMD5(std::string plainText, bool upperCase = false);
-std::string transformToSHA1(std::string plainText, bool upperCase = false);
-bool passwordTest(const std::string &plain, std::string &hash);
+std::string transformToMD5(std::string plainText, bool upperCase);
+std::string transformToSHA1(std::string plainText, bool upperCase);
+
+void _encrypt(std::string& str, bool upperCase);
+bool encryptTest(std::string plain, std::string& hash);
 
 void replaceString(std::string& text, const std::string key, const std::string value);
 void trim_right(std::string& source, const std::string& t);
@@ -62,7 +64,7 @@ std::string asUpperCaseString(const std::string& source);
 bool booleanString(std::string source);
 
 bool readXMLInteger(xmlNodePtr node, const char* tag, int& value);
-#if (defined __WINDOWS__ || defined WIN32) && !defined __GNUC__
+#if defined WINDOWS && !defined __GNUC__
 bool readXMLInteger(xmlNodePtr node, const char* tag, int32_t& value);
 #endif
 bool readXMLInteger64(xmlNodePtr node, const char* tag, int64_t& value);
@@ -112,8 +114,8 @@ std::string formatDateShort(time_t _time = 0, bool detailed = false);
 std::string formatTime(int32_t hours, int32_t minutes);
 std::string convertIPAddress(uint32_t ip);
 
-MagicEffectClasses getMagicEffect(const std::string& strValue);
-ShootType_t getShootType(const std::string& strValue);
+MagicEffect_t getMagicEffect(const std::string& strValue);
+ShootEffect_t getShootType(const std::string& strValue);
 Ammo_t getAmmoType(const std::string& strValue);
 AmmoAction_t getAmmoAction(const std::string& strValue);
 CombatType_t getCombatType(const std::string& strValue);

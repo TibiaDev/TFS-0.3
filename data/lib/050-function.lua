@@ -17,6 +17,21 @@ function doPlayerGiveItem(cid, itemid, amount, subType)
 	return true
 end
 
+function doPlayerGiveItemContainer(cid, containerid, itemid, amount, subType)
+	for i = 1, amount do
+		local container = doCreateItemEx(containerid, 1)
+		for x = 1, getContainerCapById(containerid) do
+			doAddContainerItem(container, itemid, subType)
+		end
+
+		if(doPlayerAddItemEx(cid, container, true) ~= RETURNVALUE_NOERROR) then
+			return false
+		end
+	end
+
+	return true
+end
+
 function doPlayerTakeItem(cid, itemid, amount)
 	return getPlayerItemCount(cid, itemid) >= amount and doPlayerRemoveItem(cid, itemid, amount)
 end
@@ -26,22 +41,7 @@ function doPlayerBuyItem(cid, itemid, count, cost, charges)
 end
 
 function doPlayerBuyItemContainer(cid, containerid, itemid, count, cost, charges)
-	if(not doPlayerRemoveMoney(cid, cost)) then
-		return false
-	end
-
-	for i = 1, count do
-		local container = doCreateItemEx(containerid, 1)
-		for x = 1, getContainerCapById(containerid) do
-			doAddContainerItem(container, itemid, charges)
-		end
-
-		if(doPlayerAddItemEx(cid, container, true) ~= RETURNVALUE_NOERROR) then
-			return false
-		end
-	end
-
-	return true
+	return doPlayerRemoveMoney(cid, cost) and doPlayerGiveItemContainer(cid, containerid, itemid, count, charges)
 end
 
 function doPlayerSellItem(cid, itemid, count, cost)
@@ -279,10 +279,10 @@ function doShutdown()
 	return doSetGameState(GAMESTATE_SHUTDOWN)
 end
 
-function doSummonCreature(name, pos)
-	local cid = doCreateMonster(name, pos)
+function doSummonCreature(name, pos, displayError)
+	local displayError, cid = displayError or true, doCreateMonster(name, pos, displayError)
 	if(not cid) then
-		cid = doCreateNpc(name, pos)
+		cid = doCreateNpc(name, pos, displayError)
 	end
 
 	return cid
@@ -312,7 +312,7 @@ function isPlayerGhost(cid)
 		return false
 	end
 
-	return getCreatureCondition(cid, CONDITION_GAMEMASTER, GAMEMASTER_INVISIBLE) or getPlayerFlagValue(cid, PlayerFlag_CannotBeSeen)
+	return getCreatureCondition(cid, CONDITION_GAMEMASTER, GAMEMASTER_INVISIBLE) or getPlayerFlagValue(cid, PLAYERFLAG_CANNOTBESEEN)
 end
 
 function isMonster(cid)
@@ -429,7 +429,8 @@ function doPlayerBroadcastMessage(cid, text, class, checkFlag, ghost)
 end
 
 function getBooleanFromString(str)
-	return (str:lower() == "yes" or str:lower() == "true" or (tonumber(str) and tonumber(str) > 0))
+	local str = string.lower(tostring(str))
+	return (str == "yes" or str == "true" or (tonumber(str) ~= nil and tonumber(str) > 0))
 end
 
 function doCopyItem(item, attributes)
@@ -438,7 +439,7 @@ function doCopyItem(item, attributes)
 	local ret = doCreateItemEx(item.itemid, item.type)
 	if(attributes) then
 		if(item.actionid > 0) then
-			doSetItemActionId(ret, item.actionid)
+			doItemSetAttribute(ret, "aid", item.actionid)
 		end
 	end
 
@@ -460,4 +461,193 @@ function doRemoveThing(uid)
 	end
 
 	return doRemoveItem(uid)
+end
+
+function setAttackFormula(combat, type, minl, maxl, minm, maxm, min, max)
+	local min, max = min or 0, max or 0
+	return setCombatFormula(combat, type, -1, 0, -1, 0, minl, maxl, minm, maxm, min, max)
+end
+
+function setHealingFormula(combat, type, minl, maxl, minm, maxm, min, max)
+	local min, max = min or 0, max or 0
+	return setCombatFormula(combat, type, 1, 0, 1, 0, minl, maxl, minm, maxm, min, max)
+end
+
+function doChangeTypeItem(uid, subtype)
+	local thing = getThing(uid)
+	if(thing.itemid < 100) then
+		return false
+	end
+
+	local subtype = subtype or 1
+	return doTransformItem(thing.uid, thing.itemid, subtype)
+end
+
+function doSetItemText(uid, text, writer, date)
+	local thing = getThing(uid)
+	if(thing.itemid < 100) then
+		return false
+	end
+
+	doItemSetAttribute(uid, "text", text)
+	if(writer ~= nil) then
+		doItemSetAttribute(uid, "writer", tostring(writer))
+		if(date ~= nil) then
+			doItemSetAttribute(uid, "date", tonumber(date))
+		end
+	end
+
+	return true
+end
+
+function getFluidSourceType(itemid)
+	local item = getItemInfo(itemid)
+	return item and item.fluidSource or false
+end
+
+function getDepotId(uid)
+	return getItemAttribute(uid, "depotid") or false
+end
+
+function getItemDescriptions(uid)
+	local thing = getThing(uid)
+	if(thing.itemid < 100) then
+		return false
+	end
+
+	local item = getItemInfo(thing.itemid)
+	return {
+		name = getItemAttribute(uid, "name") or item.name,
+		plural = getItemAttribute(uid, "pluralname") or item.plural,
+		article = getItemAttribute(uid, "article") or item.article,
+		special = getItemAttribute(uid, "description") or "",
+		text = getItemAttribute(uid, "text") or "",
+		writer = getItemAttribute(uid, "writer") or "",
+		date = getItemAttribute(uid, "date") or 0
+	}	
+end
+
+function getItemWeightById(itemid, count, precision)
+	local item, count, precision = getItemInfo(itemid), count or 1, precision or false
+	if(not item) then
+		return false
+	end
+
+	if(count > 100) then
+		-- print a warning, as its impossible to have more than 100 stackable items without "cheating" the count
+		print('[Warning] getItemWeightById', 'Calculating weight for more than 100 items!')
+	end
+
+	local weight = item.weight * count
+	--[[if(precision) then
+		return weight
+	end
+
+	local t = string.explode(tostring(weight), ".")
+	if(table.maxn(t) == 2) then
+		return tonumber(t[1] .. "." .. string.sub(t[2], 1, 2))
+	end]]--
+
+	return weight
+end
+
+function getItemWeaponType(uid)
+	local thing = getThing(uid)
+	if(thing.itemid < 100) then
+		return false
+	end
+
+	return getItemInfo(thing.itemid).weaponType
+end
+
+function getItemRWInfo(uid)
+	local thing = getThing(uid)
+	if(thing.itemid < 100) then
+		return false
+	end
+
+	local item, flags = getItemInfo(thing.itemid), 0
+	if(item.readable) then
+		flags = 1
+	end
+
+	if(item.writable) then
+		flags = flags + 2
+	end
+
+	return flags
+end
+
+function getItemLevelDoor(itemid)
+	local item = getItemInfo(itemid)
+	return item and item.levelDoor or false
+end
+
+function isItemStackable(itemid)
+	local item = getItemInfo(itemid)
+	return item and item.stackable or false
+end
+
+function isItemRune(itemid)
+	local item = getItemInfo(itemid)
+	return item and item.clientCharges or false
+end
+
+function isItemDoor(itemid)
+	local item = getItemInfo(itemid)
+	return item and item.type == 5 or false
+end
+
+function isItemContainer(itemid)
+	local item = getItemInfo(itemid)
+	return item and item.group == 2 or false
+end
+
+function isItemFluidContainer(itemid)
+	local item = getItemInfo(itemid)
+	return item and item.group == 12 or false
+end
+
+function isItemMovable(itemid)
+	local item = getItemInfo(itemid)
+	return item and item.movable or false
+end
+
+function isCorpse(uid)
+	local thing = getThing(uid)
+	if(thing.itemid < 100) then
+		return false
+	end
+
+	local item = getItemInfo(thing.itemid)
+	return item and item.corpseType ~= 0 or false
+end
+
+function getContainerCapById(itemid)
+	local item = getItemInfo(itemid)
+	if(not item or item.group ~= 2) then
+		return false
+	end
+
+	return item.maxItems
+end
+
+function getMonsterAttackSpells(name)
+	local monster = getMonsterInfo(name)
+	return monster and monster.attacks or false
+end
+
+function getMonsterHealingSpells(name)
+	local monster = getMonsterInfo(name)
+	return monster and monster.defenses or false
+end
+
+function getMonsterLootList(name)
+	local monster = getMonsterInfo(name)
+	return monster and monster.loot or false
+end
+
+function getMonsterSummonList(name)
+	local monster = getMonsterInfo(name)
+	return monster and monster.summons or false
 end

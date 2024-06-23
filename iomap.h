@@ -48,7 +48,9 @@ enum OTBM_AttrTypes_t
 	OTBM_ATTR_WRITTENBY = 19,
 	OTBM_ATTR_SLEEPERGUID = 20,
 	OTBM_ATTR_SLEEPSTART = 21,
-	OTBM_ATTR_CHARGES = 22
+	OTBM_ATTR_CHARGES = 22,
+	OTBM_ATTR_CONTAINER_ITEMS = 23,
+	OTBM_ATTR_ATTRIBUTE_MAP = 128
 };
 
 enum OTBM_NodeTypes_t
@@ -137,7 +139,7 @@ class IOMap
 				map->housefile += "-house.xml";
 			}
 
-			return Houses::getInstance().loadFromXml(map->housefile);
+			return Houses::getInstance()->loadFromXml(map->housefile);
 		}
 
 		const std::string& getLastErrorString() const {return errorString;}

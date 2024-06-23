@@ -204,7 +204,7 @@ bool Spawns::parseSpawnNode(xmlNodePtr p, bool checkDuplicate)
 				continue;
 			}
 
-			npc->setMasterPos(placePos, radius);
+			npc->setMasterPosition(placePos, radius);
 			npc->setDirection(direction);
 			npcList.push_back(npc);
 		}
@@ -221,7 +221,7 @@ void Spawns::startup()
 		return;
 
 	for(NpcList::iterator it = npcList.begin(); it != npcList.end(); ++it)
-		g_game.placeCreature((*it), (*it)->getMasterPos(), false, true);
+		g_game.placeCreature((*it), (*it)->getMasterPosition(), false, true);
 
 	npcList.clear();
 	for(SpawnList::iterator it = spawnList.begin(); it != spawnList.end(); ++it)
@@ -253,7 +253,7 @@ bool Spawns::isInZone(const Position& centerPos, int32_t radius, const Position&
 void Spawn::startEvent()
 {
 	if(checkSpawnEvent == 0)
-		checkSpawnEvent = Scheduler::getScheduler().addEvent(createSchedulerTask(getInterval(), boost::bind(&Spawn::checkSpawn, this)));
+		checkSpawnEvent = Scheduler::getInstance().addEvent(createSchedulerTask(getInterval(), boost::bind(&Spawn::checkSpawn, this)));
 }
 
 Spawn::Spawn(const Position& _pos, int32_t _radius)
@@ -275,7 +275,7 @@ Spawn::~Spawn()
 
 		monster->setSpawn(NULL);
 		if(!monster->isRemoved())
-			g_game.FreeThing(monster);
+			g_game.freeThing(monster);
 	}
 
 	spawnedMap.clear();
@@ -322,9 +322,9 @@ bool Spawn::spawnMonster(uint32_t spawnId, MonsterType* mType, const Position& p
 	}
 
 	monster->setSpawn(this);
-	monster->useThing2();
+	monster->addRef();
 
-	monster->setMasterPos(pos, radius);
+	monster->setMasterPosition(pos, radius);
 	monster->setDirection(dir);
 
 	spawnedMap.insert(SpawnedPair(spawnId, monster));
@@ -361,7 +361,7 @@ void Spawn::checkSpawn()
 			if(spawnId != 0)
 				spawnMap[spawnId].lastSpawn = OTSYS_TIME();
 
-			monster->releaseThing2();
+			monster->unRef();
 			spawnedMap.erase(it++);
 		}
 		else if(!isInSpawnZone(monster->getPosition()) && spawnId != 0)
@@ -398,7 +398,7 @@ void Spawn::checkSpawn()
 	}
 
 	if(spawnedMap.size() < spawnMap.size())
-		checkSpawnEvent = Scheduler::getScheduler().addEvent(createSchedulerTask(getInterval(), boost::bind(&Spawn::checkSpawn, this)));
+		checkSpawnEvent = Scheduler::getInstance().addEvent(createSchedulerTask(getInterval(), boost::bind(&Spawn::checkSpawn, this)));
 #ifdef __DEBUG_SPAWN__
 	else
 		std::cout << "[Notice] Spawn::checkSpawn stopped " << this << std::endl;
@@ -441,7 +441,7 @@ void Spawn::removeMonster(Monster* monster)
 	{
 		if(it->second == monster)
 		{
-			monster->releaseThing2();
+			monster->unRef();
 			spawnedMap.erase(it);
 			break;
 		}
@@ -452,7 +452,7 @@ void Spawn::stopEvent()
 {
 	if(checkSpawnEvent != 0)
 	{
-		Scheduler::getScheduler().stopEvent(checkSpawnEvent);
+		Scheduler::getInstance().stopEvent(checkSpawnEvent);
 		checkSpawnEvent = 0;
 	}
 }
