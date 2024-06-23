@@ -91,7 +91,7 @@ bool Combat::getMinMaxValues(Creature* creature, Creature* target, int32_t& min,
 				if(const Weapon* weapon = g_weapons->getWeapon(tool))
 				{
 					max = (int32_t)(weapon->getWeaponDamage(player, target, tool, true) * maxa + maxb);
-					if(params.useCharges && tool->hasCharges())
+					if(params.useCharges && tool->hasCharges() && g_config.getBool(ConfigManager::REMOVE_WEAPON_CHARGES))
 						g_game.transformItem(tool, tool->getID(), std::max((int32_t)0, ((int32_t)tool->getCharges()) - 1));
 				}
 				else
@@ -154,9 +154,6 @@ CombatType_t Combat::ConditionToDamageType(ConditionType_t type)
 		case CONDITION_ENERGY:
 			return COMBAT_ENERGYDAMAGE;
 
-		case CONDITION_DROWN:
-			return COMBAT_DROWNDAMAGE;
-
 		case CONDITION_POISON:
 			return COMBAT_EARTHDAMAGE;
 
@@ -168,6 +165,12 @@ CombatType_t Combat::ConditionToDamageType(ConditionType_t type)
 
 		case CONDITION_CURSED:
 			return COMBAT_DEATHDAMAGE;
+
+		case CONDITION_DROWN:
+			return COMBAT_DROWNDAMAGE;
+
+		case CONDITION_PHYSICAL:
+			return COMBAT_PHYSICALDAMAGE;
 
 		default:
 			break;
@@ -186,9 +189,6 @@ ConditionType_t Combat::DamageToConditionType(CombatType_t type)
 		case COMBAT_ENERGYDAMAGE:
 			return CONDITION_ENERGY;
 
-		case COMBAT_DROWNDAMAGE:
-			return CONDITION_DROWN;
-
 		case COMBAT_EARTHDAMAGE:
 			return CONDITION_POISON;
 
@@ -200,6 +200,9 @@ ConditionType_t Combat::DamageToConditionType(CombatType_t type)
 
 		case COMBAT_DEATHDAMAGE:
 			return CONDITION_CURSED;
+
+		case COMBAT_PHYSICALDAMAGE:
+			return CONDITION_PHYSICAL;
 
 		default:
 			break;
@@ -223,6 +226,9 @@ ReturnValue Combat::canDoCombat(const Creature* caster, const Tile* tile, bool i
 
 		if(const Player* player = caster->getPlayer())
 		{
+			/*if(isAggressive && time(NULL) < (player->getLastLoginSaved() + g_config.getNumber(
+				ConfigManager::LOGIN_PROTECTION)) && !player->hasCondition(CONDITION_INFIGHT))
+				return RET_NOTPOSSIBLE;*/ //TODO: Find out should it really be here
 			if(player->hasFlag(PlayerFlag_IgnoreProtectionZone))
 				return RET_NOERROR;
 		}
@@ -251,6 +257,10 @@ ReturnValue Combat::canDoCombat(const Creature* attacker, const Creature* target
 			&& (attackerPlayer = attacker->getMaster()->getPlayer())))
 		{
 			checkZones = true;
+			if(time(NULL) < (attackerPlayer->getLastLoginSaved() + g_config.getNumber(ConfigManager::LOGIN_PROTECTION))
+				&& !attackerPlayer->hasCondition(CONDITION_INFIGHT))
+				return RET_YOUMAYNOTATTACKTHISPLAYER;
+
 			if((g_game.getWorldType() == WORLD_TYPE_NO_PVP && !Combat::isInPvpZone(attacker, target)) ||
 				isProtected(const_cast<Player*>(attackerPlayer), const_cast<Player*>(targetPlayer)))
 				return RET_YOUMAYNOTATTACKTHISPLAYER;
@@ -911,7 +921,7 @@ void ValueCallback::getMinMaxValues(Player* player, int32_t& min, int32_t& max, 
 				if(tool)
 				{
 					attackValue = tool->getAttack();
-					if(useCharges && tool->hasCharges())
+					if(useCharges && tool->hasCharges() && g_config.getBool(ConfigManager::REMOVE_WEAPON_CHARGES))
 						g_game.transformItem(tool, tool->getID(), std::max(0, tool->getCharges() - 1));
 				}
 				float attackFactor = player->getAttackFactor();

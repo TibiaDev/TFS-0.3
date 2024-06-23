@@ -3,10 +3,10 @@
 		The Forgotten Server
 
 	Version
-		0.3 Beta 3
+		0.3.1
 
 	Codenamed
-		\
+		Crying Damson
 
 	License
 		GNU GPLv3
@@ -16,9 +16,6 @@
 ]
 
 [ IDS
-	Depot Tile
-		100 + DepotID
-
 	Level Tile
 		1000 + Required Level
 

@@ -18,36 +18,29 @@
 // Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
-#include "definitions.h"
+#include "otsystem.h"
 
 #include <string>
 #include <map>
 #include <algorithm>
+#include <iomanip>
 
 #include <boost/config.hpp>
 #include <boost/bind.hpp>
 
+#include "map.h"
 #include "iomap.h"
-
-#include "otsystem.h"
 #include "iomapserialize.h"
 
-#include <stdio.h>
-#include <iomanip>
-
 #include "items.h"
-#include "map.h"
 #include "tile.h"
-#include "combat.h"
 #include "creature.h"
-
 #include "player.h"
-#include "configmanager.h"
+
+#include "combat.h"
 #include "game.h"
 
 extern Game g_game;
-extern ConfigManager g_config;
 IOMapSerialize IOMapSerialize;
 
 Map::Map()
@@ -73,7 +66,6 @@ bool Map::loadMap(const std::string& identifier)
 
 	std::cout << "> Map loading time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
 	start = OTSYS_TIME();
-
 	if(!loader->loadSpawns(this))
 		std::cout << "> WARNING: Could not load spawn data." << std::endl;
 
@@ -85,9 +77,11 @@ bool Map::loadMap(const std::string& identifier)
 	start = OTSYS_TIME();
 
 	IOMapSerialize.loadHouseInfo(this);
-	IOMapSerialize.loadMap(this);
+	std::cout << "> Unserialization time for houses: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
+	start = OTSYS_TIME();
 
-	std::cout << "> Unserialization time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
+	IOMapSerialize.loadMap(this);
+	std::cout << "> Unserialization time for map: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
 	return true;
 }
 
@@ -181,7 +175,7 @@ void Map::setTile(uint16_t x, uint16_t y, uint8_t z, Tile* newTile)
 		newTile->qt_node = leaf;
 	}
 	else
-		std::cout << "[Error - Map::setTile()] Tile already exists." << std::endl;
+		std::cout << "[Error - Map::setTile] Tile already exists." << std::endl;
 
 	if(newTile->hasFlag(TILESTATE_REFRESH))
 	{
@@ -189,7 +183,8 @@ void Map::setTile(uint16_t x, uint16_t y, uint8_t z, Tile* newTile)
 		rb.lastRefresh = OTSYS_TIME();
 		for(ItemVector::iterator it = newTile->downItems.begin(); it != newTile->downItems.end(); ++it)
 			rb.list.push_back((*it)->clone());
-		refreshTileMap[newTile] = rb;
+
+		g_game.addRefreshTile(newTile, rb);
 	}
 }
 
@@ -1245,63 +1240,4 @@ Floor* QTreeLeafNode::createFloor(uint32_t z)
 		m_array[z] = new Floor();
 
 	return m_array[z];
-}
-
-uint32_t Map::clean()
-{
-	Tile* tile = NULL;
-	Item* item = NULL;
-
-	uint64_t start = OTSYS_TIME(), count = 0;
-	if(g_config.getBool(ConfigManager::CLEAN_PROTECTED_ZONES))
-	{
-		for(int32_t z = 0; z <= MAP_MAX_LAYERS; z++)
-		{
-			for(uint32_t y = 1; y <= mapHeight; y++)
-			{
-				for(uint32_t x = 1; x <= mapWidth; x++)
-				{
-					if((tile = getTile(x, y, (uint32_t)z)) && !tile->hasFlag(TILESTATE_HOUSE))
-					{
-						for(uint32_t i = 0; i < tile->getThingCount(); ++i)
-						{
-							if((item = tile->__getThing(i)->getItem()) && !item->isLoadedFromMap() && !item->isNotMoveable())
-							{
-								g_game.internalRemoveItem(NULL, item);
-								--i;
-								count++;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	else
-	{
-		for(int32_t z = 0; z <= MAP_MAX_LAYERS; z++)
-		{
-			for(uint32_t y = 1; y <= mapHeight; y++)
-			{
-				for(uint32_t x = 1; x <= mapWidth; x++)
-				{
-					if((tile = getTile(x, y, (uint32_t)z)) && !tile->hasFlag(TILESTATE_PROTECTIONZONE))
-					{
-						for(uint32_t i = 0; i < tile->getThingCount(); ++i)
-						{
-							if((item = tile->__getThing(i)->getItem()) && !item->isLoadedFromMap() && !item->isNotMoveable())
-							{
-								g_game.internalRemoveItem(NULL, item);
-								--i;
-								count++;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	std::cout << "> Cleaning time: " << (OTSYS_TIME() - start) / (1000.) << " seconds, collected " << count << " item" << (count != 1 ? "s" : "") << "." << std::endl;
-	return count;
 }

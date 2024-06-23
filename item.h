@@ -72,18 +72,9 @@ enum ItemDecayState_t
 	DECAYING_PENDING
 };
 
-// from iomap.h
-#pragma pack(1)
-struct TeleportDest
-{
-	uint16_t _x;
-	uint16_t _y;
-	uint8_t _z;
-};
-#pragma pack()
-
 enum AttrTypes_t
 {
+	ATTR_END = 0,
 	//ATTR_DESCRIPTION = 1,
 	//ATTR_EXT_FILE = 2,
 	ATTR_TILE_FLAGS = 3,
@@ -106,9 +97,9 @@ enum AttrTypes_t
 	ATTR_SLEEPERGUID = 20,
 	ATTR_SLEEPSTART = 21,
 	ATTR_CHARGES = 22,
+	ATTR_CONTAINER_ITEMS = 23,
 	ATTR_NAME = 30,
 	ATTR_PLURALNAME = 31,
-	ATTR_ARTICLE = 32,
 	ATTR_ATTACK = 33,
 	ATTR_EXTRAATTACK = 34,
 	ATTR_DEFENSE = 35,
@@ -116,7 +107,21 @@ enum AttrTypes_t
 	ATTR_ARMOR = 37,
 	ATTR_ATTACKSPEED = 38,
 	ATTR_HITCHANCE = 39,
+	ATTR_SHOOTRANGE = 40,
+	ATTR_ARTICLE = 41,
 };
+
+// from iomap.h
+#pragma pack(1)
+struct TeleportDest
+{
+	uint16_t _x;
+	uint16_t _y;
+	uint8_t _z;
+};
+#pragma pack()
+
+typedef std::list<Item*> ItemList;
 
 class ItemAttributes
 {
@@ -184,33 +189,36 @@ class ItemAttributes
 	protected:
 		enum itemAttrTypes
 		{
-			ATTR_ITEM_ACTIONID = 1,
-			ATTR_ITEM_UNIQUEID = 2,
-			ATTR_ITEM_DESC = 4,
-			ATTR_ITEM_TEXT = 8,
-			ATTR_ITEM_WRITTENDATE = 16,
-			ATTR_ITEM_WRITTENBY = 32,
+			ATTR_ITEM_ACTIONID = 1 << 0,
+			ATTR_ITEM_UNIQUEID = 1 << 1,
+			ATTR_ITEM_DESC = 1 << 2 ,
+			ATTR_ITEM_TEXT = 1 << 3,
+			ATTR_ITEM_WRITTENDATE = 1 << 4,
+			ATTR_ITEM_WRITTENBY = 1 << 5,
 
-			ATTR_ITEM_NAME = 64,
-			ATTR_ITEM_PLURALNAME = 128,
-			ATTR_ITEM_ATTACK = 256,
-			ATTR_ITEM_EXTRAATTACK = 512,
-			ATTR_ITEM_DEFENSE = 1024,
-			ATTR_ITEM_EXTRADEFENSE = 2048,
-			ATTR_ITEM_ARMOR = 4096,
-			ATTR_ITEM_ATTACKSPEED = 8192,
-			ATTR_ITEM_HITCHANCE = 16384,
-			ATTR_ITEM_SHOOTRANGE = 32768,
+			// basic item modifiers
+			ATTR_ITEM_NAME = 1 << 6,
+			ATTR_ITEM_PLURALNAME = 1 << 7,
+			ATTR_ITEM_ATTACK = 1 << 8,
+			ATTR_ITEM_EXTRAATTACK = 1 << 9,
+			ATTR_ITEM_DEFENSE = 1 << 10,
+			ATTR_ITEM_EXTRADEFENSE = 1 << 11,
+			ATTR_ITEM_ARMOR = 1 << 12,
+			ATTR_ITEM_ATTACKSPEED = 1 << 13,
+			ATTR_ITEM_HITCHANCE = 1 << 14,
+			ATTR_ITEM_SHOOTRANGE = 1 << 15,
 
-			ATTR_ITEM_OWNER = 65536,
-			ATTR_ITEM_DURATION = 131072,
-			ATTR_ITEM_DECAYING = 262144,
-			ATTR_ITEM_CORPSEOWNER = 524288,
-			ATTR_ITEM_CHARGES = 1048576,
-			ATTR_ITEM_FLUIDTYPE = 2097152,
-			ATTR_ITEM_DOORID = 4194304,
+			// compatibility with previous versions
+			ATTR_ITEM_OWNER = 1 << 16,
+			ATTR_ITEM_DURATION = 1 << 17,
+			ATTR_ITEM_DECAYING = 1 << 18,
+			ATTR_ITEM_CORPSEOWNER = 1 << 19,
+			ATTR_ITEM_CHARGES = 1 << 20,
+			ATTR_ITEM_FLUIDTYPE = 1 << 21,
+			ATTR_ITEM_DOORID = 1 << 22,
 
-			ATTR_ITEM_ARTICLE = 8388608
+			// advanced item modifiers
+			ATTR_ITEM_ARTICLE = 1 << 23
 		};
 
 		bool hasAttribute(itemAttrTypes type) const;
@@ -312,7 +320,7 @@ class Item : virtual public Thing, public ItemAttributes
 		//serialization
 		virtual bool readAttr(AttrTypes_t attr, PropStream& propStream);
 		virtual bool unserializeAttr(PropStream& propStream);
-		virtual bool serializeAttr(PropWriteStream& propWriteStream);
+		virtual bool serializeAttr(PropWriteStream& propWriteStream) const;
 		virtual bool unserializeItemNode(FileLoader& f, NODE node, PropStream& propStream);
 
 		virtual bool isPushable() const {return !isNotMoveable();}
@@ -370,6 +378,7 @@ class Item : virtual public Thing, public ItemAttributes
 
 		bool hasProperty(enum ITEMPROPERTY prop) const;
 		bool hasCharges() const {return items[id].charges != 0;}
+		bool forceSerialize() const {return items[id].forceSerialize || canWriteText() || isContainer() || isBed() || isDoor();}
 		bool isGroundTile() const {return items[id].isGroundTile();}
 		bool isContainer() const {return items[id].isContainer();}
 		bool isSplash() const {return items[id].isSplash();}
@@ -387,6 +396,7 @@ class Item : virtual public Thing, public ItemAttributes
 		bool isStackable() const {return items[id].stackable;}
 		bool isAlwaysOnTop() const {return items[id].alwaysOnTop;}
 		bool isNotMoveable() const {return !items[id].moveable;}
+		bool isMoveable() const {return items[id].moveable;}
 		bool isPickupable() const {return items[id].pickupable;}
 		bool isUseable() const {return items[id].useable;}
 		bool isHangable() const {return items[id].isHangable;}

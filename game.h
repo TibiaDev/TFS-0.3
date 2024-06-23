@@ -20,21 +20,20 @@
 
 #ifndef __OTSERV_GAME_H__
 #define __OTSERV_GAME_H__
+#include "otsystem.h"
 
 #include <queue>
-#include <vector>
 #include <set>
 
 #include "map.h"
 #include "position.h"
 #include "item.h"
-#include "container.h"
 #include "player.h"
-#include "spawn.h"
 #include "templates.h"
-#include "scheduler.h"
 #include "npc.h"
-#include "iologindata.h"
+#include "monster.h"
+#include "scheduler.h"
+#include "spawn.h"
 
 class Creature;
 class Monster;
@@ -80,6 +79,32 @@ enum LightState_t
 	LIGHT_STATE_SUNRISE
 };
 
+enum ReloadInfo_t
+{
+	RELOAD_FIRST = 1,
+	RELOAD_ACTIONS = RELOAD_FIRST,
+	RELOAD_CONFIG = 2,
+	RELOAD_CREATUREEVENTS = 3,
+	RELOAD_GAMESERVERS = 4,
+	RELOAD_GLOBALEVENTS = 5,
+	RELOAD_HIGHSCORES = 6,
+	RELOAD_HOUSEPRICES = 7,
+	RELOAD_ITEMS = 8,
+	RELOAD_MONSTERS = 9,
+	RELOAD_MOVEEVENTS = 10,
+	RELOAD_NPCS = 11,
+	RELOAD_OUTFITS = 12,
+	RELOAD_QUESTS = 13,
+	RELOAD_RAIDS = 14,
+	RELOAD_SPELLS = 15,
+	RELOAD_STAGES = 16,
+	RELOAD_TALKACTIONS = 17,
+	RELOAD_VOCATIONS = 18,
+	RELOAD_WEAPONS = 19,
+	RELOAD_LAST = RELOAD_WEAPONS,
+	RELOAD_ALL = 20
+};
+
 struct RuleViolation
 {
 	RuleViolation(Player* _reporter, const std::string& _text, uint32_t _time):
@@ -95,8 +120,16 @@ struct RuleViolation
 		RuleViolation(const RuleViolation&);
 };
 
+struct RefreshBlock_t
+{
+	ItemVector list;
+	uint64_t lastRefresh;
+};
+
 typedef std::map< uint32_t, shared_ptr<RuleViolation> > RuleViolationsMap;
 typedef std::vector< std::pair<std::string, uint32_t> > Highscore;
+typedef std::map<Tile*, RefreshBlock_t> RefreshTiles;
+typedef std::list<Position> Trash;
 
 #define EVENT_LIGHTINTERVAL 10000
 #define EVENT_DECAYINTERVAL 1000
@@ -141,7 +174,7 @@ class Game
 			return;
 		}
 
-		void setWorldType(WorldType_t type);
+		void setWorldType(WorldType_t type) {worldType = type;}
 		WorldType_t getWorldType() const {return worldType;}
 		int32_t getInFightTicks() const {return inFightTicks;}
 
@@ -454,6 +487,7 @@ class Game
 		bool playerLeaveParty(uint32_t playerId);
 		bool playerEnableSharedPartyExperience(uint32_t playerId, uint8_t sharedExpActive, uint8_t unknown);
 
+		bool reloadInfo(ReloadInfo_t reload, uint32_t playerId = 0);
 		void cleanup();
 		void shutdown();
 		void FreeThing(Thing* thing);
@@ -472,22 +506,25 @@ class Game
 			uint32_t minTargetDist, uint32_t maxTargetDist, bool fullPathSearch = true,
 			bool clearSight = true, int32_t maxSearchDist = -1);
 
+		void changeLight(const Creature* creature);
 		void changeSpeed(Creature* creature, int32_t varSpeedDelta);
 		void internalCreatureChangeOutfit(Creature* creature, const Outfit_t& oufit);
 		void internalCreatureChangeVisible(Creature* creature, bool visible);
-		void changeLight(const Creature* creature);
 		void updateCreatureSkull(Creature* creature);
-
 		void sendPublicSquare(Player* sender, SquareColor_t color);
 
-		GameState_t getGameState();
+		GameState_t getGameState() const {return gameState;}
 		void setGameState(GameState_t newState);
 
 		void saveGameState(bool savePlayers);
 		void loadGameState();
 
-		void refreshMap();
-		void cleanMap(uint32_t& count) const {if(map) count = map->clean();}
+		void cleanMap(uint32_t& count);
+		void refreshMap(RefreshTiles::iterator* it = NULL, uint32_t limit = 0);
+		void proceduralRefresh(RefreshTiles::iterator* it = NULL);
+
+		void addTrash(Position pos) {trash.push_back(pos);}
+		void addRefreshTile(Tile* tile, RefreshBlock_t rb) {refreshTiles[tile] = rb;}
 
 		//Events
 		void checkCreatureWalk(uint32_t creatureId);
@@ -517,7 +554,7 @@ class Game
 		bool closeRuleViolation(Player* player);
 
 		bool loadExperienceStages();
-		uint64_t getExperienceStage(uint32_t level);
+		double getExperienceStage(uint32_t level);
 
 		void setGlobalSaveMessage(int16_t key, bool value) {globalSaveMessage[key] = value;}
 		bool getGlobalSaveMessage(int16_t key) const {return globalSaveMessage[key];}
@@ -530,7 +567,7 @@ class Game
 
 		int32_t getLightHour() {return lightHour;}
 		void startDecay(Item* item);
-		void npcSpeakToPlayer(Npc* npc, Player* player, const std::string& text, bool publicize);
+		void npcSpeakToPlayer(Npc* npc, Player* player, const std::string& text, bool publicize, bool yell);
 
 	protected:
 		bool playerWhisper(Player* player, const std::string& text);
@@ -541,30 +578,20 @@ class Game
 		bool playerReportRuleViolation(Player* player, const std::string& text);
 		bool playerContinueReport(Player* player, const std::string& text);
 
-		Highscore highscoreStorage[9];
-		time_t lastHighscoreCheck;
-		bool globalSaveMessage[2];
-		int64_t stateDelay;
-
-		std::vector<Thing*> ToReleaseThings;
-
-		//list of items that are in trading state, mapped to the player
-		std::map<Item*, uint32_t> tradeItems;
-
-		//list of reported rule violations, for correct channel listing
-		RuleViolationsMap ruleViolations;
-
-		AutoList<Creature> listCreature;
-
-		size_t checkCreatureLastIndex;
-		std::vector<Creature*> checkCreatureVectors[EVENT_CREATURECOUNT];
-
 		struct GameEvent
 		{
 			int64_t tick;
 			int32_t type;
 			void* data;
 		};
+
+		std::vector<Thing*> ToReleaseThings;
+		std::map<Item*, uint32_t> tradeItems;
+		AutoList<Creature> listCreature;
+		RuleViolationsMap ruleViolations;
+
+		size_t checkCreatureLastIndex;
+		std::vector<Creature*> checkCreatureVectors[EVENT_CREATURECOUNT];
 
 		void checkDecay();
 		void internalDecayItem(Item* item);
@@ -578,14 +605,10 @@ class Game
 		static const int32_t LIGHT_LEVEL_NIGHT = 40;
 		static const int32_t SUNSET = 1305;
 		static const int32_t SUNRISE = 430;
-		int32_t lightLevel;
+		int32_t lightLevel, lightHour, lightHourDelta;
 		LightState_t lightState;
-		int32_t lightHour;
-		int32_t lightHourDelta;
 
-		uint32_t maxPlayers;
-		uint32_t inFightTicks;
-
+		uint32_t maxPlayers, inFightTicks;
 		GameState_t gameState;
 		WorldType_t worldType;
 		Map* map;
@@ -593,10 +616,17 @@ class Game
 		std::string lastMotdText;
 		int32_t lastMotdNum;
 		uint32_t lastPlayersRecord;
+		int64_t stateDelay;
+		bool globalSaveMessage[2];
 
-		typedef std::map<int32_t,int32_t> StageList;
+		RefreshTiles refreshTiles;
+		Trash trash;
+
+		typedef std::map<int32_t, float> StageList;
 		StageList stages;
 		uint32_t lastStageLevel;
-		bool useLastStageLevel;
+
+		Highscore highscoreStorage[9];
+		time_t lastHighscoreCheck;
 };
 #endif

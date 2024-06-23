@@ -754,6 +754,7 @@ bool IOLoginData::savePlayer(Player* player, bool preSave/* = true*/)
 
 	const bool save = result->getDataInt("save");
 	db->freeResult(result);
+
 	DBTransaction trans(db);
 	if(!trans.begin())
 		return false;
@@ -809,7 +810,7 @@ bool IOLoginData::savePlayer(Player* player, bool preSave/* = true*/)
 		}
 	}
 
-	uint32_t conditionsSize;
+	uint32_t conditionsSize = 0;
 	const char* conditions = propWriteStream.getStream(conditionsSize);
 	query << "`conditions` = " << db->escapeBlob(conditions, conditionsSize) << ", ";
 	query << "`loss_experience` = " << (uint32_t)player->getLossPercent(LOSS_EXPERIENCE) << ", ";
@@ -866,6 +867,7 @@ bool IOLoginData::savePlayer(Player* player, bool preSave/* = true*/)
 
 	char buffer[280];
 	DBInsert query_insert(db);
+
 	query_insert.setQuery("INSERT INTO `player_spells` (`player_id`, `name`) VALUES ");
 	for(LearnedInstantSpellList::const_iterator it = player->learnedInstantSpellList.begin(); it != player->learnedInstantSpellList.end(); ++it)
 	{
@@ -930,7 +932,6 @@ bool IOLoginData::savePlayer(Player* player, bool preSave/* = true*/)
 		//save guild invites
 		query.str("");
 		query << "DELETE FROM `guild_invites` WHERE player_id = " << player->getGUID();
-
 		if(!db->executeQuery(query.str()))
 			return false;
 
@@ -1288,7 +1289,7 @@ bool IOLoginData::createCharacter(uint32_t accountId, std::string characterName,
 
 	Vocation* vocation = g_vocations.getVocation(vocationId);
 	Vocation* rookVoc = g_vocations.getVocation(0);
-	uint16_t healthMax = 150, manaMax = 0, capMax = 400, lookType = 136, healthGain = vocation->getHealthGain(), manaGain = vocation->getManaGain(), capGain = vocation->getCapGain(), rookHealthGain = rookVoc->getHealthGain(), rookManaGain = rookVoc->getManaGain(), rookCapGain = rookVoc->getCapGain();
+	uint16_t healthMax = 150, manaMax = 0, capMax = 400, lookType = 136;
 	if(sex == PLAYERSEX_MALE)
 		lookType = 128;
 
@@ -1297,19 +1298,22 @@ bool IOLoginData::createCharacter(uint32_t accountId, std::string characterName,
 	if(level > 1)
 		exp = Player::getExpForLevel(level);
 
-	for(uint32_t i = 1; i < level; i++)
+	uint32_t tmpLevel = level - 1;
+	if(tmpLevel > 0)
 	{
-		if(i < 8)
+		if(tmpLevel > 7)
+			tmpLevel = 7;
+
+		healthMax += rookVoc->getHealthGain() * tmpLevel;
+		manaMax += rookVoc->getManaGain() * tmpLevel;
+		capMax += rookVoc->getCapGain() * tmpLevel;
+
+		if(level > 8)
 		{
-			healthMax += rookHealthGain;
-			manaMax += rookManaGain;
-			capMax += rookCapGain;
-		}
-		else
-		{
-			healthMax += healthGain;
-			manaMax += manaGain;
-			capMax += capGain;
+			tmpLevel = level - 8;
+			healthMax += vocation->getHealthGain() * tmpLevel;
+			manaMax += vocation->getManaGain() * tmpLevel;
+			capMax += vocation->getCapGain() * tmpLevel;
 		}
 	}
 

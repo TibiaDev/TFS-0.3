@@ -83,23 +83,18 @@ class TalkAction : public Event
 		bool isSensitive() const {return m_sensitive;}
 
 	protected:
-		static TalkFunction placeNpc;
-		static TalkFunction placeMonster;
 		static TalkFunction placeSummon;
-		static TalkFunction reloadInfo;
-		static TalkFunction closeServer;
-		static TalkFunction openServer;
 		static TalkFunction serverDiag;
-		static TalkFunction changeThingProporties;
-		static TalkFunction addSkill;
-		static TalkFunction showBanishmentInfo;
-		static TalkFunction ghost;
-		static TalkFunction squelch;
-		static TalkFunction clickTeleport;
 		static TalkFunction sellHouse;
 		static TalkFunction buyHouse;
 		static TalkFunction joinGuild;
 		static TalkFunction createGuild;
+		static TalkFunction ghost;
+		static TalkFunction squelch;
+		static TalkFunction clickTeleport;
+		static TalkFunction addSkill;
+		static TalkFunction changeThingProporties;
+		static TalkFunction showBanishmentInfo;
 
 		std::string m_words;
 		TalkActionFilter m_filter;

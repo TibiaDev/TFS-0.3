@@ -20,7 +20,7 @@
 
 #include "definitions.h"
 
-#ifndef __CONSOLE__
+#if defined(WIN32) && not defined(__CONSOLE__)
 #include "textlogger.h"
 #include "gui.h"
 #include "tools.h"
@@ -77,6 +77,7 @@ int32_t TextLogger::overflow(int32_t c)
 			GUI::getInstance()->m_logText += "] ";
 			displayDate = false;
 		}
+
 		GUI::getInstance()->m_logText += (char)c;
 	}
 
