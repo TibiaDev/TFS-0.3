@@ -20,20 +20,23 @@
 
 #ifndef __OTSERV_PLAYER_H__
 #define __OTSERV_PLAYER_H__
-#include "creature.h"
+#include "otsystem.h"
 #include "enums.h"
+
+#include "creature.h"
+#include "cylinder.h"
 
 #include "container.h"
 #include "depot.h"
-#include "cylinder.h"
+
 #include "outfit.h"
 #include "vocation.h"
+#include "group.h"
+
 #include "protocolgame.h"
 #include "ioguild.h"
 #include "party.h"
 #include "npc.h"
-
-#include <ctime>
 
 class House;
 class NetworkMessage;
@@ -125,7 +128,7 @@ typedef std::list<Party*> PartyList;
 #define SPEED_MAX 1500
 #define SPEED_MIN 10
 #define STAMINA_MAX (42 * 60 * 60 * 1000)
-#define STAMINA_MUL (60 * 1000)
+#define STAMINA_MULTIPLIER (60 * 1000)
 
 class Player : public Creature, public Cylinder
 {
@@ -166,8 +169,8 @@ class Player : public Creature, public Cylinder
 
 		void setPromotionLevel(uint32_t pLevel);
 
-		bool hasRequestedOutfit() const {return requestedOutfit;}
-		void hasRequestedOutfit(bool newValue) {requestedOutfit = newValue;}
+		bool changeOutfit(Outfit_t outfit);
+		void hasRequestedOutfit(bool v) {requestedOutfit = v;}
 
 		Vocation* getVocation() const {return vocation;}
 		int32_t getPlayerInfo(playerinfo_t playerinfo) const;
@@ -198,10 +201,10 @@ class Player : public Creature, public Cylinder
 		bool isInvitedToGuild(uint32_t guild_id) const;
 		void resetGuildInformation();
 
-		void setFlags(uint64_t flags) {groupFlags = flags;}
-		bool hasFlag(PlayerFlags value) const {return (groupFlags & ((uint64_t)1 << value));}
-		void setCustomFlags(uint64_t flags) {groupCustomFlags = flags;}
-		bool hasCustomFlag(PlayerCustomFlags value) const {return (groupCustomFlags & ((uint64_t)1 << value));}
+		void setFlags(uint64_t flags) {if(group) group->setFlags(flags);}
+		bool hasFlag(PlayerFlags value) const {return group != NULL && group->hasFlag(value);}
+		void setCustomFlags(uint64_t flags) {if(group) group->setCustomFlags(flags);}
+		bool hasCustomFlag(PlayerCustomFlags value) const {return group != NULL && group->hasCustomFlag(value);}
 
 		void addBlessing(int16_t blessing) {blessings += blessing;}
 		bool hasBlessing(int16_t value) const {return (blessings & ((int16_t)1 << value));}
@@ -235,10 +238,12 @@ class Player : public Creature, public Cylinder
 
 		void setGroupId(int32_t newId);
 		int32_t getGroupId() const {return groupId;}
+		void setGroup(Group* newGroup);
+		Group* getGroup() const {return group;}
 
 		bool isInGhostMode() const {return hasCondition(CONDITION_GAMEMASTER, GAMEMASTER_INVISIBLE);}
 		bool canSeeGhost(const Creature* creature) const
-			{return (creature->getPlayer() && creature->getPlayer()->getAccessLevel() <= accessLevel);}
+			{return (creature->getPlayer() && creature->getPlayer()->getAccess() <= getAccess());}
 
 		void switchSaving() {saving = !saving;}
 		bool isSaving() const {return saving;}
@@ -248,8 +253,9 @@ class Player : public Creature, public Cylinder
 
 		uint32_t getAccount() const {return accountId;}
 		std::string getAccountName() const {return account;}
-		uint16_t getAccessLevel() const {return accessLevel;}
-		uint16_t getViolationAccess() const {return violationAccess;}
+		uint16_t getAccess() const {return group ? group->getAccess() : 0;}
+		uint16_t getAccessLevel() const {return getAccess();}
+		uint16_t getViolationAccess() const {return group ? group->getViolationAccess() : 0;}
 		bool isPremium() const;
 
 		uint32_t getLevel() const {return level;}
@@ -262,10 +268,10 @@ class Player : public Creature, public Cylinder
 		PlayerSex_t getSex() const {return sex;}
 		void setSex(PlayerSex_t);
 
-		uint64_t getStamina() const {return hasCustomFlag(PlayerCustomFlag_HasInfiniteStamina) ? STAMINA_MAX : stamina;}
+		uint64_t getStamina() const {return hasFlag(PlayerFlag_HasInfiniteStamina) ? STAMINA_MAX : stamina;}
 		void setStamina(uint64_t _stamina) {stamina = std::min((uint64_t)STAMINA_MAX, _stamina);}
-		uint32_t getStaminaMinutes() const {return (uint32_t)getStamina() / STAMINA_MUL;}
-		void setStaminaMinutes(uint32_t _stamina) {setStamina(_stamina * STAMINA_MUL);}
+		uint32_t getStaminaMinutes() const {return (uint32_t)getStamina() / STAMINA_MULTIPLIER;}
+		void setStaminaMinutes(uint32_t _stamina) {setStamina(_stamina * STAMINA_MULTIPLIER);}
 		void addStamina(int64_t value) {stamina = std::min((int64_t)STAMINA_MAX, (int64_t)std::max((int64_t)0, int64_t(stamina + value)));}
 		void removeStamina(int64_t value) {addStamina(-value);}
 		uint64_t getSpentStamina() {return (uint64_t)STAMINA_MAX - stamina;}
@@ -668,18 +674,16 @@ class Player : public Creature, public Cylinder
 		void unlearnInstantSpell(const std::string& name);
 		bool hasLearnedInstantSpell(const std::string& name) const;
 
-		DepotMap depots;
-		uint32_t maxDepotLimit;
 		VIPListSet VIPList;
-		uint32_t maxVipLimit;
-
+		ContainerVector containerVec;
 		InvitedToGuildsList invitedToGuildsList;
 		ConditionList storedConditionList;
-		ContainerVector containerVec;
+		DepotMap depots;
 
-		double rates[SKILL__LAST + 1];
 		uint32_t marriage;
 		uint64_t balance;
+		double rates[SKILL__LAST + 1];
+		Container transferContainer;
 
 	protected:
 		void checkTradeState(const Item* item);
@@ -723,150 +727,6 @@ class Player : public Creature, public Cylinder
 		virtual void __internalAddThing(Thing* thing);
 		virtual void __internalAddThing(uint32_t index, Thing* thing);
 
-	protected:
-		ProtocolGame* client;
-		OperatingSystem_t operatingSystem;
-
-		uint32_t level;
-		uint32_t levelPercent;
-		uint32_t magLevel;
-		uint32_t magLevelPercent;
-		uint64_t experience;
-		uint64_t manaSpent;
-
-		uint32_t damageImmunities;
-		uint32_t conditionImmunities;
-		uint32_t conditionSuppressions;
-		uint32_t condition; //?
-
-		int32_t premiumDays;
-		int16_t blessings;
-		uint64_t stamina;
-		int32_t soul;
-		int32_t soulMax;
-
-		Vocation* vocation;
-		int32_t vocation_id;
-		PlayerSex_t sex;
-
-		uint32_t nextStepEvent;
-		uint32_t actionTaskEvent;
-		int64_t nextAction;
-		uint32_t walkTaskEvent;
-		SchedulerTask* walkTask;
-
-		Party* party;
-		PartyList invitePartyList;
-
-		int32_t groupId;
-		uint64_t groupFlags;
-		uint64_t groupCustomFlags;
-		uint16_t accessLevel;
-		uint16_t violationAccess;
-		std::string groupName;
-		uint16_t groupOutfit;
-
-		bool talkState[13];
-		AccountManager_t accountManager;
-		PlayerSex_t managerSex;
-		int32_t managerNumber, managerNumber2;
-		char managerChar[100];
-		std::string managerString, managerString2;
-
-		double inventoryWeight;
-		double capacity;
-
-		uint32_t MessageBufferTicks;
-		int32_t MessageBufferCount;
-		uint32_t internalPing;
-		uint32_t npings;
-		int32_t idleTime;
-
-		bool pzLocked;
-		bool saving;
-		bool isConnecting;
-		bool requestedOutfit;
-
-		int32_t bloodHitCount;
-		int32_t shieldBlockCount;
-		BlockType_t lastAttackBlockType;
-		bool addAttackSkillPoint;
-		uint64_t lastAttack;
-		int32_t shootRange;
-
-		chaseMode_t chaseMode;
-		fightMode_t fightMode;
-		secureMode_t secureMode;
-
-		int64_t lastLogin;
-		time_t lastLoginSaved;
-		time_t lastLogout;
-		Position loginPosition;
-		uint32_t lastIP;
-
-		//account variables
-		uint32_t accountId;
-		std::string account, password;
-
-		//inventory variables
-		Item* inventory[11];
-		bool inventoryAbilities[11];
-
-		//player advances variables
-		uint32_t skills[SKILL_LAST + 1][3];
-
-		//extra skill modifiers
-		int32_t varSkills[SKILL_LAST + 1];
-
-		//extra stat modifiers
-		int32_t varStats[STAT_LAST + 1];
-
-		//loss percent variables
-		uint32_t lossPercent[LOSS_LAST + 1];
-
-		//trade variables
-		Player* tradePartner;
-		tradestate_t tradeState;
-		Item* tradeItem;
-
-		//shop variables
-		Npc* shopOwner;
-		int32_t purchaseCallback;
-		int32_t saleCallback;
-		ShopInfoList shopOffer;
-		std::map<uint32_t, uint32_t> goodsMap;
-
-		uint32_t guid;
-		std::string name;
-		std::string nameDescription;
-
-		uint32_t promotionLevel;
-		int64_t redSkullTicks;
-		uint32_t town;
-
-		//guild variables
-		uint32_t guildId;
-		std::string guildName;
-		std::string guildRank;
-		uint32_t guildRankId;
-		std::string guildNick;
-		int8_t guildLevel;
-
-		StorageMap storageMap;
-		LightInfo itemsLight;
-		OutfitList m_playerOutfits;
-		LearnedInstantSpellList learnedInstantSpellList;
-
-		//read/write storage data
-		uint32_t windowTextId;
-		Item* writeItem;
-		uint16_t maxWriteLen;
-		House* editHouse;
-		uint32_t editListId;
-
-		typedef std::set<uint32_t> AttackedSet;
-		AttackedSet attackedSet;
-
 		virtual int32_t getStepSpeed() const
 		{
 			if(getSpeed() > SPEED_MAX)
@@ -898,6 +758,115 @@ class Player : public Creature, public Cylinder
 		virtual void dropLoot(Container* corpse);
 		void updateItemsLight(bool internal = false);
 		bool isPromoted(uint32_t pLevel = 1) const {return promotionLevel >= pLevel;}
+
+	private:
+		bool talkState[13];
+		bool inventoryAbilities[11];
+		bool pzLocked;
+		bool saving;
+		bool isConnecting;
+		bool requestedOutfit;
+		bool outfitAttributes;
+		bool addAttackSkillPoint;
+
+		PlayerSex_t sex;
+		OperatingSystem_t operatingSystem;
+		AccountManager_t accountManager;
+		PlayerSex_t managerSex;
+		BlockType_t lastAttackBlockType;
+		chaseMode_t chaseMode;
+		fightMode_t fightMode;
+		secureMode_t secureMode;
+		tradestate_t tradeState;
+
+		int8_t guildLevel;
+		int16_t blessings;
+		uint16_t maxWriteLen;
+
+		int32_t premiumDays;
+		int32_t soul;
+		int32_t soulMax;
+		int32_t vocation_id;
+		int32_t groupId;
+		int32_t managerNumber, managerNumber2;
+		int32_t purchaseCallback;
+		int32_t saleCallback;
+		int32_t varSkills[SKILL_LAST + 1];
+		int32_t varStats[STAT_LAST + 1];
+		int32_t MessageBufferCount;
+		int32_t idleTime;
+		int32_t bloodHitCount;
+		int32_t shieldBlockCount;
+		int32_t shootRange;
+
+		uint32_t MessageBufferTicks;
+		uint32_t internalPing;
+		uint32_t npings;
+		uint32_t accountId;
+		uint32_t lastIP;
+		uint32_t level;
+		uint32_t levelPercent;
+		uint32_t magLevel;
+		uint32_t magLevelPercent;
+		uint32_t damageImmunities;
+		uint32_t conditionImmunities;
+		uint32_t conditionSuppressions;
+		uint32_t condition; //?
+		uint32_t nextStepEvent;
+		uint32_t actionTaskEvent;
+		uint32_t walkTaskEvent;
+		uint32_t lossPercent[LOSS_LAST + 1];
+		uint32_t skills[SKILL_LAST + 1][3];
+		uint32_t guid;
+		uint32_t editListId;
+		uint32_t windowTextId;
+		uint32_t guildId;
+		uint32_t guildRankId;
+		uint32_t promotionLevel;
+		uint32_t town;
+
+		time_t lastLoginSaved;
+		time_t lastLogout;
+		int64_t lastLogin;
+		int64_t redSkullTicks;
+		int64_t nextAction;
+		uint64_t stamina;
+		uint64_t experience;
+		uint64_t manaSpent;
+		uint64_t lastAttack;
+
+		double inventoryWeight;
+		double capacity;
+		char managerChar[100];
+
+		std::string managerString, managerString2;
+		std::string account, password;
+		std::string name, nameDescription;
+		std::string guildName, guildRank, guildNick;
+
+		Position loginPosition;
+		LightInfo itemsLight;
+
+		Vocation* vocation;
+		ProtocolGame* client;
+		SchedulerTask* walkTask;
+		Party* party;
+		Group* group;
+		Item* inventory[11];
+		Player* tradePartner;
+		Item* tradeItem;
+		Item* writeItem;
+		House* editHouse;
+		Npc* shopOwner;
+
+		typedef std::set<uint32_t> AttackedSet;
+		AttackedSet attackedSet;
+		ShopInfoList shopOffer;
+		PartyList invitePartyList;
+		OutfitList m_playerOutfits;
+		LearnedInstantSpellList learnedInstantSpellList;
+		StorageMap storageMap;
+		std::map<uint32_t, uint32_t> goodsMap;
 
 		friend class Game;
 		friend class LuaScriptInterface;

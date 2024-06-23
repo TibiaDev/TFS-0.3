@@ -22,6 +22,7 @@
 #define _CONFIG_MANAGER_H
 
 #include <string>
+#include "luascript.h"
 
 extern "C"
 {
@@ -66,6 +67,9 @@ class ConfigManager
 			RUNFILE,
 			OUT_LOG,
 			ERROR_LOG,
+			DATA_DIRECTORY,
+			PREFIX_CHANNEL_LOGS,
+			CORES_USED,
 			LAST_STRING_CONFIG /* this must be the last one */
 		};
 
@@ -85,7 +89,6 @@ class ConfigManager
 			DEFAULT_DESPAWNRANGE,
 			DEFAULT_DESPAWNRADIUS,
 			ALLOW_CLONES,
-			RATE_LOOT,
 			RATE_SPAWN,
 			SPAWNPOS_X,
 			SPAWNPOS_Y,
@@ -127,6 +130,7 @@ class ConfigManager
 			EXTRA_PARTY_PERCENT,
 			EXTRA_PARTY_LIMIT,
 			MYSQL_READ_TIMEOUT,
+			MYSQL_WRITE_TIMEOUT,
 			PARTY_RADIUS_X,
 			PARTY_RADIUS_Y,
 			PARTY_RADIUS_Z,
@@ -138,6 +142,9 @@ class ConfigManager
 			STAMINA_LIMIT_BOTTOM,
 			BLESS_REDUCTION_BASE,
 			BLESS_REDUCTION_DECREAMENT,
+			BLESS_REDUCTION,
+			NICE_LEVEL,
+			EXPERIENCE_COLOR,
 			LAST_NUMBER_CONFIG /* this must be the last one */
 		};
 
@@ -146,6 +153,7 @@ class ConfigManager
 			RATE_EXPERIENCE,
 			RATE_SKILL,
 			RATE_MAGIC,
+			RATE_LOOT,
 			PARTY_DIFFERENCE,
 			CRITICAL_HIT_MUL,
 			RATE_STAMINA_GAIN,
@@ -214,8 +222,11 @@ class ConfigManager
 			DISPLAY_LOGGING,
 			STAMINA_BONUS_PREMIUM,
 			BAN_UNKNOWN_BYTES,
-			ABORT_SOCKET_FAIL,
 			ALLOW_CHANGEADDONS,
+			GHOST_INVISIBLE_EFFECT,
+			SHOW_HEALING_DAMAGE_MONSTER,
+			CHECK_CORPSE_OWNER,
+			BUFFER_SPELL_FAILURE,
 			LAST_BOOL_CONFIG /* this must be the last one */
 		};
 
@@ -223,7 +234,6 @@ class ConfigManager
 		bool reload();
 		void startup() {m_startup = false;}
 
-		void getValue(const std::string& key, lua_State* _L);
 		const std::string& getString(uint32_t _what) const;
 		bool getBool(uint32_t _what) const;
 		int32_t getNumber(uint32_t _what) const;
@@ -232,11 +242,25 @@ class ConfigManager
 		bool setString(uint32_t _what, const std::string& _value);
 		bool setNumber(uint32_t _what, int32_t _value);
 
+		void getValue(const std::string& key, lua_State* _L) {LuaScriptInterface::getValue(key, L, _L);}
+
 	private:
-		std::string getGlobalString(lua_State* _L, const std::string& _identifier, const std::string& _default = "");
-		bool getGlobalBool(lua_State* _L, const std::string& _identifier, const std::string& _default = "no");
-		int32_t getGlobalNumber(lua_State* _L, const std::string& _identifier, const int32_t _default = 0);
-		double getGlobalDouble(lua_State* _L, const std::string& _identifier, const double _default = 0);
+		std::string getGlobalString(const std::string& _identifier, const std::string& _default = "")
+		{
+			return LuaScriptInterface::getGlobalString(L, _identifier, _default);
+		}
+		bool getGlobalBool(const std::string& _identifier, const std::string& _default = "no")
+		{
+			return LuaScriptInterface::getGlobalBool(L, _identifier, _default);
+		}
+		int32_t getGlobalNumber(const std::string& _identifier, const int32_t _default = 0)
+		{
+			return LuaScriptInterface::getGlobalNumber(L, _identifier, _default);
+		}
+		double getGlobalDouble(const std::string& _identifier, const double _default = 0)
+		{
+			return LuaScriptInterface::getGlobalDouble(L, _identifier, _default);
+		}
 
 		bool m_loaded, m_startup;
 		lua_State* L;

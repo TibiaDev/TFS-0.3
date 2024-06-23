@@ -1,23 +1,20 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
-
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
+#include "otpch.h"
 #include <iostream>
 
 #include "database.h"
@@ -26,11 +23,8 @@
 #include "configmanager.h"
 extern ConfigManager g_config;
 
-/** DatabasePgSQL definitions */
-
 DatabasePgSQL::DatabasePgSQL()
 {
-	// load connection parameters
 	std::stringstream dns;
 	dns << "host='" << g_config.getString(ConfigManager::SQL_HOST) << "' dbname='" << g_config.getString(ConfigManager::SQL_DB) << "' user='" << g_config.getString(ConfigManager::SQL_USER) << "' password='" << g_config.getString(ConfigManager::SQL_PASS) << "' port='" << g_config.getNumber(ConfigManager::SQL_PORT) << "'";
 
@@ -38,11 +32,6 @@ DatabasePgSQL::DatabasePgSQL()
 	m_connected = PQstatus(m_handle) == CONNECTION_OK;
 	if(!m_connected)
 		std::cout << "Failed to estabilish PostgreSQL database connection: " << PQerrorMessage(m_handle) << std::endl;
-}
-
-DatabasePgSQL::~DatabasePgSQL()
-{
-	PQfinish(m_handle);
 }
 
 bool DatabasePgSQL::getParam(DBParam_t param)
@@ -57,21 +46,6 @@ bool DatabasePgSQL::getParam(DBParam_t param)
 	}
 
 	return false;
-}
-
-bool DatabasePgSQL::beginTransaction()
-{
-	return executeQuery("BEGIN");
-}
-
-bool DatabasePgSQL::rollback()
-{
-	return executeQuery("ROLLBACK");
-}
-
-bool DatabasePgSQL::commit()
-{
-	return executeQuery("COMMIT");
 }
 
 bool DatabasePgSQL::executeQuery(const std::string& query)
@@ -185,28 +159,6 @@ std::string DatabasePgSQL::_parse(const std::string& s)
 	return query;
 }
 
-void DatabasePgSQL::freeResult(DBResult* res)
-{
-	delete (PgSQLResult*)res;
-}
-
-/** PgSQLResult definitions */
-
-int32_t PgSQLResult::getDataInt(const std::string& s)
-{
-	return atoi(PQgetvalue(m_handle, m_cursor, PQfnumber(m_handle, s.c_str())));
-}
-
-int64_t PgSQLResult::getDataLong(const std::string& s)
-{
-	return ATOI64(PQgetvalue(m_handle, m_cursor, PQfnumber(m_handle, s.c_str())));
-}
-
-std::string PgSQLResult::getDataString(const std::string& s)
-{
-	return std::string(PQgetvalue(m_handle, m_cursor, PQfnumber(m_handle, s.c_str())));
-}
-
 const char* PgSQLResult::getDataStream(const std::string& s, uint64_t& size)
 {
 	std::string buf = PQgetvalue(m_handle, m_cursor, PQfnumber(m_handle, s.c_str()));
@@ -217,6 +169,17 @@ const char* PgSQLResult::getDataStream(const std::string& s, uint64_t& size)
 
 	PQfreemem(temp);
 	return value;
+}
+
+void PgSQLResult::free()
+{
+	if(m_handle)
+	{
+		PQclear(m_handle);
+		delete this;
+	}
+	else
+		std::cout << "[Warning - PgSQLResult::free] Trying to free already freed result." << std::endl;
 }
 
 bool PgSQLResult::next()
@@ -230,6 +193,12 @@ bool PgSQLResult::next()
 
 PgSQLResult::PgSQLResult(PGresult* results)
 {
+	if(!res)
+	{
+		delete this;
+		return;
+	}
+
 	m_handle = results;
 	m_cursor = -1;
 	m_rows = PQntuples(m_handle) - 1;

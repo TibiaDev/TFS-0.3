@@ -28,20 +28,11 @@ class Task
 {
 	public:
 		virtual ~Task() {}
-
-		void operator()()
-		{
-			m_f();
-		}
+		void operator()() {m_f();}
 
 	protected:
-		Task(boost::function<void (void)> f)
-		{
-			m_f = f;
-		}
-
+		Task(boost::function<void (void)> f) {m_f = f;}
 		boost::function<void (void)> m_f;
-
 		friend Task* createTask(boost::function<void (void)>);
 };
 
@@ -54,7 +45,6 @@ class Dispatcher
 {
 	public:
 		virtual ~Dispatcher() {}
-
 		static Dispatcher& getDispatcher()
 		{
 			static Dispatcher dispatcher;
@@ -69,9 +59,9 @@ class Dispatcher
 		static OTSYS_THREAD_RETURN dispatcherThread(void* p);
 
 	protected:
-		Dispatcher();
 		void flush();
 
+		Dispatcher();
 		enum DispatcherState
 		{
 			STATE_RUNNING,
@@ -85,5 +75,4 @@ class Dispatcher
 		std::list<Task*> m_taskList;
 		static DispatcherState m_threadState;
 };
-
 #endif

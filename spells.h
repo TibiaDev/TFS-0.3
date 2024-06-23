@@ -42,7 +42,7 @@ class Spells : public BaseEvents
 {
 	public:
 		Spells();
-		virtual ~Spells();
+		virtual ~Spells() {clear();}
 
 		Spell* getSpellByName(const std::string& name);
 
@@ -54,7 +54,7 @@ class Spells : public BaseEvents
 		InstantSpell* getInstantSpellByIndex(const Player* player, uint32_t index);
 
 		uint32_t getInstantSpellCount(const Player* player);
-		bool onPlayerSay(Player* player, const std::string& words);
+		ReturnValue onPlayerSay(Player* player, const std::string& words);
 		virtual std::string getScriptBaseName() const {return "spells";}
 		static Position getCasterPosition(Creature* creature, Direction dir);
 
@@ -116,7 +116,7 @@ class Spell : public BaseSpell
 {
 	public:
 		Spell();
-		virtual ~Spell(){}
+		virtual ~Spell() {}
 
 		bool configureSpell(xmlNodePtr xmlspell);
 		const std::string& getName() const {return name;}
@@ -165,8 +165,7 @@ class Spell : public BaseSpell
 		bool selfTarget;
 		bool isAggressive;
 
-		typedef std::map<int32_t, bool> VocSpellMap;
-		VocSpellMap vocSpellMap;
+		VocationMap vocSpellMap;
 		typedef std::vector<std::string> VocStringVec;
 		VocStringVec vocStringVec;
 

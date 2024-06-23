@@ -1,35 +1,32 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
-#include "weapons.h"
-#include "combat.h"
-#include "tools.h"
-#include "configmanager.h"
-#include "items.h"
-
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 
+#include "weapons.h"
+#include "tools.h"
+
+#include "combat.h"
+#include "items.h"
+
+#include "configmanager.h"
+
 extern Game g_game;
-extern Vocations g_vocations;
 extern ConfigManager g_config;
 extern Weapons* g_weapons;
 
@@ -181,22 +178,21 @@ bool Weapon::configureEvent(xmlNodePtr p)
 	int32_t intValue, wieldInfo = 0;
 	std::string strValue;
 
-	if(readXMLInteger(p, "id", intValue))
-	 	id = intValue;
-	else
+	if(!readXMLInteger(p, "id", intValue))
 	{
 		std::cout << "Error: [Weapon::configureEvent] Weapon without id." << std::endl;
 		return false;
 	}
 
-	if(readXMLInteger(p, "lvl", intValue) || readXMLInteger(p, "level", intValue))
+	id = intValue;
+	if(readXMLInteger(p, "lv", intValue) || readXMLInteger(p, "lvl", intValue) || readXMLInteger(p, "level", intValue))
 	{
 	 	level = intValue;
 		if(level > 0)
 			wieldInfo |= WIELDINFO_LEVEL;
 	}
 
-	if(readXMLInteger(p, "maglv", intValue) || readXMLInteger(p, "maglevel", intValue))
+	if(readXMLInteger(p, "maglv", intValue) || readXMLInteger(p, "maglvl", intValue) || readXMLInteger(p, "maglevel", intValue))
 	{
 	 	magLevel = intValue;
 		if(magLevel > 0)
@@ -212,7 +208,7 @@ bool Weapon::configureEvent(xmlNodePtr p)
 	if(readXMLInteger(p, "soul", intValue))
 	 	soul = intValue;
 
-	if(readXMLInteger(p, "exhaustion", intValue))
+	if(readXMLInteger(p, "exhaust", intValue) || readXMLInteger(p, "exhaustion", intValue))
 		exhaustion = intValue;
 
 	if(readXMLInteger(p, "prem", intValue) || readXMLInteger(p, "premium", intValue))
@@ -231,32 +227,13 @@ bool Weapon::configureEvent(xmlNodePtr p)
 	if(readXMLString(p, "type", strValue))
 		params.combatType = getCombatType(strValue);
 
+	std::string error = "";
 	StringVec vocStringVec;
 	xmlNodePtr vocationNode = p->children;
 	while(vocationNode)
 	{
-		if(xmlStrcmp(vocationNode->name,(const xmlChar*)"vocation") == 0)
-		{
-			if(readXMLString(vocationNode, "name", strValue))
-			{
-				int32_t vocationId = g_vocations.getVocationId(strValue);
-				if(vocationId != -1)
-				{
-					vocWeaponMap[vocationId] = true;
-					int32_t promotedVocation = g_vocations.getPromotedVocation(vocationId);
-					if(promotedVocation != -1)
-						vocWeaponMap[promotedVocation] = true;
-
-					intValue = 1;
-					readXMLInteger(vocationNode, "showInDescription", intValue);
-					if(intValue != 0)
-					{
-						toLowerCaseString(strValue);
-						vocStringVec.push_back(strValue);
-					}
-				}
-			}
-		}
+		if(!parseVocationNode(vocationNode, vocWeaponMap, vocStringVec, error))
+			std::cout << "[Warning - Weapon::configureEvent] " << error << std::endl;
 
 		vocationNode = vocationNode->next;
 	}
@@ -264,31 +241,13 @@ bool Weapon::configureEvent(xmlNodePtr p)
 	if(!vocWeaponMap.empty())
 		wieldInfo |= WIELDINFO_VOCREQ;
 
-	std::string vocationString;
-	if(!vocStringVec.empty())
-	{
-		for(StringVec::iterator it = vocStringVec.begin(); it != vocStringVec.end(); ++it)
-		{
-			if((*it) != vocStringVec.front())
-			{
-				if((*it) != vocStringVec.back())
-					vocationString += ", ";
-				else
-					vocationString += " and ";
-			}
-
-			vocationString += (*it);
-			vocationString += "s";
-		}
-	}
-
 	if(wieldInfo != 0)
 	{
 		ItemType& it = Item::items.getItemType(id);
 		it.wieldInfo = wieldInfo;
 		it.minReqLevel = getReqLevel();
 		it.minReqMagicLevel = getReqMagLv();
-		it.vocationString = vocationString;
+		it.vocationString = parseVocationString(vocStringVec);
 	}
 
 	return configureWeapon(Item::items[getID()]);
@@ -389,8 +348,8 @@ bool Weapon::useFist(Player* player, Creature* target)
 	}
 
 	Vocation* vocation = player->getVocation();
-	if(vocation && vocation->meleeDamageMultipler != 1.0)
-		maxDamage *= vocation->meleeDamageMultipler;
+	if(vocation && vocation->getMeleeMultiplier() != 1.0)
+		maxDamage *= vocation->getMeleeMultiplier();
 
 	maxDamage = std::floor(maxDamage);
 	int32_t damage = -random_range(0, (int32_t)maxDamage, DISTRO_NORMAL);
@@ -554,10 +513,8 @@ bool Weapon::executeUseWeapon(Player* player, const LuaVariant& var) const
 
 			lua_State* L = m_scriptInterface->getLuaState();
 
-			uint32_t cid = env->addThing(player);
-
 			m_scriptInterface->pushFunction(m_scriptId);
-			lua_pushnumber(L, cid);
+			lua_pushnumber(L, env->addThing(player));
 			m_scriptInterface->pushVariant(L, var);
 
 			int32_t result = m_scriptInterface->callFunction(2);
@@ -686,8 +643,8 @@ int32_t WeaponMelee::getWeaponDamage(const Player* player, const Creature* targe
 	}
 
 	Vocation* vocation = player->getVocation();
-	if(vocation && vocation->meleeDamageMultipler != 1.0)
-		maxValue *= vocation->meleeDamageMultipler;
+	if(vocation && vocation->getMeleeMultiplier() != 1.0)
+		maxValue *= vocation->getMeleeMultiplier();
 
 	int32_t ret = (int32_t)std::floor(maxValue);
 	if(maxDamage)
@@ -709,11 +666,10 @@ int32_t WeaponMelee::getElementDamage(const Player* player, const Item* item) co
 	}
 
 	Vocation* vocation = player->getVocation();
-	if(vocation && vocation->meleeDamageMultipler != 1.0)
-		maxValue *= vocation->meleeDamageMultipler;
+	if(vocation && vocation->getMeleeMultiplier() != 1.0)
+		maxValue *= vocation->getMeleeMultiplier();
 
-	maxValue = std::floor(maxValue);
-	return -random_range(0, (int32_t)maxValue, DISTRO_NORMAL);
+	return -random_range(0, (int32_t)std::floor(maxValue), DISTRO_NORMAL);
 }
 
 WeaponDistance::WeaponDistance(LuaScriptInterface* _interface):
@@ -996,8 +952,8 @@ int32_t WeaponDistance::getWeaponDamage(const Player* player, const Creature* ta
 	}
 
 	Vocation* vocation = player->getVocation();
-	if(vocation && vocation->distDamageMultipler != 1.0)
-		maxValue *= vocation->distDamageMultipler;
+	if(vocation && vocation->getDistanceMultiplier() != 1.0)
+		maxValue *= vocation->getDistanceMultiplier();
 
 	int32_t ret = (int32_t)std::floor(maxValue);
 	if(maxDamage)
@@ -1080,5 +1036,13 @@ int32_t WeaponWand::getWeaponDamage(const Player* player, const Creature* target
 		return -maxChange;
 	}
 
-	return random_range(-minChange, -maxChange, DISTRO_NORMAL);
+	int32_t minValue = minChange, maxValue = maxChange;
+	Vocation* vocation = player->getVocation();
+	if(vocation && vocation->getWandMultiplier() != 1.0)
+	{
+		minValue *= vocation->getWandMultiplier();
+		maxValue *= vocation->getWandMultiplier();
+	}
+
+	return random_range(-minValue, -maxValue, DISTRO_NORMAL);
 }

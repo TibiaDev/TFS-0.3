@@ -1,39 +1,36 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
-#include "game.h"
-#include "creature.h"
-#include "player.h"
-#include "tile.h"
-#include "tools.h"
-#include "combat.h"
-#include "vocation.h"
-
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 
 #include "movement.h"
+#include "tools.h"
+
+#include "creature.h"
+#include "player.h"
+
+#include "tile.h"
+#include "vocation.h"
+
+#include "combat.h"
+#include "game.h"
 
 extern Game g_game;
-extern Vocations g_vocations;
 extern MoveEvents* g_moveEvents;
 
 MoveEvents::MoveEvents() :
@@ -674,32 +671,12 @@ bool MoveEvent::configureEvent(xmlNodePtr p)
 			}
 
 			StringVec vocStringVec;
-
+			std::string error = "";
 			xmlNodePtr vocationNode = p->children;
 			while(vocationNode)
 			{
-				if(xmlStrcmp(vocationNode->name,(const xmlChar*)"vocation") == 0)
-				{
-					if(readXMLString(vocationNode, "name", strValue))
-					{
-						int32_t vocationId = g_vocations.getVocationId(strValue);
-						if(vocationId != -1)
-						{
-							vocEquipMap[vocationId] = true;
-							int32_t promotedVocation = g_vocations.getPromotedVocation(vocationId);
-							if(promotedVocation != -1)
-								vocEquipMap[promotedVocation] = true;
-
-							intValue = 1;
-							readXMLInteger(vocationNode, "showInDescription", intValue);
-							if(intValue != 0)
-							{
-								toLowerCaseString(strValue);
-								vocStringVec.push_back(strValue);
-							}
-						}
-					}
-				}
+				if(!parseVocationNode(vocationNode, vocEquipMap, vocStringVec, error))
+					std::cout << "[Warning - MoveEvent::configureEvent] " << error << std::endl;
 
 				vocationNode = vocationNode->next;
 			}
@@ -707,22 +684,7 @@ bool MoveEvent::configureEvent(xmlNodePtr p)
 			if(!vocEquipMap.empty())
 				wieldInfo |= WIELDINFO_VOCREQ;
 
-			if(!vocStringVec.empty())
-			{
-				for(StringVec::iterator it = vocStringVec.begin(); it != vocStringVec.end(); ++it)
-				{
-					if((*it) != vocStringVec.front())
-					{
-						if((*it) != vocStringVec.back())
-							vocationString += ", ";
-						else
-							vocationString += " and ";
-					}
-
-					vocationString += (*it);
-					vocationString += "s";
-				}
-			}
+			vocationString = parseVocationString(vocStringVec);
 		}
 	}
 	else
@@ -796,8 +758,11 @@ uint32_t MoveEvent::AddItemField(Item* item, Item* tileItem, const Position& pos
 	if(MagicField* field = item->getMagicField())
 	{
 		Tile* tile = item->getTile();
-		for(CreatureVector::iterator cit = tile->creatures.begin(); cit != tile->creatures.end(); ++cit)
-			field->onStepInField((*cit));
+		if(tile && tile->creatures)
+		{
+			for(CreatureVector::iterator cit = tile->creatures->begin(); cit != tile->creatures->end(); ++cit)
+				field->onStepInField(*cit);
+		}
 
 		return 1;
 	}
@@ -831,7 +796,7 @@ uint32_t MoveEvent::EquipItem(MoveEvent* moveEvent, Player* player, Item* item, 
 		return 1;
 
 	const ItemType& it = Item::items[item->getID()];
-	if(it.transformEquipTo != 0)
+	if(it.transformEquipTo)
 	{
 		Item* newItem = g_game.transformItem(item, it.transformEquipTo);
 		g_game.startDecay(newItem);
@@ -851,12 +816,10 @@ uint32_t MoveEvent::EquipItem(MoveEvent* moveEvent, Player* player, Item* item, 
 		player->addCondition(condition);
 	}
 
-	if(it.abilities.speed != 0)
-	{
+	if(it.abilities.speed)
 		g_game.changeSpeed(player, it.abilities.speed);
-	}
 
-	if(it.abilities.conditionSuppressions != 0)
+	if(it.abilities.conditionSuppressions)
 	{
 		player->setConditionSuppressions(it.abilities.conditionSuppressions, false);
 		player->sendIcons();
@@ -865,28 +828,34 @@ uint32_t MoveEvent::EquipItem(MoveEvent* moveEvent, Player* player, Item* item, 
 	if(it.abilities.regeneration)
 	{
 		Condition* condition = Condition::createCondition((ConditionId_t)slot, CONDITION_REGENERATION, -1, 0);
-		if(it.abilities.healthGain != 0)
+		if(it.abilities.healthGain)
 			condition->setParam(CONDITIONPARAM_HEALTHGAIN, it.abilities.healthGain);
 
-		if(it.abilities.healthTicks != 0)
+		if(it.abilities.healthTicks)
 			condition->setParam(CONDITIONPARAM_HEALTHTICKS, it.abilities.healthTicks);
 
-		if(it.abilities.manaGain != 0)
+		if(it.abilities.manaGain)
 			condition->setParam(CONDITIONPARAM_MANAGAIN, it.abilities.manaGain);
 
-		if(it.abilities.manaTicks != 0)
+		if(it.abilities.manaTicks)
 			condition->setParam(CONDITIONPARAM_MANATICKS, it.abilities.manaTicks);
 
 		player->addCondition(condition);
 	}
 
 	bool needUpdateSkills = false;
-	for(int32_t i = SKILL_FIRST; i <= SKILL_LAST; ++i)
+	for(uint32_t i = SKILL_FIRST; i <= SKILL_LAST; ++i)
 	{
 		if(it.abilities.skills[i])
 		{
 			needUpdateSkills = true;
 			player->setVarSkill((skills_t)i, it.abilities.skills[i]);
+		}
+
+		if(it.abilities.skillsPercent[i])
+		{
+			needUpdateSkills = true;
+			player->setVarSkill((skills_t)i, (int32_t)(player->getSkill((skills_t)i, SKILL_LEVEL) * ((it.abilities.skillsPercent[i] - 100) / 100.f)));
 		}
 	}
 
@@ -894,7 +863,7 @@ uint32_t MoveEvent::EquipItem(MoveEvent* moveEvent, Player* player, Item* item, 
 		player->sendSkills();
 
 	bool needUpdateStats = false;
-	for(int32_t s = STAT_FIRST; s <= STAT_LAST; ++s)
+	for(uint32_t s = STAT_FIRST; s <= STAT_LAST; ++s)
 	{
 		if(it.abilities.stats[s])
 		{
@@ -923,7 +892,7 @@ uint32_t MoveEvent::DeEquipItem(MoveEvent* moveEvent, Player* player, Item* item
 	player->setItemAbility(slot, false);
 
 	const ItemType& it = Item::items[item->getID()];
-	if(isRemoval && it.transformDeEquipTo != 0)
+	if(isRemoval && it.transformDeEquipTo)
 	{
 		g_game.transformItem(item, it.transformDeEquipTo);
 		g_game.startDecay(item);
@@ -935,10 +904,10 @@ uint32_t MoveEvent::DeEquipItem(MoveEvent* moveEvent, Player* player, Item* item
 	if(it.abilities.manaShield)
 		player->removeCondition(CONDITION_MANASHIELD, (ConditionId_t)slot);
 
-	if(it.abilities.speed != 0)
+	if(it.abilities.speed)
 		g_game.changeSpeed(player, -it.abilities.speed);
 
-	if(it.abilities.conditionSuppressions != 0)
+	if(it.abilities.conditionSuppressions)
 	{
 		player->setConditionSuppressions(it.abilities.conditionSuppressions, true);
 		player->sendIcons();
@@ -948,12 +917,18 @@ uint32_t MoveEvent::DeEquipItem(MoveEvent* moveEvent, Player* player, Item* item
 		player->removeCondition(CONDITION_REGENERATION, (ConditionId_t)slot);
 
 	bool needUpdateSkills = false;
-	for(int32_t i = SKILL_FIRST; i <= SKILL_LAST; ++i)
+	for(uint32_t i = SKILL_FIRST; i <= SKILL_LAST; ++i)
 	{
-		if(it.abilities.skills[i] != 0)
+		if(it.abilities.skills[i])
 		{
 			needUpdateSkills = true;
 			player->setVarSkill((skills_t)i, -it.abilities.skills[i]);
+		}
+
+		if(it.abilities.skillsPercent[i])
+		{
+			needUpdateSkills = true;
+			player->setVarSkill((skills_t)i, -(int32_t)(player->getSkill((skills_t)i, SKILL_LEVEL) * ((it.abilities.skillsPercent[i] - 100) / 100.f)));
 		}
 	}
 
@@ -961,7 +936,7 @@ uint32_t MoveEvent::DeEquipItem(MoveEvent* moveEvent, Player* player, Item* item
 		player->sendSkills();
 
 	bool needUpdateStats = false;
-	for(int32_t s = STAT_FIRST; s <= STAT_LAST; ++s)
+	for(uint32_t s = STAT_FIRST; s <= STAT_LAST; ++s)
 	{
 		if(it.abilities.stats[s])
 		{
@@ -1029,14 +1004,11 @@ uint32_t MoveEvent::executeStep(Creature* creature, Item* item, const Position& 
 			env->setScriptId(m_scriptId, m_scriptInterface);
 			env->setRealPos(pos);
 
-			uint32_t cid = env->addThing(creature);
-			uint32_t itemid = env->addThing(item);
-
 			lua_State* L = m_scriptInterface->getLuaState();
-
 			m_scriptInterface->pushFunction(m_scriptId);
-			lua_pushnumber(L, cid);
-			LuaScriptInterface::pushThing(L, item, itemid);
+
+			lua_pushnumber(L, env->addThing(creature));
+			LuaScriptInterface::pushThing(L, item, env->addThing(item));
 			LuaScriptInterface::pushPosition(L, pos, 0);
 			LuaScriptInterface::pushPosition(L, creature->getLastPosition());
 
@@ -1099,14 +1071,11 @@ uint32_t MoveEvent::executeEquip(Player* player, Item* item, slots_t slot)
 			env->setScriptId(m_scriptId, m_scriptInterface);
 			env->setRealPos(player->getPosition());
 
-			uint32_t cid = env->addThing(player);
-			uint32_t itemid = env->addThing(item);
-
 			lua_State* L = m_scriptInterface->getLuaState();
-
 			m_scriptInterface->pushFunction(m_scriptId);
-			lua_pushnumber(L, cid);
-			LuaScriptInterface::pushThing(L, item, itemid);
+
+			lua_pushnumber(L, env->addThing(player));
+			LuaScriptInterface::pushThing(L, item, env->addThing(item));
 			lua_pushnumber(L, slot);
 
 			int32_t result = m_scriptInterface->callFunction(3);
@@ -1172,18 +1141,14 @@ uint32_t MoveEvent::executeAddRemItem(Creature* actor, Item* item, Item* tileIte
 			env->setScriptId(m_scriptId, m_scriptInterface);
 			env->setRealPos(pos);
 
-			uint32_t itemidMoved = env->addThing(item);
-			uint32_t itemidTile = env->addThing(tileItem);
-
 			lua_State* L = m_scriptInterface->getLuaState();
 
 			m_scriptInterface->pushFunction(m_scriptId);
-			LuaScriptInterface::pushThing(L, item, itemidMoved);
-			LuaScriptInterface::pushThing(L, tileItem, itemidTile);
+			LuaScriptInterface::pushThing(L, item, env->addThing(item));
+			LuaScriptInterface::pushThing(L, tileItem, env->addThing(tileItem));
 			LuaScriptInterface::pushPosition(L, pos, 0);
 
-			uint32_t cid = env->addThing(actor);
-			lua_pushnumber(L, cid);
+			lua_pushnumber(L, env->addThing(actor));
 
 			int32_t result = m_scriptInterface->callFunction(4);
 			m_scriptInterface->releaseScriptEnv();

@@ -60,12 +60,10 @@ class DatabaseODBC : public _Database
 		DATABASE_VIRTUAL bool executeQuery(const std::string& query);
 		DATABASE_VIRTUAL DBResult* storeQuery(const std::string& query);
 
-		DATABASE_VIRTUAL std::string escapeString(const std::string& s);
+		DATABASE_VIRTUAL std::string escapeString(const std::string& s) {return escapeBlob(s.c_str(), s.length());}
 		DATABASE_VIRTUAL std::string escapeBlob(const char *s, uint32_t length);
 
-		DATABASE_VIRTUAL void freeResult(DBResult *res);
-
-		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() { return DATABASE_ENGINE_ODBC; }
+		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() {return DATABASE_ENGINE_ODBC;}
 
 	protected:
 		std::string _parse(const std::string& s);
@@ -84,11 +82,12 @@ class ODBCResult : public _DBResult
 		DATABASE_VIRTUAL std::string getDataString(const std::string& s);
 		DATABASE_VIRTUAL const char* getDataStream(const std::string& s, uint64_t& size);
 
+		DATABASE_VIRTUAL void free();
 		DATABASE_VIRTUAL bool next();
 
 	protected:
 		ODBCResult(SQLHSTMT stmt);
-		DATABASE_VIRTUAL ~ODBCResult() {SQLFreeHandle(SQL_HANDLE_STMT, m_handle);}
+		DATABASE_VIRTUAL ~ODBCResult() {}
 
 		typedef std::map<const std::string, uint32_t> listNames_t;
 		listNames_t m_listNames;

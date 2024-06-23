@@ -1,38 +1,24 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
 #include <libxml/xmlmemory.h>
-#include "tools.h"
 
 #include "baseevents.h"
-
-BaseEvents::BaseEvents()
-{
-	m_loaded = false;
-}
-
-BaseEvents::~BaseEvents()
-{
-	//
-}
+#include "tools.h"
 
 bool BaseEvents::loadFromXml()
 {
@@ -44,18 +30,20 @@ bool BaseEvents::loadFromXml()
 
 	std::string scriptsName = getScriptBaseName();
 	if(getScriptInterface().loadFile(getFilePath(FILE_TYPE_OTHER, std::string(scriptsName + "/lib/" + scriptsName + ".lua"))) == -1)
-		std::cout << "[Warning - BaseEvents::loadFromXml] Can not load " << scriptsName << "/lib/" << scriptsName << ".lua" << std::endl;
+		std::cout << "[Warning - BaseEvents::loadFromXml] Cannot load " << scriptsName << "/lib/" << scriptsName << ".lua" << std::endl;
 
 	xmlDocPtr doc = xmlParseFile(getFilePath(FILE_TYPE_OTHER, std::string(scriptsName + "/" + scriptsName + ".xml")).c_str());
 	if(!doc)
 	{
-		std::cout << "[Warning - BaseEvents::loadFromXml] Can not open " << scriptsName << ".xml" << std::endl;
+		std::cout << "[Warning - BaseEvents::loadFromXml] Cannot open " << scriptsName << ".xml file." << std::endl;
+		std::cout << getLastXMLError() << std::endl;
 		return false;
 	}
 
 	xmlNodePtr p, root = xmlDocGetRootElement(doc);
 	if(xmlStrcmp(root->name,(const xmlChar*)scriptsName.c_str()))
 	{
+		std::cout << "[Error - BaseEvents::loadFromXml] Malformed " << scriptsName << ".xml file." << std::endl;
 		xmlFreeDoc(doc);
 		return false;
 	}
@@ -123,7 +111,7 @@ bool BaseEvents::loadFromXml()
 				}
 				else
 				{
-					std::cout << "[Warning - BaseEvents::loadFromXml] Can not configure event" << std::endl;
+					std::cout << "[Warning - BaseEvents::loadFromXml] Cannot configure event" << std::endl;
 					delete event;
 				}
 			}
@@ -144,24 +132,12 @@ bool BaseEvents::reload()
 	return loadFromXml();
 }
 
-Event::Event(LuaScriptInterface* _interface)
-{
-	m_scriptInterface = _interface;
-	m_scripted = EVENT_SCRIPT_FALSE;
-	m_scriptId = 0;
-}
-
 Event::Event(const Event* copy)
 {
 	m_scriptInterface = copy->m_scriptInterface;
 	m_scripted = copy->m_scripted;
 	m_scriptId = copy->m_scriptId;
 	m_scriptData = copy->m_scriptData;
-}
-
-Event::~Event()
-{
-	//
 }
 
 bool Event::loadScript(const std::string& script, bool file)
@@ -190,7 +166,7 @@ bool Event::loadScript(const std::string& script, bool file)
 
 	if(result == -1)
 	{
-		std::cout << "[Warning - Event::loadScript] Can not load script (" << script << ")" << std::endl;
+		std::cout << "[Warning - Event::loadScript] Cannot load script (" << script << ")" << std::endl;
 		std::cout << m_scriptInterface->getLastLuaError() << std::endl;
 		return false;
 	}

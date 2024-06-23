@@ -1,27 +1,25 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
 
 #include "container.h"
-#include "iomap.h"
 #include "game.h"
+
+#include "iomap.h"
 #include "player.h"
 
 extern Game g_game;
@@ -93,6 +91,9 @@ bool Container::unserializeItemNode(FileLoader& f, NODE node, PropStream& propSt
 					return false;
 
 				addItem(item);
+				totalWeight += item->getWeight();
+				if(Container* parent = getParentContainer())
+					parent->updateItemWeight(item->getWeight());
 			}
 			else/*unknown type*/
 				return false;
@@ -638,9 +639,11 @@ int32_t Container::__getLastIndex() const
 uint32_t Container::__getItemTypeCount(uint16_t itemId, int32_t subType /*= -1*/, bool itemCount /*= true*/) const
 {
 	uint32_t count = 0;
+
+	Item* item = NULL;
 	for(ItemList::const_iterator it = itemlist.begin(); it != itemlist.end(); ++it)
 	{
-		Item* item = (*it);
+		item = (*it);
 		if(item && item->getID() == itemId && (subType == -1 || subType == item->getSubType()))
 		{
 			if(!itemCount)
@@ -718,7 +721,7 @@ void Container::__internalAddThing(Thing* thing)
 
 void Container::__internalAddThing(uint32_t index, Thing* thing)
 {
-#ifdef __DEBUG__MOVESYS__NOTICE
+#ifdef __DEBUG__MOVESYS__
 	std::cout << "[Container::__internalAddThing] index: " << index << std::endl;
 #endif
 	if(!thing)
@@ -733,12 +736,12 @@ void Container::__internalAddThing(uint32_t index, Thing* thing)
 		return;
 	}
 
+	itemlist.push_front(item);
+	item->setParent(this);
+
 	totalWeight += item->getWeight();
 	if(Container* parentContainer = getParentContainer())
 		parentContainer->updateItemWeight(item->getWeight());
-
-	itemlist.push_front(item);
-	item->setParent(this);
 }
 
 void Container::__startDecaying()
@@ -796,7 +799,7 @@ bool ContainerIterator::operator!=(const ContainerIterator& rhs)
 	assert(base);
 	if(base != rhs.base)
 		return true;
-		
+
 	if(over.empty() && rhs.over.empty())
 		return false;
 
@@ -808,11 +811,11 @@ bool ContainerIterator::operator!=(const ContainerIterator& rhs)
 
 	if(over.front() != rhs.over.front())
 		return true;
-	
+
 	return current != rhs.current;
 }
 
-ContainerIterator& ContainerIterator::operator=(const ContainerIterator& rhs) 
+ContainerIterator& ContainerIterator::operator=(const ContainerIterator& rhs)
 {
 	this->base = rhs.base;
 	this->current = rhs.current;
@@ -820,18 +823,18 @@ ContainerIterator& ContainerIterator::operator=(const ContainerIterator& rhs)
 	return *this;
 }
 
-Item* ContainerIterator::operator*() 
+Item* ContainerIterator::operator*()
 {
 	assert(base);
 	return *current;
 }
 
-Item* ContainerIterator::operator->() 
+Item* ContainerIterator::operator->()
 {
 	return *(*this);
 }
 
-ContainerIterator& ContainerIterator::operator++() 
+ContainerIterator& ContainerIterator::operator++()
 {
 	assert(base);
 	if(Item* item = *current)

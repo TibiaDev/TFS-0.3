@@ -2,24 +2,30 @@ local config = {
 	showGamemasters = getBooleanFromString(getConfigInfo('displayGamemastersWithOnlineCommand'))
 }
 
-function onSay(cid, words, param)
+function onSay(cid, words, param, channel)
 	local players = getPlayersOnline()
-	local strings = {}
+	local strings = {""}
 
 	local i = 1
 	local position = 1
+	local added = FALSE
 	for _, pid in ipairs(players) do
-		if(i > (position * 7)) then
-			strings[position] = strings[position] .. ","
-			position = position + 1
-			strings[position] = ""
-		else
-			strings[position] = i == 1 and "" or strings[position] .. ", "
+		if(added == TRUE) then
+			if(i > (position * 7)) then
+				strings[position] = strings[position] .. ","
+				position = position + 1
+				strings[position] = ""
+			else
+				strings[position] = i == 1 and "" or strings[position] .. ", "
+			end
 		end
 
 		if((config.showGamemasters == TRUE or getPlayerCustomFlagValue(cid, PlayerCustomFlag_GamemasterPrivileges) == TRUE or getPlayerCustomFlagValue(pid, PlayerCustomFlag_GamemasterPrivileges) ~= TRUE) and (isPlayerGhost(pid) ~= TRUE or getPlayerAccess(cid) >= getPlayerAccess(pid))) then
 			strings[position] = strings[position] .. getCreatureName(pid) .. " [" .. getPlayerLevel(pid) .. "]"
 			i = i + 1
+			added = TRUE
+		else
+			added = FALSE
 		end
 	end
 

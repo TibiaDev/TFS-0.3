@@ -1,23 +1,20 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// Quests
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
-
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
+#include "otpch.h"
 #include "quests.h"
 #include "tools.h"
 
@@ -142,7 +139,6 @@ uint16_t Quest::getMissionsCount(Player* player)
 	return count;
 }
 
-
 void Quest::getMissionList(Player* player, NetworkMessage_ptr msg)
 {
 	msg->AddByte(0xF1);
@@ -175,116 +171,120 @@ bool Quests::reload()
 	return loadFromXml();
 }
 
-bool Quests::loadFromXml()
+bool Quests::parseQuestNode(xmlNodePtr p)
 {
-	if(xmlDocPtr doc = xmlParseFile(getFilePath(FILE_TYPE_XML, "quests.xml").c_str()))
+	if(xmlStrcmp(p->name, (const xmlChar*)"quest"))
+		return false;
+
+	int32_t intValue;
+	std::string strValue;
+
+	std::string name;
+	uint32_t startStorageId = 0;
+	int32_t startStorageValue = 0;
+	if(readXMLString(p, "name", strValue))
+		name = strValue;
+
+	if(readXMLInteger(p, "startstorageid", intValue))
+		startStorageId = intValue;
+
+	if(readXMLInteger(p, "startstoragevalue", intValue))
+		startStorageValue = intValue;
+
+	Quest* quest = new Quest(name, ++m_lastId, startStorageId, startStorageValue);
+	if(!quest)
+		return false;
+
+	xmlNodePtr missionNode = p->children;
+	while(missionNode)
 	{
-		xmlNodePtr root, p;
-		root = xmlDocGetRootElement(doc);
-		if(xmlStrcmp(root->name,(const xmlChar*)"quests") != 0)
+		if(xmlStrcmp(missionNode->name, (const xmlChar*)"mission") != 0)
 		{
-			std::cout << "[Error - Quests::loadFromXml] Malformed quests file" << std::endl;
-			xmlFreeDoc(doc);
-			return false;
+			missionNode = missionNode->next;
+			continue;
 		}
 
-		int32_t intValue;
-		std::string strValue;
+		std::string missionName;
+		uint32_t storageId = 0;
+		int32_t startValue = 0, endValue = 0;
+		if(readXMLString(missionNode, "name", strValue))
+			missionName = strValue;
 
-		uint16_t id = 0;
-		p = root->children;
-		while(p)
+		if(readXMLInteger(missionNode, "storageid", intValue))
+			storageId = intValue;
+
+		if(readXMLInteger(missionNode, "startvalue", intValue))
+			startValue = intValue;
+
+		if(readXMLInteger(missionNode, "endvalue", intValue))
+			endValue = intValue;
+
+		if(Mission *mission = new Mission(missionName, storageId, startValue, endValue))
 		{
-			if(xmlStrcmp(p->name, (const xmlChar*)"quest") != 0)
+			xmlNodePtr stateNode = missionNode->children;
+			while(stateNode)
 			{
-				p = p->next;
-				continue;
-			}
-
-			std::string name;
-			uint32_t startStorageId = 0;
-			int32_t startStorageValue = 0;
-			if(readXMLString(p, "name", strValue))
-				name = strValue;
-
-			if(readXMLInteger(p, "startstorageid", intValue))
-				startStorageId = intValue;
-
-			if(readXMLInteger(p, "startstoragevalue", intValue))
-				startStorageValue = intValue;
-
-			if(Quest* quest = new Quest(name, ++id, startStorageId, startStorageValue))
-			{
-				xmlNodePtr missionNode = p->children;
-				while(missionNode)
+				if(xmlStrcmp(stateNode->name, (const xmlChar*)"missionstate") != 0)
 				{
-					if(xmlStrcmp(missionNode->name, (const xmlChar*)"mission") != 0)
-					{
-						missionNode = missionNode->next;
-						continue;
-					}
-
-					std::string missionName;
-					uint32_t storageId = 0;
-					int32_t startValue = 0, endValue = 0;
-					if(readXMLString(missionNode, "name", strValue))
-						missionName = strValue;
-
-					if(readXMLInteger(missionNode, "storageid", intValue))
-						storageId = intValue;
-
-					if(readXMLInteger(missionNode, "startvalue", intValue))
-						startValue = intValue;
-
-					if(readXMLInteger(missionNode, "endvalue", intValue))
-						endValue = intValue;
-
-					if(Mission *mission = new Mission(missionName, storageId, startValue, endValue))
-					{
-						xmlNodePtr stateNode = missionNode->children;
-						while(stateNode)
-						{
-							if(xmlStrcmp(stateNode->name, (const xmlChar*)"missionstate") != 0)
-							{
-								stateNode = stateNode->next;
-								continue;
-							}
-
-							uint32_t missionId;
-							if(readXMLInteger(stateNode, "id", intValue))
-								missionId = intValue;
-							else
-							{
-								std::cout << "[Warning - Quests::loadFromXml]: Missing missionId for mission state" << std::endl;
-								stateNode = stateNode->next;
-								continue;
-							}
-
-							std::string description;
-							if(readXMLString(stateNode, "description", strValue))
-								description = strValue;
-
-							mission->state[missionId] = new MissionState(description, missionId);
-							stateNode = stateNode->next;
-						}
-
-						quest->missions.push_back(mission);
-					}
-
-					missionNode = missionNode->next;
+					stateNode = stateNode->next;
+					continue;
 				}
 
-				quests.push_back(quest);
+				uint32_t missionId;
+				if(readXMLInteger(stateNode, "id", intValue))
+					missionId = intValue;
+				else
+				{
+					std::cout << "[Warning - Quests::parseQuestNode]: Missing missionId for mission state" << std::endl;
+					stateNode = stateNode->next;
+					continue;
+				}
+
+				std::string description;
+				if(readXMLString(stateNode, "description", strValue))
+					description = strValue;
+
+				mission->state[missionId] = new MissionState(description, missionId);
+				stateNode = stateNode->next;
 			}
 
-			p = p->next;
+			quest->missions.push_back(mission);
 		}
 
-		xmlFreeDoc(doc);
-		return true;
+		missionNode = missionNode->next;
 	}
 
-	return false;
+	quests.push_back(quest);
+	return true;
+}
+
+bool Quests::loadFromXml()
+{
+	xmlDocPtr doc = xmlParseFile(getFilePath(FILE_TYPE_XML, "quests.xml").c_str());
+	if(!doc)
+	{
+		std::cout << "[Warning - Quests::loadFromXml] Cannot load quests file." << std::endl;
+		std::cout << getLastXMLError() << std::endl;
+		return false;
+	}
+
+	xmlNodePtr p, root = xmlDocGetRootElement(doc);
+	if(xmlStrcmp(root->name,(const xmlChar*)"quests"))
+	{
+		std::cout << "[Error - Quests::loadFromXml] Malformed quests file." << std::endl;
+		xmlFreeDoc(doc);
+		return false;
+	}
+
+	p = root->children;
+	while(p)
+	{
+		parseQuestNode(p);
+		p = p->next;
+	}
+
+	xmlFreeDoc(doc);
+	return true;
 }
 
 uint16_t Quests::getQuestsCount(Player* player)

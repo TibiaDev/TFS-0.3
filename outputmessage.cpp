@@ -1,32 +1,25 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
+#include "scheduler.h"
 
 #include "outputmessage.h"
-#include "connection.h"
 #include "protocol.h"
-
-OutputMessage::OutputMessage()
-{
-	freeMessage();
-}
+#include "connection.h"
 
 //*********** OutputMessagePool ****************//
 
@@ -65,7 +58,6 @@ void OutputMessagePool::send(OutputMessage_ptr msg)
 	OTSYS_THREAD_LOCK(m_outputPoolLock, "");
 	OutputMessage::OutputMessageState state = msg->getState();
 	OTSYS_THREAD_UNLOCK(m_outputPoolLock, "");
-
 	if(state == OutputMessage::STATE_ALLOCATED_NO_AUTOSEND)
 	{
 		#ifdef __DEBUG_NET_DETAIL__
@@ -121,6 +113,12 @@ void OutputMessagePool::sendAll()
 	}
 }
 
+void OutputMessagePool::releaseMessage(OutputMessage* msg)
+{
+	Dispatcher::getDispatcher().addTask(createTask(boost::bind(
+		&OutputMessagePool::internalReleaseMessage, this, msg)));
+}
+
 void OutputMessagePool::internalReleaseMessage(OutputMessage* msg)
 {
 	if(msg->getProtocol())
@@ -134,7 +132,7 @@ void OutputMessagePool::internalReleaseMessage(OutputMessage* msg)
 		std::cout << "[Warning - OutputMessagePool::internalReleaseMessage] connection not found." << std::endl;
 
 	msg->freeMessage();
-	OTSYS_THREAD_LOCK(m_outputPoolLock, "");	
+	OTSYS_THREAD_LOCK(m_outputPoolLock, "");
 	m_outputMessages.push_back(msg);
 	OTSYS_THREAD_UNLOCK(m_outputPoolLock, "");
 }
@@ -162,14 +160,16 @@ OutputMessage_ptr OutputMessagePool::getOutputMessage(Protocol* protocol, bool a
 		}
 
 #endif
-		omsg.reset(new OutputMessage, boost::bind(&OutputMessagePool::internalReleaseMessage, this, _1));
+		omsg.reset(new OutputMessage, boost::bind(
+			&OutputMessagePool::releaseMessage, this, _1));
 #ifdef __TRACK_NETWORK__
 		m_allOutputMessages.push_back(omsg.get());
 #endif
 	}
 	else
 	{
-		omsg.reset(m_outputMessages.back(), boost::bind(&OutputMessagePool::internalReleaseMessage, this, _1));
+		omsg.reset(m_outputMessages.back(), boost::bind(
+			&OutputMessagePool::releaseMessage, this, _1));
 #ifdef __TRACK_NETWORK__
 		// Print message trace
 		if(omsg->getState() != OutputMessage::STATE_FREE)

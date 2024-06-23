@@ -1,5 +1,6 @@
 local reloadInfo = {
 	{RELOAD_ACTIONS, "actions", "action"},
+	{RELOAD_CHAT, "chat", "channels"},
 	{RELOAD_CONFIG, "config", "configuration"},
 	{RELOAD_CREATUREEVENTS, "creatureevents", "creature events", "creaturescripts", "creature scripts"},
 	{RELOAD_GAMESERVERS, "gameservers", "game servers", "servers"},
@@ -22,7 +23,7 @@ local reloadInfo = {
 	{RELOAD_ALL, "all", "everything"}
 }
 
-function onSay(cid, words, param)
+function onSay(cid, words, param, channel)
 	param = param:lower()
 	local str = "Reload type not found."
 	for _, v in ipairs(reloadInfo) do

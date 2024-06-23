@@ -1,30 +1,28 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// otserv main. The only place where things get instantiated.
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
 #include "otsystem.h"
 
-#include <string>
 #include <iostream>
-#include <sstream>
 #include <fstream>
 #include <iomanip>
+#ifndef WIN32
+#include <unistd.h>
+#endif
 
 #include "server.h"
 #ifdef __LOGIN_SERVER__
@@ -33,8 +31,10 @@
 #include "networkmessage.h"
 
 #include "game.h"
+#include "chat.h"
 #include "tools.h"
 #include "rsa.h"
+#include "textlogger.h"
 
 #include "protocollogin.h"
 #include "protocolgame.h"
@@ -54,6 +54,7 @@
 
 #include "outfit.h"
 #include "vocation.h"
+#include "group.h"
 
 #include "monsters.h"
 #ifdef __OTSERV_ALLOCATOR__
@@ -67,7 +68,6 @@
 #ifdef WIN32
 #include "shellapi.h"
 #include "gui.h"
-#include "textlogger.h"
 #include "inputbox.h"
 #include "commctrl.h"
 #endif
@@ -75,7 +75,7 @@
 #include "resources.h"
 #endif
 
-#ifdef BOOST_NO_EXCEPTIONS
+#ifdef __NO_BOOST_EXCEPTIONS__
 #include <exception>
 
 void boost::throw_exception(std::exception const & e)
@@ -84,24 +84,21 @@ void boost::throw_exception(std::exception const & e)
 }
 #endif
 
-IPList serverIPs;
 ConfigManager g_config;
 Game g_game;
-
+Chat g_chat;
 Monsters g_monsters;
 Npcs g_npcs;
+#if defined(WIN32) && not defined(__CONSOLE__)
+TextLogger g_logger;
+NOTIFYICONDATA NID;
+#endif
 
-Vocations g_vocations;
+IPList serverIPs;
 RSA* g_otservRSA = NULL;
 #ifdef __REMOTE_CONTROL__
 extern Admin* g_admin;
 #endif
-
-#if defined(WIN32) && not defined(__CONSOLE__)
-NOTIFYICONDATA NID;
-TextLogger logger;
-#endif
-
 OTSYS_THREAD_LOCKVAR_PTR g_loaderLock;
 OTSYS_THREAD_SIGNALVAR g_loaderSignal;
 
@@ -116,6 +113,7 @@ bool argumentsHandler(StringVec args)
 			std::cout << "Usage:\n"
 			"\n"
 			"\t--config=$1\t\tAlternate configuration file path.\n"
+			"\t--data-directory=$1\tAlternate data directory path.\n"
 			"\t--ip=$1\t\t\tIP address of gameworld server.\n"
 			"\t\t\t\tShould be equal to the global IP.\n"
 			"\t--login-port=$1\tPort for login server to listen on.\n"
@@ -136,31 +134,25 @@ bool argumentsHandler(StringVec args)
 		tmp = explodeString((*it), "=");
 		if(tmp[0] == "--config")
 			g_config.setString(ConfigManager::CONFIG_FILE, tmp[1]);
-
-		if(tmp[0] == "--ip")
+		else if(tmp[0] == "--data-directory")
+			g_config.setString(ConfigManager::DATA_DIRECTORY, tmp[1]);
+		else if(tmp[0] == "--ip")
 			g_config.setString(ConfigManager::IP, tmp[1]);
-
-		if(tmp[0] == "--login-port")
+		else if(tmp[0] == "--login-port")
 			g_config.setNumber(ConfigManager::LOGIN_PORT, atoi(tmp[1].c_str()));
-
-		if(tmp[0] == "--game-port")
+		else if(tmp[0] == "--game-port")
 			g_config.setNumber(ConfigManager::GAME_PORT, atoi(tmp[1].c_str()));
-
-		if(tmp[0] == "--admin-port")
+		else if(tmp[0] == "--admin-port")
 			g_config.setNumber(ConfigManager::ADMIN_PORT, atoi(tmp[1].c_str()));
-
-		if(tmp[0] == "--status-port")
+		else if(tmp[0] == "--status-port")
 			g_config.setNumber(ConfigManager::STATUS_PORT, atoi(tmp[1].c_str()));
 #ifndef WIN32
-
-		if(tmp[0] == "--runfile")
+		else if(tmp[0] == "--runfile")
 			g_config.setString(ConfigManager::RUNFILE, tmp[1]);
 #endif
-
-		if(tmp[0] == "--output-log")
+		else if(tmp[0] == "--output-log")
 			g_config.setString(ConfigManager::OUT_LOG, tmp[1]);
-
-		if(tmp[0] == "--error-log")
+		else if(tmp[0] == "--error-log")
 			g_config.setString(ConfigManager::ERROR_LOG, tmp[1]);
 	}
 
@@ -227,10 +219,9 @@ void startupErrorMessage(const std::string& error)
 	if(error.length() > 0)
 		std::cout << std::endl << "> ERROR: " << error << std::endl;
 
-	#ifdef WIN32
-	#ifndef __CONSOLE__
+	#if defined(WIN32) && not defined(__CONSOLE__)
+	MessageBox(GUI::getInstance()->m_mainWindow, error.c_str(), "Error", MB_OK);
 	system("pause");
-	#endif
 	#else
 	getchar();
 	#endif
@@ -249,23 +240,25 @@ int main(int argc, char *argv[])
 	StringVec args = StringVec(argv, argv + argc);
 	if(argc > 1 && !argumentsHandler(args))
 		return 0;
+
 #else
 void serverMain(void* param)
 {
-	std::cout.rdbuf(&logger);
-	std::cerr.rdbuf(&logger);
+	std::cout.rdbuf(&g_logger);
+	std::cerr.rdbuf(&g_logger);
 #endif
-
+	ServiceManager servicer;
 	g_config.startup();
+
+	#ifdef __OTSERV_ALLOCATOR_STATS__
+	OTSYS_CREATE_THREAD(allocatorStatsThread, NULL);
+	#endif
 	#ifdef __EXCEPTION_TRACER__
 	ExceptionHandler mainExceptionHandler;
 	mainExceptionHandler.InstallHandler();
 	#endif
-	#ifdef __OTSERV_ALLOCATOR_STATS__
-	OTSYS_CREATE_THREAD(allocatorStatsThread, NULL);
-	#endif
-
 	#ifndef WIN32
+
 	// ignore sigpipe...
 	struct sigaction sigh;
 	sigh.sa_handler = SIG_IGN;
@@ -286,8 +279,6 @@ void serverMain(void* param)
 
 	OTSYS_THREAD_LOCKVARINIT(g_loaderLock);
 	OTSYS_THREAD_SIGNALVARINIT(g_loaderSignal);
-
-	ServiceManager servicer;
 	Dispatcher::getDispatcher().addTask(createTask(boost::bind(otserv,
 	#if not defined(WIN32) || defined(__CONSOLE__)
 	args,
@@ -296,15 +287,45 @@ void serverMain(void* param)
 
 	OTSYS_THREAD_LOCK(g_loaderLock, "otserv()");
 	OTSYS_THREAD_WAITSIGNAL(g_loaderSignal, g_loaderLock);
+	if(servicer.isRunning())
+	{
+		std::cout << ">> " << g_config.getString(ConfigManager::SERVER_NAME) << " server Online!" << std::endl << std::endl;
+		#if defined(WIN32) && not defined(__CONSOLE__)
+		SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Status: Online!");
+		GUI::getInstance()->m_connections = true;
+		#endif
+		servicer.run();
+	}
+	else
+	{
+		std::cout << ">> " << g_config.getString(ConfigManager::SERVER_NAME) << " server Offline! No services available..." << std::endl << std::endl;
+		#if defined(WIN32) && not defined(__CONSOLE__)
+		SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Status: Offline!");
+		GUI::getInstance()->m_connections = true;
+		#endif
+	}
 
 	#if not defined(WIN32) || defined(__CONSOLE__)
-	std::string outPath = g_config.getString(ConfigManager::OUT_LOG), errorPath = g_config.getString(ConfigManager::ERROR_LOG);
-	boost::shared_ptr<std::ofstream> outFile;
-	if(outPath != "" && outPath.length() > 2)
+	std::string outPath = g_config.getString(ConfigManager::OUT_LOG), errPath = g_config.getString(ConfigManager::ERROR_LOG);
+	if(outPath.length() < 3)
+		outPath = "";
+	else if(outPath[0] != '/' && outPath[1] != ':')
 	{
-		if(outPath[0] != '/' && outPath[1] != ':')
-			outPath = getFilePath(FILE_TYPE_LOG, outPath);
+		outPath = getFilePath(FILE_TYPE_LOG, outPath);
+		std::cout << "> Logging output to file: " << outPath << std::endl;
+	}
 
+	if(errPath.length() < 3)
+		errPath = "";
+	else if(errPath[0] != '/' && errPath[1] != ':')
+	{
+		errPath = getFilePath(FILE_TYPE_LOG, errPath);
+		std::cout << "> Logging errors to file: " << errPath << std::endl;
+	}
+
+	if(outPath != "")
+	{
+		boost::shared_ptr<std::ofstream> outFile;
 		outFile.reset(new std::ofstream(outPath.c_str(), (g_config.getBool(ConfigManager::TRUNCATE_LOGS) ?
 			std::ios::trunc : std::ios::app) | std::ios::out));
 		if(!outFile->is_open())
@@ -313,44 +334,23 @@ void serverMain(void* param)
 		std::cout.rdbuf(outFile->rdbuf());
 	}
 
-	boost::shared_ptr<std::ofstream> errorFile;
-	if(errorPath != "" && errorPath.length() > 2)
+	if(errPath != "")
 	{
-		if(errorPath[0] != '/' && errorPath[1] != ':')
-			errorPath = getFilePath(FILE_TYPE_LOG, errorPath);
-
-		errorFile.reset(new std::ofstream(errorPath.c_str(), (g_config.getBool(ConfigManager::TRUNCATE_LOGS) ?
+		boost::shared_ptr<std::ofstream> errFile;
+		errFile.reset(new std::ofstream(errPath.c_str(), (g_config.getBool(ConfigManager::TRUNCATE_LOGS) ?
 			std::ios::trunc : std::ios::app) | std::ios::out));
-		if(!errorFile->is_open())
+		if(!errFile->is_open())
 			startupErrorMessage("Could not open error log file for writing!");
 
-		std::cerr.rdbuf(errorFile->rdbuf());
-	}
-	#endif
-	
-	#ifndef WIN32
-	std::string runPath = g_config.getString(ConfigManager::RUNFILE);
-	if(runPath != "" && runPath.length() > 2)
-	{
-		std::ofstream runFile(runPath.c_str(), std::ios::trunc | std::ios::out);
-		runFile << getpid();
-		runFile.close();
-		atexit(runfileHandler);
+		std::cerr.rdbuf(errFile->rdbuf());
 	}
 	#endif
 
-	std::cout << ">> " << g_config.getString(ConfigManager::SERVER_NAME) << " server Online!" << std::endl << std::endl;
-	#if defined(WIN32) && not defined(__CONSOLE__)
-	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Status: Online!");
-	GUI::getInstance()->m_connections = true;
-
-	#endif
-	servicer.run();
 #ifdef __EXCEPTION_TRACER__
 	mainExceptionHandler.RemoveHandler();
 #endif
+	exit(0);
 #ifdef __CONSOLE__
-
 	return 0;
 #endif
 }
@@ -384,32 +384,59 @@ ServiceManager* services)
 	#endif
 
 	std::cout << STATUS_SERVER_NAME << ", version " << STATUS_SERVER_VERSION << " (" << STATUS_SERVER_CODENAME << ")" << std::endl;
-	std::cout << "A server developed by Elf, Talaturen, Lithium, Kiper, Kornholijo, Jonern & Nightmare." << std::endl;
+	std::cout << "A server developed by Elf, Talaturen, Lithium, Kiper, Kornholijo, KaczooH, slawkens & Macroman." << std::endl;
 	std::cout << "Visit our forum for updates, support and resources: http://otland.net." << std::endl;
 	std::cout << std::endl;
-	#if defined __DEBUG__MOVESYS__ || defined __DEBUG_HOUSES__ || defined __DEBUG_MAILBOX__ || defined __DEBUG_LUASCRIPTS__ || defined __DEBUG_RAID__ || defined __DEBUG_NET__
-	std::cout << ">> Debugging:";
-	#ifdef __DEBUG__MOVESYS__
-	std::cout << " MOVESYS";
+
+	std::stringstream ss;
+	#ifdef __DEBUG__
+	ss << " GLOBAL";
 	#endif
-	#ifdef __DEBUG_MAILBOX__
-	std::cout << " MAILBOX";
+	#ifdef __DEBUG__MOVESYS__
+	ss << " MOVESYS";
+	#endif
+	#ifdef __DEBUG_CHAT__
+	ss << " CHAT";
+	#endif
+	#ifdef __DEBUG_EXCEPTION_REPORT__
+	ss << " EXCEPTION-REPORT";
 	#endif
 	#ifdef __DEBUG_HOUSES__
-	std::cout << " HOUSES";
+	ss << " HOUSES";
 	#endif
 	#ifdef __DEBUG_LUASCRIPTS__
-	std::cout << " LUA-SCRIPTS";
+	ss << " LUA-SCRIPTS";
 	#endif
-	#ifdef __DEBUG_RAID__
-	std::cout << " RAIDS";
+	#ifdef __DEBUG_MAILBOX__
+	ss << " MAILBOX";
 	#endif
 	#ifdef __DEBUG_NET__
-	std::cout << " NET-ASIO";
+	ss << " NET";
 	#endif
-	std::cout << std::endl;
+	#ifdef __DEBUG_NET_DETAIL__
+	ss << " NET-DETAIL";
+	#endif
+	#ifdef __DEBUG_RAID__
+	ss << " RAIDS";
+	#endif
+	#ifdef __DEBUG_SCHEDULER__
+	ss << " SCHEDULER";
+	#endif
+	#ifdef __DEBUG_SPAWN__
+	ss << " SPAWNS";
+	#endif
+	#ifdef __SQL_QUERY_DEBUG__
+	ss << " SQL-QUERIES";
 	#endif
 
+	std::string debug = ss.str();
+	std::cout << ">> Debugging:";
+	if(debug.empty())
+		std::cout << " nothing";
+	else
+		std::cout << ss.str();
+	
+	std::cout << "." << std::endl;
 	std::cout << ">> Checking software version... ";
 	if(xmlDocPtr doc = xmlParseFile(VERSION_CHECK))
 	{
@@ -473,7 +500,21 @@ ServiceManager* services)
 	if(!g_config.load())
 		startupErrorMessage("Unable to load " + g_config.getString(ConfigManager::CONFIG_FILE) + "!");
 
+	IntegerVec cores = vectorAtoi(explodeString(g_config.getString(ConfigManager::CORES_USED), ","));
+	if(cores[0] != -1)
+	{
 	#ifdef WIN32
+		int32_t mask = 0;
+		for(IntegerVec::iterator it = cores.begin(); it != cores.end(); ++it)
+			mask += 1 << (*it);
+
+		SetProcessAffinityMask(GetCurrentProcess(), mask); //someone test it, please
+	}
+
+	CreateMutex(NULL, true, "forgottenserver_" + g_config.getNumber(ConfigManager::WORLD_ID));
+	if(GetLastError() == ERROR_ALREADY_EXISTS)
+		startupErrorMessage("Another instance of The Forgotten Server is already running with the same worldId.\nIf you want to run multiple servers, please change the worldId in configuration file.");
+
 	std::string defaultPriority = asLowerCaseString(g_config.getString(ConfigManager::DEFAULT_PRIORITY));
 	if(defaultPriority == "realtime")
 		SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
@@ -481,8 +522,27 @@ ServiceManager* services)
   	 	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
   	else if(defaultPriority == "higher")
   		SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
-  	#endif
 
+	#else
+		cpu_set_t mask;
+		CPU_ZERO(&mask);
+		for(IntegerVec::iterator it = cores.begin(); it != cores.end(); ++it)
+			CPU_SET((*it), &mask);
+
+		sched_setaffinity(getpid(), (int32_t)sizeof(mask), &mask);
+	}
+
+	std::string runPath = g_config.getString(ConfigManager::RUNFILE);
+	if(runPath != "" && runPath.length() > 2)
+	{
+		std::ofstream runFile(runPath.c_str(), std::ios::trunc | std::ios::out);
+		runFile << getpid();
+		runFile.close();
+		atexit(runfileHandler);
+	}
+
+	if(!nice(g_config.getNumber(ConfigManager::NICE_LEVEL))) {}
+	#endif
 	std::string passwordType = asLowerCaseString(g_config.getString(ConfigManager::PASSWORD_TYPE));
 	if(passwordType == "md5")
 	{
@@ -562,11 +622,18 @@ ServiceManager* services)
 			startupErrorMessage("Unable to load items (XML)!");
 	}
 
+	std::cout << ">> Loading groups" << std::endl;
+	#ifndef __CONSOLE__
+	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading groups");
+	#endif
+	if(!Groups::getInstance()->loadFromXml())
+		startupErrorMessage("Unable to load groups!");
+
 	std::cout << ">> Loading vocations" << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading vocations");
 	#endif
-	if(!g_vocations.loadFromXml())
+	if(!Vocations::getInstance()->loadFromXml())
 		startupErrorMessage("Unable to load vocations!");
 
 	std::cout << ">> Loading script systems" << std::endl;
@@ -576,12 +643,18 @@ ServiceManager* services)
 	if(!ScriptingManager::getInstance()->loadScriptSystems())
 		startupErrorMessage("");
 
+	std::cout << ">> Loading chat channels" << std::endl;
+	#ifndef __CONSOLE__
+	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading chat channels");
+	#endif
+	if(!g_chat.loadFromXml())
+		startupErrorMessage("Unable to load chat channels!");
+
 	std::cout << ">> Loading outfits" << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading outfits");
 	#endif
-	Outfits* outfits = Outfits::getInstance();
-	if(!outfits->loadFromXml())
+	if(!Outfits::getInstance()->loadFromXml())
 		startupErrorMessage("Unable to load outfits!");
 
 	std::cout << ">> Loading experience stages" << std::endl;
@@ -670,23 +743,21 @@ ServiceManager* services)
 	serverIPs.push_back(std::make_pair(inet_addr("127.0.0.1"), 0xFFFFFFFF));
 
 	char hostName[128];
-	if(gethostname(hostName, 128) == 0)
+	hostent* host = NULL;
+	if(!gethostname(hostName, 128) && (host = gethostbyname(hostName)))
 	{
-		if(hostent* host = gethostbyname(hostName))
+		uint8_t** address = (uint8_t**)host->h_addr_list;
+		while(address[0] != NULL)
 		{
-			uint8_t** address = (uint8_t**)host->h_addr_list;
-			while(address[0] != NULL)
-			{
-				serverIPs.push_back(std::make_pair(*(uint32_t*)(*address), 0x0000FFFF));
-				address++;
-			}
+			serverIPs.push_back(std::make_pair(*(uint32_t*)(*address), 0x0000FFFF));
+			address++;
 		}
 	}
 
 	uint32_t resolvedIp = inet_addr(ip.c_str());
 	if(resolvedIp == INADDR_NONE)
 	{
-		if(hostent* host = gethostbyname(ip.c_str()))
+		if((host = gethostbyname(ip.c_str())))
 			resolvedIp = *(uint32_t*)host->h_addr;
 		else
 			startupErrorMessage("Cannot resolve " + ip + "!");
@@ -841,7 +912,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 						GUI::getInstance()->m_logText = "";
 						GUI::getInstance()->m_lineCount = 0;
 						std::cout << STATUS_SERVER_NAME << ", version " << STATUS_SERVER_VERSION << " (" << STATUS_SERVER_CODENAME << ")" << std::endl;
-						std::cout << "A server developed by Elf, Talaturen, Lithium, Kiper, Kornholijo, Jonern & Nightmare." << std::endl;
+						std::cout << "A server developed by Elf, Talaturen, Lithium, Kiper, Kornholijo, KaczooH, slawkens & Macroman." << std::endl;
 						std::cout << "Visit our forum for updates, support and resources: http://otland.net." << std::endl;
 						std::cout << std::endl;
 					}

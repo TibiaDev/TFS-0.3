@@ -1,40 +1,38 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
+#include "resources.h"
+#include <iomanip>
 
 #include "protocollogin.h"
-#include "resources.h"
-
-#include "outputmessage.h"
-#include "connection.h"
+#include "tools.h"
 #include "rsa.h"
 
-#include "configmanager.h"
-#include "tools.h"
 #include "iologindata.h"
 #include "ioban.h"
-#include <iomanip>
-#include "game.h"
+
 #ifndef __CONSOLE__
 #include "gui.h"
 #endif
+#include "outputmessage.h"
+#include "connection.h"
+
+#include "configmanager.h"
+#include "game.h"
 
 extern RSA* g_otservRSA;
 extern ConfigManager g_config;
@@ -140,16 +138,6 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 		return false;
 	}
 
-	uint32_t serverIP = serverIPs[0].first;
-	for(uint32_t i = 0; i < serverIPs.size(); i++)
-	{
-		if((serverIPs[i].first & serverIPs[i].second) == (clientIP & serverIPs[i].second))
-		{
-			serverIP = serverIPs[i].first;
-			break;
-		}
-	}
-
 	Account account;
 	if(IOLoginData::getInstance()->getAccountId(name, id) || (!name.length() && g_config.getBool(ConfigManager::ACCOUNT_MANAGER)))
 	{
@@ -184,6 +172,16 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 		sprintf(motd, "%d\n%s", g_game.getMotdNum(), g_config.getString(ConfigManager::MOTD).c_str());
 		output->AddString(motd);
 
+		uint32_t serverIP = serverIPs[0].first;
+		for(uint32_t i = 0; i < serverIPs.size(); i++)
+		{
+			if((serverIPs[i].first & serverIPs[i].second) == (clientIP & serverIPs[i].second))
+			{
+				serverIP = serverIPs[i].first;
+				break;
+			}
+		}
+
 		//Add char list
 		output->AddByte(0x64);
 		if(g_config.getBool(ConfigManager::ACCOUNT_MANAGER) && id != 1)
@@ -214,6 +212,9 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 			output->AddU32(serverIP);
 			output->AddU16(g_config.getNumber(ConfigManager::GAME_PORT));
 			#else
+			if(version < it->second->getVersionMin() || version > it->second->getVersionMax())
+				continue;
+
 			output->AddString(it->first);
 			output->AddString(it->second->getName());
 			output->AddU32(inet_addr(it->second->getAddress().c_str()));

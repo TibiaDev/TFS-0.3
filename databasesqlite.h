@@ -33,13 +33,13 @@ class DatabaseSQLite : public _Database
 {
 	public:
 		DatabaseSQLite();
-		DATABASE_VIRTUAL ~DatabaseSQLite();
+		DATABASE_VIRTUAL ~DatabaseSQLite() {sqlite3_close(m_handle);}
 
 		DATABASE_VIRTUAL bool getParam(DBParam_t param);
 
-		DATABASE_VIRTUAL bool beginTransaction();
-		DATABASE_VIRTUAL bool rollback();
-		DATABASE_VIRTUAL bool commit();
+		DATABASE_VIRTUAL bool beginTransaction() {return executeQuery("BEGIN");}
+		DATABASE_VIRTUAL bool rollback() {return executeQuery("ROLLBACK");}
+		DATABASE_VIRTUAL bool commit() {return executeQuery("COMMIT");}
 
 		DATABASE_VIRTUAL bool executeQuery(const std::string &query);
 		DATABASE_VIRTUAL DBResult* storeQuery(const std::string &query);
@@ -47,16 +47,13 @@ class DatabaseSQLite : public _Database
 		DATABASE_VIRTUAL std::string escapeString(const std::string &s);
 		DATABASE_VIRTUAL std::string escapeBlob(const char* s, uint32_t length);
 
-		DATABASE_VIRTUAL void freeResult(DBResult *res);
-
-		DATABASE_VIRTUAL std::string getStringComparisonOperator() { return "LIKE"; }
-
-		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() { return DATABASE_ENGINE_SQLITE; }
+		DATABASE_VIRTUAL std::string getStringComparisonOperator() {return "LIKE";}
+		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() {return DATABASE_ENGINE_SQLITE;}
 
 	protected:
-		std::string _parse(const std::string &s);
-
 		OTSYS_THREAD_LOCKVAR sqliteLock;
+
+		std::string _parse(const std::string &s);
 		sqlite3* m_handle;
 };
 
@@ -70,11 +67,12 @@ class SQLiteResult : public _DBResult
 		DATABASE_VIRTUAL std::string getDataString(const std::string &s);
 		DATABASE_VIRTUAL const char* getDataStream(const std::string &s, uint64_t &size);
 
-		DATABASE_VIRTUAL bool next();
+		DATABASE_VIRTUAL void free();
+		DATABASE_VIRTUAL bool next() {return sqlite3_step(m_handle) == SQLITE_ROW;}
 
 	protected:
 		SQLiteResult(sqlite3_stmt* stmt);
-		DATABASE_VIRTUAL ~SQLiteResult() {sqlite3_finalize(m_handle);}
+		DATABASE_VIRTUAL ~SQLiteResult() {}
 
 		typedef std::map<const std::string, uint32_t> listNames_t;
 		listNames_t m_listNames;

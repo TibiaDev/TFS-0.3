@@ -23,40 +23,50 @@
 #include "otsystem.h"
 #include "const.h"
 
+#include <fstream>
 #include "party.h"
 
 class Player;
 
-typedef std::list<uint32_t> UsersList;
+typedef std::map<uint32_t, Player*> UsersMap;
+typedef std::list<uint32_t> InviteList;
 
 class ChatChannel
 {
 	public:
-		ChatChannel(uint16_t channelId, std::string channelName);
+		ChatChannel(uint16_t id, std::string name, bool logged = false, uint32_t access = 0, bool enabled = true);
 		virtual ~ChatChannel() {}
+
+		const uint16_t getId() {return m_id;}
+		const std::string& getName() {return m_name;}
+
+		const UsersMap& getUsers() {return m_users;}
+		virtual const uint32_t getOwner() {return 0;}
+
+		uint16_t getAccess() const {return m_access;}
+		bool isLogged() const {return m_logged;}
+		bool isEnabled() const {return m_enabled;}
 
 		bool addUser(Player* player);
 		bool removeUser(Player* player);
 
-		bool talk(Player* player, SpeakClasses type, const std::string& text, uint32_t time = 0);
-
-		const std::string& getName() {return m_name;}
-		const uint16_t getId() {return m_id;}
-		const UsersList& getUsers() {return m_users;}
-
-		virtual const uint32_t getOwner() {return 0;}
+		bool talk(Player* player, SpeakClasses type, const std::string& text, uint32_t _time = 0);
 
 	protected:
 		std::string m_name;
-		uint16_t m_id;
-		UsersList m_users;
+
+		bool m_logged, m_enabled;
+		uint16_t m_id, m_access;
+
+		UsersMap m_users;
+		boost::shared_ptr<std::ofstream> m_file;
 };
 
 class PrivateChatChannel : public ChatChannel
 {
 	public:
-		PrivateChatChannel(uint16_t channelId, std::string channelName);
-		virtual ~PrivateChatChannel(){}
+		PrivateChatChannel(uint16_t id, std::string name, bool logged);
+		virtual ~PrivateChatChannel() {}
 
 		virtual const uint32_t getOwner() {return m_owner;}
 		void setOwner(uint32_t id) {m_owner = id;}
@@ -72,7 +82,7 @@ class PrivateChatChannel : public ChatChannel
 		void closeChannel();
 
 	protected:
-		UsersList m_invites;
+		InviteList m_invites;
 		uint32_t m_owner;
 };
 
@@ -81,8 +91,12 @@ typedef std::list<ChatChannel*> ChannelList;
 class Chat
 {
 	public:
-		Chat();
+		Chat(): dummyPrivate(NULL), partyName("Party"), partyLogged(false) {}
 		virtual ~Chat();
+
+		bool reload();
+		bool loadFromXml();
+		bool parseChannelNode(xmlNodePtr p);
 
 		ChatChannel* createChannel(Player* player, uint16_t channelId);
 		bool deleteChannel(Player* player, uint16_t channelId);
@@ -101,16 +115,23 @@ class Chat
 		PrivateChatChannel* getPrivateChannel(Player* player);
 
 	private:
+		void clear();
+
 		typedef std::map<uint16_t, ChatChannel*> NormalChannelMap;
-		typedef std::map<uint16_t, PrivateChatChannel*> PrivateChannelMap;
-		typedef std::map<Party*, ChatChannel*> PartyChannelMap;
-		typedef std::map<uint32_t, ChatChannel*> GuildChannelMap;
 		NormalChannelMap m_normalChannels;
+
+		typedef std::map<uint16_t, PrivateChatChannel*> PrivateChannelMap;
 		PrivateChannelMap m_privateChannels;
+
+		typedef std::map<Party*, ChatChannel*> PartyChannelMap;
 		PartyChannelMap m_partyChannels;
+
+		typedef std::map<uint32_t, ChatChannel*> GuildChannelMap;
 		GuildChannelMap m_guildChannels;
 
 		ChatChannel* dummyPrivate;
+		std::string partyName;
+		bool partyLogged;
 };
 
 #endif

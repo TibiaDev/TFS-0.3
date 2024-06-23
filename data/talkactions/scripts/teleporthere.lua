@@ -1,4 +1,4 @@
-function onSay(cid, words, param)
+function onSay(cid, words, param, channel)
 	if(param == "") then
 		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Command requires param.")
 		return TRUE
@@ -19,7 +19,7 @@ function onSay(cid, words, param)
 	end
 
 	local pos = getClosestFreeTile(target, getCreaturePosition(cid))
-	if(pos == LUA_ERROR or isInArray({pos.x, pos.y, pos.z}, 0) == TRUE) then
+	if(pos == LUA_ERROR or isInArray({pos.x, pos.y}, 0) == TRUE) then
 		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Cannot perform action.")
 		return TRUE
 	end

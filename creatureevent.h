@@ -22,6 +22,7 @@
 #define __OTSERV_CREATUREEVENT_H__
 #include "baseevents.h"
 #include "enums.h"
+
 #include "tile.h"
 
 enum CreatureEventType_t
@@ -35,6 +36,7 @@ enum CreatureEventType_t
 	CREATURE_EVENT_LOOK,
 	CREATURE_EVENT_MAIL_SEND,
 	CREATURE_EVENT_MAIL_RECEIVE,
+	CREATURE_EVENT_TEXTEDIT,
 	CREATURE_EVENT_THINK,
 	CREATURE_EVENT_STATSCHANGE,
 	CREATURE_EVENT_COMBAT_AREA,
@@ -83,7 +85,7 @@ class CreatureEvents : public BaseEvents
 		CreatureEventList m_creatureEvents;
 };
 
-typedef std::list<uint32_t> UsersList;
+typedef std::map<uint32_t, Player*> UsersMap;
 
 class CreatureEvent : public Event
 {
@@ -103,12 +105,13 @@ class CreatureEvent : public Event
 		//scripting
 		uint32_t executeLogin(Player* player);
 		uint32_t executeLogout(Player* player);
-		uint32_t executeChannelJoin(Player* player, uint16_t channelId, UsersList usersList);
-		uint32_t executeChannelLeave(Player* player, uint16_t channelId, UsersList usersList);
+		uint32_t executeChannelJoin(Player* player, uint16_t channelId, UsersMap usersMap);
+		uint32_t executeChannelLeave(Player* player, uint16_t channelId, UsersMap usersMap);
 		uint32_t executeAdvance(Player* player, skills_t skill, uint32_t oldLevel, uint32_t newLevel);
-		uint32_t executeLook(Player* player, const Position& position, uint8_t stackpos);
+		uint32_t executeLook(Player* player, Thing* thing, const Position& position, int16_t stackpos, int32_t lookDistance);
 		uint32_t executeMailSend(Player* player, Player* receiver, Item* item, bool openBox);
 		uint32_t executeMailReceive(Player* player, Player* sender, Item* item, bool openBox);
+		uint32_t executeTextEdit(Player* player, Item *item, std::string newText);
 		uint32_t executeThink(Creature* creature, uint32_t interval);
 		uint32_t executeStatsChange(Creature* creature, Creature* attacker, StatsChange_t type, CombatType_t combat, int32_t value);
 		uint32_t executeCombatArea(Creature* creature, Tile* tile, bool isAggressive);

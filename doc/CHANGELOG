@@ -3,7 +3,7 @@
 		The Forgotten Server
 
 	Version
-		0.3.3
+		0.3.4
 
 	Codenamed
 		Crying Damson
@@ -61,7 +61,7 @@
 					database.lua
 					exhaustion.lua
 						* Added files created from global.lua (organized)
-				
+
 				logs/
 					server/
 						* Created directory for GUI logs
@@ -537,6 +537,116 @@
 		D...
 
 	]
+	[ 0.3.4
+		A...
+			data/
+				actions/
+					scripts/
+						other/
+							enchanting.lua
+								* Added enchanting system
+							furniturebeds.lua
+								* Added furniture beds (packages with beds)
+
+				items/
+					randomization.xml
+						* Moved item randomization configuration here
+
+				XML/
+					channels.xml
+						* Moved chat channels configuration here
+
+					groups.xml
+						* Moved groups configuration here
+
+		M...
+			data/
+				actions/
+					actions.xml
+						* Added furniture beds (packages with beds)
+						* Reorganization
+					scripts/
+						quests/
+							system.lua
+							annihilator.lua
+								* Changes due player storage compatibility
+						other/
+							blueberrybush.lua
+							changegold.lua
+							constructionkits.lua
+							food.lua
+								* Fixes & formatting
+							machete.lua
+								* Added jungle grass
+							pick.lua
+								* Fragile ice 'picking'
+							rope.lua
+								* Fixed error in console
+
+				creaturescripts/
+					scripts/
+						firstitems.lua
+						playerdeath.lua
+						guildmotd.lua
+							* Fixes
+
+				items/
+					items.xml
+						* Fixed few issues, and added new items
+
+				lib/
+					exhaustion.lua
+						* Fixes + changes due player storage compatibility
+					function.lua
+						* Added new function: doPlayerAddFrags(cid, amount)
+						* Moved getPlayerMoney to sources
+						* doWriteLogFile fix
+					compat.lua
+						* Added doCreatureSetLookDirection
+					constant.lua
+						* Changes due true/false returing
+						* Reload constant for chat
+						* Player sex constants
+
+				logs/
+					chat/
+						* Created chat directory, for channels logging
+
+				movements/
+					scripts/
+						dough.lua
+							* Param added
+						snow.lua
+							* Invisible GM won't show snow foot prints
+
+				npc/
+					scripts/
+						runes.lua
+							* Changes due player storage compatibility
+
+				spells/
+					scripts/
+						summon/
+							*.lua
+								* Deprecated functions replaced
+
+				talkactions/
+					scripts/
+						*.lua
+							* Fixes
+							* Channels reloading
+							* Configurable premium days cost
+							* New param: channel (was always possible to use, but noone knew about it..)
+
+				XML/
+					servers.xml
+						* versionMin / versionMax attributes
+
+					stages.xml
+						* default multiplier attribute, NOTE: only in 'world' node
+
+		D...
+	]
 ]
 
 [ Milestone
@@ -553,7 +663,7 @@
 		Added most of monsters of protocol 8.1 and some of 8.2 (OpenTibia SVN, Lithium)
 		Attackspeed for items in items.xml (Talaturen)
 		Basespeed in vocations.xml (Talaturen)
-		onLook(cid, pos) creaturescript event (Talaturen)
+		onLook(cid, pos) creature event (Talaturen)
 		/pvp command to change worldtype (Talaturen)
 		/goto command (/goto x y z) (Talaturen)
 		Configurable level to form guild (Talaturen)
@@ -569,7 +679,7 @@
 		House buying and selling disabling on config.lua (Elf)
 		Namelock Manager while Account Manager is disabled configurable in config.lua (Elf)
 		Dropped LuaSQL and replaced with LuaDatabase (Elf, OpenLua-Distro)
-		onKill(cid, target) creaturescript event (Elf)
+		onKill(cid, target) creature event (Elf)
 		onAdvance(cid, skill, oldlevel, newlevel) creaturescript event (Elf)
 		onThink creaturescript event for creatures (Elf)
 		onThink and onLook events aren't fired global anymore (Elf)
@@ -594,7 +704,7 @@
 		Construction kits (Elf)
 		Global events (Elf)
 		Thing attribute changing (Kiper)
-		onAttack creaturescript (Elf)
+		onAttack creature event (Elf)
 		Database Manager - http://otland.net/f123/built-database-manager-12642/ (Talaturen)
 		Autotools (Talaturen)
 		Filesystem Hierarchy Standard (Kiper)
@@ -680,14 +790,28 @@
 		Clean/Refresh "scriptProtection" for items (Elf)
 		Added three new creature events: onCast, onCombat and onAreaCombat (Elf)
 	]
+	[ 0.3.4
+		Chat channels configuration in .xml file (Elf, slawkens)
+		Groups moved to groups.xml file + changed way, how they works (Elf)
+		Displaying XML parser errors (Elf, slawkens)
+		New CONFIG_HELP file, with config values description (slawkens, KaczooH)
+		Possiblity to use <vocation id=""/> in movements, spells etc. (slawkens)
+		onTextEdit creature event (slawkens)
+		Turn click (aka CTRL + key) teleportation (slawkens, Kiper)
+		New configurables: ghostModeInvisibleEffect, gainExperienceColor, checkCorpseOwner, showHealingDamageForMonsters (slawkens)
+		Moved items randomization to randomization.xml file (slawkens, Elf)
+		Furniture beds (packages with beds) + enchanting system (slawkens)
+		Outfit attributes (Elf)
+		Proccess priority and affinity assinging for both Windows and *nix systems (Elf)
+	]
 ]
 
 [ Deprecated
-	[ 0.3.1
-		[ Note
-			All deprecated Lua functions are stored in compat.lua and use their equivalents, nevertheless please use proper ones for new scripts.
-		]
+	[ NOTE
+		All deprecated Lua functions are stored in compat.lua and use their equivalents, nevertheless please use proper ones for new scripts.
+	]
 
+	[ 0.3.1
 		LuaFunction: savePlayers(), use saveData().
 		LuaFunction: doPlayerAddMana(cid, mana), use doCreatureAddMana(cid, mana)
 		LuaFunction: broadcastMessage(cid, type), use doBroadcastMessage(cid, type)
@@ -712,6 +836,10 @@
 	]
 	[ 0.3.3
 		LuaFunction: doPlayerSetExperienceRate, doPlayerSetMagicRate, use: doPlayerSetRate(... __LEVEL/__MAGLEVEL ...)
+	]
+	[ 0.3.4
+		LuaFunction: getPlayerLookDir(cid), use getCreatureLookDirection(cid)
+		Integer return values of Lua functions, use booleans
 	]
 ]
 
@@ -796,5 +924,15 @@
 		Namelocking removing notations (Elf)
 		Possibility to change the ip/port using NG script and login to different world than character in fact "comes from" (Elf)
 		"Decaying items transforming when used" (Elf)
+	]
+	[ 0.3.4
+		High memory usage (partially from OpenTibia SVN, Elf)
+		OutputMessage (fe. spells) crash (OpenTibia SVN, Elf)
+		MySQL crash, freeing issue (Elf)
+		Abusable sellhouse (OpenTibia SVN, Elf)
+		Gamemasters crashing client when on ghost mode (Elf)
+		Containers loaded from map having unproper weight (OpenTibia SVN)
+		Players being able to track gamemasters on ghost mode with EXURA SIO spell (Elf)
+		... and few more.
 	]
 ]

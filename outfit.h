@@ -25,13 +25,28 @@
 
 #define OUTFITS_QUEST_VALUE 1
 #define OUTFITS_MAX_NUMBER 25
+#define OUTFITS_ADDON_BONUS 3
 
 struct Outfit
 {
-	uint32_t looktype;
-	uint32_t addons;
-	uint32_t quest;
-	bool premium;
+	Outfit()
+	{
+		memset(skills, 0, sizeof(skills));
+		memset(skillsPercent, 0, sizeof(skillsPercent));
+		memset(stats, 0 , sizeof(stats));
+		memset(statsPercent, 0, sizeof(statsPercent));
+
+		memset(absorbPercent, 0, sizeof(absorbPercent));
+		premium = manaShield = invisible = regeneration = false;
+		looktype = addons = quest = speed = healthGain = healthTicks = manaGain = manaTicks = conditionSuppressions = 0;
+	}
+
+	bool premium, manaShield, invisible, regeneration;
+	int16_t absorbPercent[COMBAT_LAST + 1];
+
+	uint32_t looktype, addons, quest;
+	int32_t skills[SKILL_LAST + 1], skillsPercent[SKILL_LAST + 1], stats[STAT_LAST + 1], statsPercent[STAT_LAST + 1],
+		speed, healthGain, healthTicks, manaGain, manaTicks, conditionSuppressions;
 };
 
 typedef std::list<Outfit*> OutfitListType;
@@ -44,8 +59,9 @@ class OutfitList
 
 		void addOutfit(const Outfit& outfit);
 		bool remOutfit(const Outfit& outfit);
+
 		const OutfitListType& getOutfits() const {return m_list;}
-		bool isInList(int32_t playerId, uint32_t looktype, uint32_t addons) const;
+		bool isInList(uint32_t playerId, uint32_t lookType, uint32_t addons) const;
 
 	private:
 		OutfitListType m_list;
@@ -55,7 +71,6 @@ class Outfits
 {
 	public:
 		virtual ~Outfits();
-
 		static Outfits* getInstance()
 		{
 			static Outfits instance;
@@ -63,12 +78,10 @@ class Outfits
 		}
 
 		bool loadFromXml();
-
 		const OutfitListType& getOutfits(uint32_t type)
 		{
 			return getOutfitList(type).getOutfits();
 		}
-
 		const OutfitList& getOutfitList(uint32_t type)
 		{
 			if(type < m_list.size())
@@ -81,27 +94,23 @@ class Outfits
 			return m_maleList;
 		}
 
-		const std::string& getOutfitName(uint32_t looktype) const
-		{
-			OutfitNamesMap::const_iterator it = outfitNamesMap.find(looktype);
-			if(it != outfitNamesMap.end())
-				return it->second;
+		bool addAttributes(uint32_t playerId, uint32_t lookType);
+		bool removeAttributes(uint32_t playerId, uint32_t lookType);
 
-			static const std::string ret = "Outfit";
-			return ret;
-		}
+		const std::string& getOutfitName(uint32_t lookType) const;
+		int16_t getOutfitAbsorb(uint32_t lookType, uint32_t type, CombatType_t combat);
 
 	private:
 		Outfits();
+
+		OutfitList m_femaleList;
+		OutfitList m_maleList;
 
 		typedef std::vector<OutfitList*> OutfitsListVector;
 		OutfitsListVector m_list;
 
 		typedef std::map<uint32_t, std::string> OutfitNamesMap;
 		OutfitNamesMap outfitNamesMap;
-
-		OutfitList m_femaleList;
-		OutfitList m_maleList;
 };
 
 #endif

@@ -1,27 +1,21 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// Scheduler-Objects for OpenTibia
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
 #include "scheduler.h"
-#include <iostream>
-
 #if defined __EXCEPTION_TRACER__
 #include "exception.h"
 #endif
@@ -49,20 +43,14 @@ OTSYS_THREAD_RETURN Scheduler::schedulerThread(void* p)
 	{
 		SchedulerTask* task = NULL;
 		bool runTask = false;
-		int32_t ret;
+		int32_t ret = 0;
 
 		// check if there are events waiting...
-		OTSYS_THREAD_LOCK(getScheduler().m_eventLock, "schedulerThread()")
-		if(getScheduler().m_eventList.empty())
-		{
-			// unlock mutex and wait for signal
+		OTSYS_THREAD_LOCK(getScheduler().m_eventLock, "schedulerThread()");
+		if(getScheduler().m_eventList.empty()) // unlock mutex and wait for signal
 			ret = OTSYS_THREAD_WAITSIGNAL(getScheduler().m_eventSignal, getScheduler().m_eventLock);
-		}
-		else
-		{
-			// unlock mutex and wait for signal or timeout
+		else // unlock mutex and wait for signal or timeout
 			ret = OTSYS_THREAD_WAITSIGNAL_TIMED(getScheduler().m_eventSignal, getScheduler().m_eventLock, getScheduler().m_eventList.top()->getCycle());
-		}
 
 		// the mutex is locked again now...
 		if(ret == OTSYS_THREAD_TIMEOUT && Scheduler::m_threadState != Scheduler::STATE_TERMINATED)
@@ -96,7 +84,7 @@ OTSYS_THREAD_RETURN Scheduler::schedulerThread(void* p)
 	#if defined __EXCEPTION_TRACER__
 	schedulerExceptionHandler.RemoveHandler();
 	#endif
-	#if not defined(__USE_BOOST_THREAD__) && not defined(WIN32)
+	#if not defined(WIN32)
 	return NULL;
 	#endif
 }
@@ -141,10 +129,10 @@ uint32_t Scheduler::addEvent(SchedulerTask* task)
 
 bool Scheduler::stopEvent(uint32_t eventid)
 {
-	if(eventid == 0)
+	if(!eventid)
 		return false;
 
-	OTSYS_THREAD_LOCK(m_eventLock, "")
+	OTSYS_THREAD_LOCK(m_eventLock, "");
 	// search the event id...
 	EventIdSet::iterator it = m_eventIds.find(eventid);
 	if(it != m_eventIds.end())
@@ -154,12 +142,10 @@ bool Scheduler::stopEvent(uint32_t eventid)
 		OTSYS_THREAD_UNLOCK(m_eventLock, "");
 		return true;
 	}
-	else
-	{
-		// this eventid is not valid
-		OTSYS_THREAD_UNLOCK(m_eventLock, "");
-		return false;
-	}
+
+	// this eventid is not valid
+	OTSYS_THREAD_UNLOCK(m_eventLock, "");
+	return false;
 }
 
 void Scheduler::stop()

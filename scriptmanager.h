@@ -24,14 +24,17 @@
 class ScriptingManager
 {
 	public:
-		virtual ~ScriptingManager();
-		static ScriptingManager* getInstance();
-
 		bool loadScriptSystems();
 
+		virtual ~ScriptingManager() {}
+		static ScriptingManager* getInstance()
+		{
+			static ScriptingManager instance;
+			return &instance;
+		}
+
 	private:
-		ScriptingManager();
-		static ScriptingManager* _instance;
+		ScriptingManager() {}
 };
 
 #endif

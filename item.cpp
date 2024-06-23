@@ -1,42 +1,40 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// Represents an item
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
+#include <iostream>
+#include <iomanip>
 
-#include "definitions.h"
 #include "item.h"
 #include "container.h"
 #include "depot.h"
+
 #include "teleport.h"
 #include "trashholder.h"
 #include "mailbox.h"
-#include "house.h"
-#include "game.h"
+
 #include "luascript.h"
-#include "configmanager.h"
+#include "combat.h"
+
+#include "house.h"
 #include "beds.h"
 
 #include "actions.h"
-#include "combat.h"
-
-#include <iostream>
-#include <iomanip>
+#include "configmanager.h"
+#include "game.h"
 
 extern Game g_game;
 extern ConfigManager g_config;
@@ -100,71 +98,9 @@ Item* Item::CreateItem(PropStream& propStream)
 
 	if(g_config.getBool(ConfigManager::RANDOMIZE_TILES))
 	{
-		if(_id == 352 || _id == 353)
-			_id = 351;
-		else if(_id >= 709 && _id <= 711)
-			_id = 708;
-		else if(_id >= 3154 && _id <= 3157)
-			_id = 3153;
-		else if((_id >= 4527 && _id <= 4541) || _id == 4756)
-			_id = 4526;
-		else if(_id >= 4609 && _id <= 4619)
-			_id = 4608;
-		else if(_id >= 4692 && _id <= 4701)
-			_id = 4691;
-		else if(_id >= 5711 && _id <= 5726)
-			_id = 101;
-		else if(_id >= 6580 && _id <= 6593)
-			_id = 670;
-		else if(_id >= 6683 && _id <= 6686)
-			_id = 671;
-		else if(_id >= 5406 && _id <= 5410)
-			_id = 5405;
-		else if(_id >= 6805 && _id <= 6809)
-			_id = 6804;
-		else if(_id >= 7063 && _id <= 7066)
-			_id = 7062;
-
-		if((bool)random_range(0, 1))
-		{
-			switch(_id)
-			{
-				case 101:
-					_id = random_range(5711, 5726);
-					break;
-				case 351:
-				case 708:
-					_id += random_range(1, 3);
-					break;
-				case 3153:
-				case 7062:
-					_id += random_range(1, 4);
-					break;
-				case 670:
-					_id = random_range(6580, 6593);
-					break;
-				case 671:
-					_id = random_range(6683, 6686);
-					break;
-				case 4405:
-				case 4422:
-					_id += random_range(1, 16);
-					break;
-				case 4526:
-					_id += random_range(1, 15);
-					break;
-				case 4608:
-					_id += random_range(1, 11);
-					break;
-				case 4691:
-					_id += random_range(1, 10);
-					break;
-				case 5405:
-				case 6804:
-					_id += random_range(1, 5);
-					break;
-			}
-		}
+		RandomizationBlock randomize = items.getRandomization(_id);
+		if(randomize.chance > 0 && random_range(0, 100) <= randomize.chance)
+			_id = random_range(randomize.fromRange, randomize.toRange);
 	}
 
 	return Item::CreateItem(_id, 0);
@@ -187,7 +123,7 @@ ItemAttributes()
 	else if(it.charges != 0 && _count != 0)
 		setCharges(_count);
 
-	loadedFromMap = scriptProtected = false;
+	loadedFromMap = false;
 	setDefaultDuration();
 }
 
@@ -231,7 +167,6 @@ Item::~Item()
 void Item::setDefaultSubtype()
 {
 	count = 1;
-
 	const ItemType& it = items[id];
 	if(it.charges != 0)
 		setCharges(it.charges);
@@ -259,12 +194,6 @@ void Item::setID(uint16_t newid)
 		setDecaying(DECAYING_FALSE);
 		setDuration(newDuration);
 	}
-}
-
-bool Item::hasSubType() const
-{
-	const ItemType& it = items[id];
-	return it.hasSubType();
 }
 
 uint16_t Item::getSubType() const
@@ -424,6 +353,16 @@ bool Item::readAttr(AttrTypes_t attr, PropStream& propStream)
 			break;
 		}
 
+		case ATTR_SCRIPTPROTECTED:
+		{
+			uint8_t _scriptProtected = 0;
+			if(!propStream.GET_UCHAR(_scriptProtected))
+				return false;
+
+			setScriptProtected(_scriptProtected != 0);
+			break;
+		}
+
 		case ATTR_TEXT:
 		{
 			std::string _text;
@@ -562,11 +501,6 @@ bool Item::unserializeAttr(PropStream& propStream)
 	}
 
 	return true;
-}
-
-bool Item::unserializeItemNode(FileLoader& f, NODE node, PropStream& propStream)
-{
-	return unserializeAttr(propStream);
 }
 
 bool Item::serializeAttr(PropWriteStream& propWriteStream) const
@@ -710,6 +644,12 @@ bool Item::serializeAttr(PropWriteStream& propWriteStream) const
 		propWriteStream.ADD_ULONG(getHitChance());
 	}
 
+	if(hasAttribute(ATTR_ITEM_SCRIPTPROTECTED))
+	{
+		propWriteStream.ADD_UCHAR(ATTR_SCRIPTPROTECTED);
+		propWriteStream.ADD_UCHAR(isScriptProtected() ? 1 : 0);
+	}
+
 	return true;
 }
 
@@ -797,7 +737,8 @@ double Item::getWeight() const
 	return items[id].weight;
 }
 
-std::string Item::getDescription(const ItemType& it, int32_t lookDistance, const Item* item /*= NULL*/, int32_t subType /*= -1*/, bool addArticle /*= true*/)
+std::string Item::getDescription(const ItemType& it, int32_t lookDistance, const Item* item /*= NULL*/,
+	int32_t subType /*= -1*/, bool addArticle /*= true*/)
 {
 	std::stringstream s;
 	s << getNameDescription(it, item, subType, addArticle);
@@ -1080,12 +1021,6 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance, const
 	return s.str();
 }
 
-std::string Item::getDescription(int32_t lookDistance) const
-{
-	const ItemType& it = items[id];
-	return getDescription(it, lookDistance, this);
-}
-
 std::string Item::getNameDescription(const ItemType& it, const Item* item /*= NULL*/, int32_t subType /*= -1*/, bool addArticle /*= true*/)
 {
 	if(item)
@@ -1094,13 +1029,8 @@ std::string Item::getNameDescription(const ItemType& it, const Item* item /*= NU
 	std::stringstream s;
 	if(it.name.length() || (item && item->getName().length()))
 	{
-		if(it.stackable && subType > 1)
-		{
-			if(it.showCount)
-				s << subType << " ";
-
-			s << (item ? item->getPluralName() : it.pluralName);
-		}
+		if(subType > 1 && it.stackable && it.showCount)
+			s << subType << " " << (item ? item->getPluralName() : it.pluralName);
 		else
 		{
 			if(addArticle)
@@ -1120,12 +1050,6 @@ std::string Item::getNameDescription(const ItemType& it, const Item* item /*= NU
 	return s.str();
 }
 
-std::string Item::getNameDescription() const
-{
-	const ItemType& it = items[id];
-	return getNameDescription(it, this);
-}
-
 std::string Item::getWeightDescription(const ItemType& it, double weight, uint32_t count /*= 1*/)
 {
 	std::stringstream s;
@@ -1135,12 +1059,6 @@ std::string Item::getWeightDescription(const ItemType& it, double weight, uint32
 		s << "It weighs " << std::fixed << std::setprecision(2) << weight << " oz.";
 
 	return s.str();
-}
-
-std::string Item::getWeightDescription(double weight) const
-{
-	const ItemType& it = Item::items[id];
-	return getWeightDescription(it, weight, count);
 }
 
 std::string Item::getWeightDescription() const
@@ -1198,7 +1116,7 @@ void ItemAttributes::setStrAttr(itemAttrTypes type, const std::string& value)
 	if(!validateStrAttrType(type))
 		return;
 
-	if(value.length() == 0)
+	if(!value.length())
 		return;
 
 	if(Attribute* attr = getAttr(type))
@@ -1216,10 +1134,7 @@ bool ItemAttributes::hasAttribute(itemAttrTypes type) const
 		return false;
 
 	Attribute* attr = getAttrConst(type);
-	if(attr)
-		return true;
-
-	return false;
+	return attr != NULL;
 }
 
 void ItemAttributes::removeAttribute(itemAttrTypes type)
@@ -1307,9 +1222,10 @@ bool ItemAttributes::validateIntAttrType(itemAttrTypes type)
 		case ATTR_ITEM_DEFENSE:
 		case ATTR_ITEM_EXTRADEFENSE:
 		case ATTR_ITEM_ARMOR:
-		case ATTR_ITEM_ATTACKSPEED:
+		case ATTR_ITEM_SCRIPTPROTECTED:
 		case ATTR_ITEM_HITCHANCE:
 		case ATTR_ITEM_SHOOTRANGE:
+		case ATTR_ITEM_ATTACKSPEED:
 			return true;
 
 		default:
@@ -1401,18 +1317,18 @@ ItemAttributes::Attribute* ItemAttributes::getAttr(itemAttrTypes type)
 
 void ItemAttributes::deleteAttrs(Attribute* attr)
 {
-	if(attr)
-	{
-		if(validateStrAttrType(attr->type))
-			delete (std::string*)attr->value;
+	if(!attr)
+		return;
 
-		Attribute* next_attr = attr->next;
-		attr->next = NULL;
-		if(next_attr)
-			deleteAttrs(next_attr);
+	if(validateStrAttrType(attr->type))
+		delete (std::string*)attr->value;
 
-		delete attr;
-	}
+	Attribute* next_attr = attr->next;
+	attr->next = NULL;
+	if(next_attr)
+		deleteAttrs(next_attr);
+
+	delete attr;
 }
 
 void Item::__startDecaying()
