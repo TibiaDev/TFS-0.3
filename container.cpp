@@ -26,14 +26,13 @@ extern Game g_game;
 
 Container::Container(uint16_t _type) : Item(_type)
 {
-	//std::cout << "Container constructor " << this << std::endl;
-	maxSize = items[this->getID()].maxItems;
+	maxSize = items[_type].maxItems;
+	serializationCount = 0;
 	totalWeight = 0.0;
 }
 
 Container::~Container()
 {
-	//std::cout << "Container destructor " << this << std::endl;
 	for(ItemList::iterator cit = itemlist.begin(); cit != itemlist.end(); ++cit)
 	{
 		(*cit)->setParent(NULL);
@@ -67,6 +66,27 @@ void Container::addItem(Item* item)
 {
 	itemlist.push_back(item);
 	item->setParent(this);
+}
+
+Attr_ReadValue Container::readAttr(AttrTypes_t attr, PropStream& propStream)
+{
+	switch(attr)
+	{
+		case ATTR_CONTAINER_ITEMS:
+		{
+			uint32_t count;
+			if(!propStream.GET_ULONG(count))
+				return ATTR_READ_ERROR;
+
+			serializationCount = count;
+			return ATTR_READ_END;
+		}
+
+		default:
+			break;
+	}
+
+	return Item::readAttr(attr, propStream);
 }
 
 bool Container::unserializeItemNode(FileLoader& f, NODE node, PropStream& propStream)
@@ -416,7 +436,7 @@ void Container::__addThing(Creature* actor, int32_t index, Thing* thing)
 {
 	if(index >= (int32_t)capacity())
 	{
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 		std::cout << "Failure: [Container::__addThing], index:" << index << ", index >= capacity()" << std::endl;
 		DEBUG_REPORT
 #endif
@@ -426,14 +446,14 @@ void Container::__addThing(Creature* actor, int32_t index, Thing* thing)
 	Item* item = thing->getItem();
 	if(item == NULL)
 	{
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 		std::cout << "Failure: [Container::__addThing] item == NULL" << std::endl;
 		DEBUG_REPORT
 #endif
 		return /*RET_NOTPOSSIBLE*/;
 	}
 
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 	if(index != INDEX_WHEREEVER)
 	{
 		if(size() >= capacity())
@@ -453,7 +473,7 @@ void Container::__addThing(Creature* actor, int32_t index, Thing* thing)
 		parentContainer->updateItemWeight(item->getWeight());
 
 	//send change to client
-	if(getParent())
+	if(getParent() && getParent() != VirtualCylinder::virtualCylinder)
 		onAddContainerItem(item);
 }
 
@@ -462,7 +482,7 @@ void Container::__updateThing(Thing* thing, uint16_t itemId, uint32_t count)
 	int32_t index = __getIndexOfThing(thing);
 	if(index == -1)
 	{
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 		std::cout << "Failure: [Container::__updateThing] index == -1" << std::endl;
 		DEBUG_REPORT
 #endif
@@ -472,7 +492,7 @@ void Container::__updateThing(Thing* thing, uint16_t itemId, uint32_t count)
 	Item* item = thing->getItem();
 	if(item == NULL)
 	{
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 		std::cout << "Failure: [Container::__updateThing] item == NULL" << std::endl;
 		DEBUG_REPORT
 #endif
@@ -501,7 +521,7 @@ void Container::__replaceThing(uint32_t index, Thing* thing)
 	Item* item = thing->getItem();
 	if(item == NULL)
 	{
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 		std::cout << "Failure: [Container::__replaceThing] item == NULL" << std::endl;
 		DEBUG_REPORT
 #endif
@@ -520,7 +540,7 @@ void Container::__replaceThing(uint32_t index, Thing* thing)
 
 	if(cit == itemlist.end())
 	{
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 		std::cout << "Failure: [Container::__updateThing] item not found" << std::endl;
 		DEBUG_REPORT
 #endif
@@ -551,7 +571,7 @@ void Container::__removeThing(Thing* thing, uint32_t count)
 	Item* item = thing->getItem();
 	if(item == NULL)
 	{
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 		std::cout << "Failure: [Container::__removeThing] item == NULL" << std::endl;
 		DEBUG_REPORT
 #endif
@@ -561,7 +581,7 @@ void Container::__removeThing(Thing* thing, uint32_t count)
 	int32_t index = __getIndexOfThing(thing);
 	if(index == -1)
 	{
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 		std::cout << "Failure: [Container::__removeThing] index == -1" << std::endl;
 		DEBUG_REPORT
 #endif
@@ -571,7 +591,7 @@ void Container::__removeThing(Thing* thing, uint32_t count)
 	ItemList::iterator cit = std::find(itemlist.begin(), itemlist.end(), thing);
 	if(cit == itemlist.end())
 	{
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 		std::cout << "Failure: [Container::__removeThing] item not found" << std::endl;
 		DEBUG_REPORT
 #endif
@@ -610,6 +630,23 @@ void Container::__removeThing(Thing* thing, uint32_t count)
 		item->setParent(NULL);
 		itemlist.erase(cit);
 	}
+}
+
+Thing* Container::__getThing(uint32_t index) const
+{
+	if(index < 0 || index > size())
+		return NULL;
+
+	uint32_t count = 0;
+	for(ItemList::const_iterator cit = itemlist.begin(); cit != itemlist.end(); ++cit)
+	{
+		if(count == index)
+			return *cit;
+		else
+			++count;
+	}
+
+	return NULL;
 }
 
 int32_t Container::__getIndexOfThing(const Thing* thing) const
@@ -661,24 +698,29 @@ uint32_t Container::__getItemTypeCount(uint16_t itemId, int32_t subType /*= -1*/
 	return count;
 }
 
-Thing* Container::__getThing(uint32_t index) const
+std::map<uint32_t, uint32_t>& Container::__getAllItemTypeCount(std::map<uint32_t,
+	uint32_t>& countMap, bool itemCount /*= true*/) const
 {
-	if(index < 0 || index > size())
-		return NULL;
-
-	uint32_t count = 0;
-	for(ItemList::const_iterator cit = itemlist.begin(); cit != itemlist.end(); ++cit)
+	Item* item = NULL;
+	for(ItemList::const_iterator it = itemlist.begin(); it != itemlist.end(); ++it)
 	{
-		if(count == index)
-			return *cit;
+		item = (*it);
+		if(!itemCount)
+		{
+			if(item->isRune())
+				countMap[item->getID()] += item->getCharges();
+			else
+				countMap[item->getID()] += item->getItemCount();
+		}
 		else
-			++count;
+			countMap[item->getID()] += item->getItemCount();
 	}
 
-	return NULL;
+	return countMap;
 }
 
-void Container::postAddNotification(Creature* actor, Thing* thing, int32_t index, cylinderlink_t link /*= LINK_OWNER*/)
+void Container::postAddNotification(Creature* actor, Thing* thing, const Cylinder* oldParent,
+	int32_t index, cylinderlink_t link /*= LINK_OWNER*/)
 {
 	Cylinder* topParent = getTopParent();
 	if(!topParent->getCreature())
@@ -687,16 +729,17 @@ void Container::postAddNotification(Creature* actor, Thing* thing, int32_t index
 		{
 			//let the tile class notify surrounding players
 			if(topParent->getParent())
-				topParent->getParent()->postAddNotification(actor, thing, index, LINK_NEAR);
+				topParent->getParent()->postAddNotification(actor, thing, oldParent, index, LINK_NEAR);
 		}
 		else
-			topParent->postAddNotification(actor, thing, index, LINK_PARENT);
+			topParent->postAddNotification(actor, thing, oldParent, index, LINK_PARENT);
 	}
 	else
-		topParent->postAddNotification(actor, thing, index, LINK_TOPPARENT);
+		topParent->postAddNotification(actor, thing, oldParent, index, LINK_TOPPARENT);
 }
 
-void Container::postRemoveNotification(Creature* actor, Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link /*= LINK_OWNER*/)
+void Container::postRemoveNotification(Creature* actor, Thing* thing, const Cylinder* newParent,
+	int32_t index, bool isCompleteRemoval, cylinderlink_t link /*= LINK_OWNER*/)
 {
 	Cylinder* topParent = getTopParent();
 	if(!topParent->getCreature())
@@ -705,13 +748,16 @@ void Container::postRemoveNotification(Creature* actor, Thing* thing, int32_t in
 		{
 			//let the tile class notify surrounding players
 			if(topParent->getParent())
-				topParent->getParent()->postRemoveNotification(actor, thing, index, isCompleteRemoval, LINK_NEAR);
+				topParent->getParent()->postRemoveNotification(actor, thing,
+					newParent, index, isCompleteRemoval, LINK_NEAR);
 		}
 		else
-			topParent->postRemoveNotification(actor, thing, index, isCompleteRemoval, LINK_PARENT);
+			topParent->postRemoveNotification(actor, thing, newParent,
+				index, isCompleteRemoval, LINK_PARENT);
 	}
 	else
-		topParent->postRemoveNotification(actor, thing, index, isCompleteRemoval, LINK_TOPPARENT);
+		topParent->postRemoveNotification(actor, thing, newParent,
+			index, isCompleteRemoval, LINK_TOPPARENT);
 }
 
 void Container::__internalAddThing(Thing* thing)
@@ -721,7 +767,7 @@ void Container::__internalAddThing(Thing* thing)
 
 void Container::__internalAddThing(uint32_t index, Thing* thing)
 {
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 	std::cout << "[Container::__internalAddThing] index: " << index << std::endl;
 #endif
 	if(!thing)
@@ -730,7 +776,7 @@ void Container::__internalAddThing(uint32_t index, Thing* thing)
 	Item* item = thing->getItem();
 	if(item == NULL)
 	{
-#ifdef __DEBUG__MOVESYS__
+#ifdef __DEBUG_MOVESYS__
 		std::cout << "Failure: [Container::__internalAddThing] item == NULL" << std::endl;
 #endif
 		return;

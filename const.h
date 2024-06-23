@@ -1,29 +1,23 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_CONST_H__
-#define __OTSERV_CONST_H__
-
+#ifndef __CONST__
+#define __CONST__
 #include "definitions.h"
-
-#define NETWORKMESSAGE_MAXSIZE 15360
 
 enum MagicEffectClasses
 {
@@ -94,11 +88,12 @@ enum MagicEffectClasses
 	NM_ME_STEPSVERTICAL	= 0x40, //64
 	NM_ME_YALAHARIGHOST	= 0x41, //65
 	NM_ME_BATS		= 0x42, //66
-	NM_ME_LAST = NM_ME_BATS,
+	NM_ME_SMOKE		= 0x43, //67
+	NM_ME_LAST		= NM_ME_SMOKE,
 
 	//for internal use, dont send to client
-	NM_ME_NONE             = 0xFF,
-	NM_ME_UNK              = 0xFFFF
+	NM_ME_NONE		= 0xFF,
+	NM_ME_UNK		= 0xFFFF
 };
 
 enum ShootType_t
@@ -145,7 +140,7 @@ enum ShootType_t
 	NM_SHOOT_EARTHARROW	= 0x27, //39
 	NM_SHOOT_EXPLOSION	= 0x28, //40
 	NM_SHOOT_CAKE		= 0x29, //41
-	NM_SHOOT_LAST = NM_SHOOT_CAKE,
+	NM_SHOOT_LAST		= NM_SHOOT_CAKE,
 
 	//for internal use, dont send to client
 	NM_SHOOT_WEAPONTYPE	= 0xFE, //254
@@ -155,6 +150,7 @@ enum ShootType_t
 
 enum SpeakClasses
 {
+	SPEAK_CLASS_NONE	= 0x00,
 	SPEAK_CLASS_FIRST 	= 0x01,
 	SPEAK_SAY		= SPEAK_CLASS_FIRST,
 	SPEAK_WHISPER		= 0x02,
@@ -168,11 +164,11 @@ enum SpeakClasses
 	SPEAK_RVR_ANSWER	= 0x0A,
 	SPEAK_RVR_CONTINUE	= 0x0B,
 	SPEAK_BROADCAST		= 0x0C,
-	SPEAK_CHANNEL_R1	= 0x0D, //red - #c text
+	SPEAK_CHANNEL_RN	= 0x0D, //red - #c text
 	SPEAK_PRIVATE_RED	= 0x0E,	//@name@text
 	SPEAK_CHANNEL_O		= 0x0F,
 	//SPEAK_UNKNOWN_1		= 0x10,
-	SPEAK_CHANNEL_R2	= 0x11,	//red anonymous - #d text
+	SPEAK_CHANNEL_RA	= 0x11,	//red anonymous - #d text
 	//SPEAK_UNKNOWN_2		= 0x12,
 	SPEAK_MONSTER_SAY	= 0x13,
 	SPEAK_MONSTER_YELL	= 0x14,
@@ -332,7 +328,7 @@ enum Icons_t
 	ICON_NONE = 0,
 	ICON_POISON = 1 << 0,
 	ICON_BURN = 1 << 1,
-	ICON_ENERGY =  1 << 2,
+	ICON_ENERGY = 1 << 2,
 	ICON_DRUNK = 1 << 3,
 	ICON_MANASHIELD = 1 << 4,
 	ICON_PARALYZE = 1 << 5,
@@ -342,7 +338,9 @@ enum Icons_t
 	ICON_FREEZING = 1 << 9,
 	ICON_DAZZLED = 1 << 10,
 	ICON_CURSED = 1 << 11,
-	ICON_BUFF = 1 << 12
+	ICON_BUFF = 1 << 12,
+	ICON_PZ = 1 << 13,
+	ICON_PROTECTIONZONE = 1 << 14
 };
 
 enum WeaponType_t
@@ -393,7 +391,9 @@ enum Skulls_t
 	SKULL_YELLOW = 1,
 	SKULL_GREEN = 2,
 	SKULL_WHITE = 3,
-	SKULL_RED = 4
+	SKULL_RED = 4,
+	SKULL_BLACK = 5,
+	SKULL_LAST = SKULL_BLACK
 };
 
 enum PartyShields_t
@@ -408,7 +408,8 @@ enum PartyShields_t
 	SHIELD_BLUE_NOSHAREDEXP_BLINK = 7,
 	SHIELD_YELLOW_NOSHAREDEXP_BLINK = 8,
 	SHIELD_BLUE_NOSHAREDEXP = 9,
-	SHIELD_YELLOW_NOSHAREDEXP = 10
+	SHIELD_YELLOW_NOSHAREDEXP = 10,
+	SHIELD_LAST = SHIELD_YELLOW_NOSHAREDEXP
 };
 
 enum item_t
@@ -445,7 +446,9 @@ enum item_t
 	ITEM_LETTER_STAMPED	= 2598,
 	ITEM_LABEL		= 2599,
 
-	ITEM_WATERBALL		= 7711,
+	ITEM_WATERBALL_SPLASH	= 7711,
+	ITEM_WATERBALL		= 7956,
+
 	ITEM_HOUSE_TRANSFER	= 1968 //read-only
 };
 
@@ -494,16 +497,17 @@ enum PlayerFlags
 	PlayerFlag_ShowGroupNameInsteadOfVocation,	//2^40 = 1099511627776
 	PlayerFlag_HasInfiniteStamina,			//2^41 = 2199023255552
 	PlayerFlag_CannotMoveItems,			//2^42 = 4398046511104
-	PlayerFlag_CannotMoveCreatures,			//2^43 = 8796093020000
-	PlayerFlag_CanReportBugs,			//2^44 = 17592186040000
-	PlayerFlag_45,	//ignore			//2^45 = 35184272080000	//not used by us
+	PlayerFlag_CannotMoveCreatures,			//2^43 = 8796093022208
+	PlayerFlag_CanReportBugs,			//2^44 = 17592186044416
+	PlayerFlag_45,	//ignore			//2^45 = 35184372088832	//not used by us
+	PlayerFlag_CannotBeSeen,			//2^46 = 70368744177664
 
 	PlayerFlag_LastFlag
 };
 
 enum PlayerCustomFlags
 {
-	PlayerCustomFlag_UnusedAndToReplace = 0,		//2^0 = 1
+	PlayerCustomFlag_AllowIdle = 0,				//2^0 = 1
 	PlayerCustomFlag_CanSeePosition,			//2^1 = 2
 	PlayerCustomFlag_CanSeeItemDetails,			//2^2 = 4
 	PlayerCustomFlag_CanSeeCreatureDetails,			//2^3 = 8
@@ -525,58 +529,25 @@ enum PlayerCustomFlags
 	PlayerCustomFlag_IgnoreLoginDelay,			//2^19 = 524288
 	PlayerCustomFlag_CanStairhop,				//2^20 = 1048576
 	PlayerCustomFlag_CanTurnhop,				//2^21 = 2097152
+	PlayerCustomFlag_IgnoreHouseRent,			//2^22 = 4194304
+	PlayerCustomFlag_CanWearAllAddons,			//2^23 = 8388608
 
 	PlayerCustomFlag_LastFlag
-};
-
-enum ViolationActions_t
-{
-	Action_None			= 0,
-	Action_Notation			= 1 << 0,
-	Action_Namelock			= 1 << 1,
-	Action_Banishment		= 1 << 2,
-	Action_NamelockBan		= 1 << 3,
-	Action_BanFinalWarning		= 1 << 4,
-	Action_NamelockBanFinalWarning	= 1 << 5,
-	Action_StatementReport		= 1 << 6,
-	Action_IpBan			= 1 << 7
-};
-
-const int32_t violationReasons[5] =
-{
-	0,	//ignore this
-	3,	//all name reasons
-	9,	//all name & statement reasons
-	18,	//all name, statement & cheating reasons
-	22	//all reasons
-};
-
-const int32_t violationNames[5] =
-{
-	Action_None,
-	Action_Namelock,
-	Action_Namelock,
-	Action_Namelock | Action_NamelockBan,
-	Action_Namelock | Action_NamelockBan | Action_NamelockBanFinalWarning | Action_IpBan
-};
-
-const int32_t violationStatements[5] =
-{
-	Action_None,
-	Action_None,
-	Action_StatementReport,
-	Action_StatementReport | Action_Notation | Action_Banishment,
-	Action_StatementReport | Action_Notation | Action_Banishment | Action_BanFinalWarning | Action_IpBan
 };
 
 //Reserved player storage key ranges
 //[10000000 - 20000000]
 #define PSTRG_RESERVED_RANGE_START	10000000
 #define PSTRG_RESERVED_RANGE_SIZE	10000000
+
 //[1000 - 1500]
 #define PSTRG_OUTFITS_RANGE_START	(PSTRG_RESERVED_RANGE_START + 1000)
 #define PSTRG_OUTFITS_RANGE_SIZE	500
 
-#define IS_IN_KEYRANGE(key, range) (key >= PSTRG_##range##_START && ((key - PSTRG_##range##_START) < PSTRG_##range##_SIZE))
+//[1500 - 2000]
+#define PSTRG_OUTFITSID_RANGE_START	(PSTRG_RESERVED_RANGE_START + 1500)
+#define PSTRG_OUTFITSID_RANGE_SIZE	500
 
+#define NETWORKMESSAGE_MAXSIZE 15360
+#define IS_IN_KEYRANGE(key, range) (key >= PSTRG_##range##_START && ((key - PSTRG_##range##_START) < PSTRG_##range##_SIZE))
 #endif

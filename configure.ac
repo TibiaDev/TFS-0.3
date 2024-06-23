@@ -1,5 +1,5 @@
 AC_PREREQ([2.50])
-AC_INIT([TheForgottenServer], [0.3.4])
+AC_INIT([TheForgottenServer], [0.3.5])
 AM_INIT_AUTOMAKE([1.10 foreign])
 AC_CONFIG_SRCDIR([account.h])
 AM_CONFIG_HEADER([config.h])
@@ -64,7 +64,7 @@ AC_SUBST(OPTIONAL_FLAGS)
 # check if we want a debug build
 debugBuild=no
 AC_ARG_ENABLE(debug, [  --enable-debug				enable debuging],
-	[DEBUG_FLAGS="-D__DEBUG__ -D__DEBUG__MOVESYS__ -D__DEBUG_CHAT__ -D__DEBUG_EXCEPTION_REPORT__ -D__DEBUG_HOUSES__ -D__DEBUG_LUASCRIPTS__ -D__DEBUG_MAILBOX__ -D__DEBUG_NET__ -D__DEBUG_NET_DETAIL__ -D__DEBUG_RAID__ -D__DEBUG_SCHEDULER__ -D__DEBUG_SPAWN__ -D__SQL_QUERY_DEBUG__"]
+	[DEBUG_FLAGS="-D__DEBUG__ -D__DEBUG_MOVESYS__ -D__DEBUG_CHAT__ -D__DEBUG_EXCEPTION_REPORT__ -D__DEBUG_HOUSES__ -D__DEBUG_LUASCRIPTS__ -D__DEBUG_MAILBOX__ -D__DEBUG_NET__ -D__DEBUG_NET_DETAIL__ -D__DEBUG_RAID__ -D__DEBUG_SCHEDULER__ -D__DEBUG_SPAWN__ -D__SQL_QUERY_DEBUG__"]
 	debugBuild=yes
 )
 AC_SUBST(DEBUG_FLAGS)
@@ -182,6 +182,14 @@ AC_CHECK_LIB(boost_date_time-gcc-mt, main, , [
 	])
 ])
 
+AC_CHECK_LIB(boost_filesystem-gcc-mt, main, , [
+	AC_CHECK_LIB(boost_filesystem-mt, main, , [
+		AC_CHECK_LIB(boost_filesystem, main, , [
+			AC_MSG_ERROR("Linking against boost::filesystem library failed.")
+		])
+	])
+])
+
 #check boost asio
 AC_CHECK_HEADERS([boost/asio.hpp], ,[AC_MSG_ERROR("boost::asio header not found.")])
 
@@ -225,7 +233,7 @@ AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
 
 echo
-#echo The Forgotten Server 0.3.4
+#echo The Forgotten Server 0.3.5
 echo $PACKAGE $VERSION
 echo
 echo Server diagnostics.......... : $serverDiag

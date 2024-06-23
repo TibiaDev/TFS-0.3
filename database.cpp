@@ -71,17 +71,6 @@ Database* _Database::getInstance()
 	return _instance;
 }
 
-void _Database::freeResult(DBResult* result)
-{
-	if(result)
-	{
-		result->free();
-		result = NULL;
-	}
-	else
-		std::cout << "[Warning - Database::freeResult] Trying to free already freed result." << std::endl;	
-}
-
 DBResult* _Database::verifyResult(DBResult* result)
 {
 	if(!result->next())
@@ -127,7 +116,7 @@ bool DBInsert::addRow(const std::string& row)
 			m_buf = "(" + row + ")";
 		}
 		else
-				m_buf += ",(" + row + ")";
+			m_buf += ",(" + row + ")";
 
 		return true;
 	}

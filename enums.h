@@ -1,25 +1,23 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_ENUMS_H__
-#define __OTSERV_ENUMS_H__
+#ifndef __ENUMS__
+#define __ENUMS__
+
 #include <string>
 #include <list>
 
@@ -55,15 +53,10 @@ enum OperatingSystem_t
 enum Channels_t
 {
 	CHANNEL_GUILD = 0x00,
-	CHANNEL_STAFF = 0x01,
-	CHANNEL_COUNSELOR = 0x02,
+	CHANNEL_PARTY = 0x01,
 	CHANNEL_RVR = 0x03,
-	CHANNEL_GAMECHAT = 0x04,
-	CHANNEL_TRADE = 0x05,
-	CHANNEL_RLCHAT = 0x06,
-	CHANNEL_TRADEROOK = 0x07,
-	CHANNEL_PARTY = 0x08,
 	CHANNEL_HELP = 0x09,
+	CHANNEL_DEFAULT = 0xFFFE, //internal usage only, there is no such channel
 	CHANNEL_PRIVATE = 0xFFFF
 };
 
@@ -76,7 +69,12 @@ enum ViolationAction_t
 	ACTION_BANFINAL,
 	ACTION_BANREPORTFINAL,
 	ACTION_STATEMENT,
-	ACTION_DELETION
+	//internal use
+	ACTION_DELETION,
+	ACTION_NAMELOCK,
+	ACTION_BANLOCK,
+	ACTION_BANLOCKFINAL,
+	ACTION_PLACEHOLDER
 };
 
 enum RaceType_t
@@ -104,7 +102,7 @@ enum CombatType_t
 	COMBAT_DROWNDAMAGE	= 1 << 8,
 	COMBAT_ICEDAMAGE	= 1 << 9,
 	COMBAT_HOLYDAMAGE	= 1 << 10,
-	COMBAT_DEATHDAMAGE      = 1 << 11,
+	COMBAT_DEATHDAMAGE	= 1 << 11,
 	COMBAT_LAST		= COMBAT_DEATHDAMAGE
 };
 
@@ -204,20 +202,6 @@ enum skills_t
 	SKILL__LAST = SKILL__LEVEL
 };
 
-enum multiplier_t
-{
-	MULTIPLIER_FIRST = 0,
-	MULTIPLIER_MELEE = MULTIPLIER_FIRST,
-	MULTIPLIER_DISTANCE = 1,
-	MULTIPLIER_DEFENSE = 2,
-	MULTIPLIER_ARMOR = 3,
-	MULTIPLIER_MAGIC = 4,
-	MULTIPLIER_MAGICHEALING = 5,
-	MULTIPLIER_WAND = 6,
-	MULTIPLIER_MANA = 7,
-	MULTIPLIER_LAST = MULTIPLIER_MANA
-};
-
 enum stats_t
 {
 	STAT_FIRST = 0,
@@ -269,24 +253,8 @@ enum PlayerSex_t
 {
 	PLAYERSEX_FEMALE = 0,
 	PLAYERSEX_MALE = 1
-};
-
-enum CharacterTypes_t
-{
-	PLAYER_MALE_1 = 0x80,
-	PLAYER_MALE_2 = 0x81,
-	PLAYER_MALE_3 = 0x82,
-	PLAYER_MALE_4 = 0x83,
-	PLAYER_MALE_5 = 0x84,
-	PLAYER_MALE_6 = 0x85,
-	PLAYER_MALE_7 = 0x86,
-	PLAYER_FEMALE_1 = 0x88,
-	PLAYER_FEMALE_2 = 0x89,
-	PLAYER_FEMALE_3 = 0x8A,
-	PLAYER_FEMALE_4 = 0x8B,
-	PLAYER_FEMALE_5 = 0x8C,
-	PLAYER_FEMALE_6 = 0x8D,
-	PLAYER_FEMALE_7 = 0x8E,
+	// DO NOT ADD HERE! Every higher sex is only for your
+	// own use- each female should be even and male odd.
 };
 
 struct Outfit_t

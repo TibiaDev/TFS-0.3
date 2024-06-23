@@ -1,11 +1,28 @@
 function onSay(cid, words, param, channel)
-	local list = {}
-	local ips = {}
+	local _ip = nil
+	if(param ~= nil) then
+		_ip = tonumber(param)
+		if(not _ip or _ip == 0) then
+			local revertIp = doRevertIp(param)
+			if(not revertIp) then
+				local tid = getPlayerByNameWildcard(param)
+				if(not tid) then
+					_ip = nil
+				else
+					_ip = getPlayerIp(tid)
+				end
+			else
+				_ip = doConvertIpToInteger(revertIp)
+			end
+		end
+	end
+
+	local list, ips = {}, {}
 	local players = getPlayersOnline()
 	for i, pid in ipairs(players) do
 		local ip = getPlayerIp(pid)
 		local tmp = table.find(ips, ip)
-		if(tmp ~= nil) then
+		if(tmp ~= nil and (not _ip or _ip == ip)) then
 			if(table.countElements(list, ip) == 0) then
 				list[players[tmp]] = ip
 			end
@@ -25,5 +42,5 @@ function onSay(cid, words, param, channel)
 		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Currently there aren't any players with same IP address(es).")
 	end
 
-	return TRUE
+	return true
 end

@@ -1,26 +1,24 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_CYLINDER_H__
-#define __OTSERV_CYLINDER_H__
+#ifndef __CYLINDER__
+#define __CYLINDER__
 #include "otsystem.h"
+
 #include "thing.h"
 
 class Item;
@@ -73,8 +71,8 @@ class Cylinder : virtual public Thing
 		  * \param flags optional flags to modifiy the default behaviour
 		  * \returns ReturnValue holds the return value
 		  */
-		virtual ReturnValue __queryMaxCount(int32_t index, const Thing* thing, uint32_t count, uint32_t& maxQueryCount,
-			uint32_t flags) const = 0;
+		virtual ReturnValue __queryMaxCount(int32_t index, const Thing* thing, uint32_t count,
+			uint32_t& maxQueryCount, uint32_t flags) const = 0;
 
 		/**
 		  * Query if the cylinder can remove an object
@@ -142,7 +140,8 @@ class Cylinder : virtual public Thing
 		  * \param index is the objects new index value
 		  * \param link holds the relation the object has to the cylinder
 		  */
-		virtual void postAddNotification(Creature* actor, Thing* thing, int32_t index, cylinderlink_t link = LINK_OWNER) = 0;
+		virtual void postAddNotification(Creature* actor, Thing* thing, const Cylinder* oldParent,
+			int32_t index, cylinderlink_t link = LINK_OWNER) = 0;
 
 		/**
 		  * Is sent after an operation (move/remove) to update internal values
@@ -152,32 +151,33 @@ class Cylinder : virtual public Thing
 		  * \param isCompleteRemoval indicates if the item was completely removed or just partially (stackables)
 		  * \param link holds the relation the object has to the cylinder
 		  */
-		virtual void postRemoveNotification(Creature* actor, Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link = LINK_OWNER) = 0;
+		virtual void postRemoveNotification(Creature* actor, Thing* thing, const Cylinder* newParent,
+			int32_t index, bool isCompleteRemoval, cylinderlink_t link = LINK_OWNER) = 0;
 
 		/**
 		  * Gets the index of an object
 		  * \param thing the object to get the index value from
 		  * \returns the index of the object, returns -1 if not found
 		  */
-		virtual int32_t __getIndexOfThing(const Thing* thing) const;
+		virtual int32_t __getIndexOfThing(const Thing* thing) const {return -1;}
 
 		/**
 		  * Returns the first index
 		  * \returns the first index, if not implemented -1 is returned
 		  */
-		virtual int32_t __getFirstIndex() const;
+		virtual int32_t __getFirstIndex() const {return -1;}
 
 		/**
 		  * Returns the last index
 		  * \returns the last index, if not implemented -1 is returned
 		  */
-		virtual int32_t __getLastIndex() const;
+		virtual int32_t __getLastIndex() const {return -1;}
 
 		/**
 		  * Gets the object based on index
 		  * \returns the object, returns NULL if not found
 		  */
-		virtual Thing* __getThing(uint32_t index) const;
+		virtual Thing* __getThing(uint32_t index) const {return NULL;}
 
 		/**
 		  * Get the amount of items of a certain type
@@ -186,22 +186,32 @@ class Cylinder : virtual public Thing
 		  * \param itemCount if set to true it will only count items and not other subtypes like charges
 		  * \param returns the amount of items of the asked item type
 		  */
-		virtual uint32_t __getItemTypeCount(uint16_t itemId, int32_t subType = -1, bool itemCount = true) const;
+		virtual uint32_t __getItemTypeCount(uint16_t itemId, int32_t subType = -1,
+			bool itemCount = true) const {return 0;}
+
+		/**
+		  * Get the amount of items of a all types
+		  * \param countMap a map to put the itemID:count mapping in
+		  * \param itemCount if set to true it will only count items and not other subtypes like charges
+		  * \param returns a map mapping item id to count (same as first argument)
+		  */
+		virtual std::map<uint32_t, uint32_t>& __getAllItemTypeCount(std::map<uint32_t,
+			uint32_t>& countMap, bool itemCount = true) const {return countMap;}
 
 		/**
 		  * Adds an object to the cylinder without sending to the client(s)
 		  * \param thing is the object to add
 		  */
-		virtual void __internalAddThing(Thing* thing);
+		virtual void __internalAddThing(Thing* thing) {}
 
 		/**
 		  * Adds an object to the cylinder without sending to the client(s)
 		  * \param thing is the object to add
 		  * \param index points to the destination index (inventory slot/container position)
 		  */
-		virtual void __internalAddThing(uint32_t index, Thing* thing);
+		virtual void __internalAddThing(uint32_t index, Thing* thing) {}
 
-		virtual void __startDecaying();
+		virtual void __startDecaying() {}
 };
 
 class VirtualCylinder : public Cylinder
@@ -213,7 +223,8 @@ class VirtualCylinder : public Cylinder
 			uint32_t flags) const {return RET_NOTPOSSIBLE;}
 		virtual ReturnValue __queryMaxCount(int32_t index, const Thing* thing, uint32_t count,
 			uint32_t& maxQueryCount, uint32_t flags) const {return RET_NOTPOSSIBLE;}
-		virtual ReturnValue __queryRemove(const Thing* thing, uint32_t count, uint32_t flags) const {return RET_NOTPOSSIBLE;}
+		virtual ReturnValue __queryRemove(const Thing* thing, uint32_t count,
+			uint32_t flags) const {return (thing->getParent() == this ? RET_NOERROR : RET_NOTPOSSIBLE);}
 		virtual Cylinder* __queryDestination(int32_t& index, const Thing* thing, Item** destItem,
 			uint32_t& flags) {return NULL;}
 
@@ -223,8 +234,10 @@ class VirtualCylinder : public Cylinder
 		virtual void __replaceThing(uint32_t index, Thing* thing) {}
 		virtual void __removeThing(Thing* thing, uint32_t count) {}
 
-		virtual void postAddNotification(Creature* actor, Thing* thing, int32_t index, cylinderlink_t link = LINK_OWNER) {}
-		virtual void postRemoveNotification(Creature* actor, Thing* thing, int32_t index, bool isCompleteRemoval,
+		virtual void postAddNotification(Creature* actor, Thing* thing, const Cylinder* oldParent,
+			int32_t index, cylinderlink_t link = LINK_OWNER) {}
+		virtual void postRemoveNotification(Creature* actor, Thing* thing, const Cylinder* oldParent,
+			int32_t index, bool isCompleteRemoval,
 			cylinderlink_t link = LINK_OWNER) {}
 
 		virtual bool isPushable() const {return false;}
@@ -233,5 +246,4 @@ class VirtualCylinder : public Cylinder
 
 		virtual bool isRemoved() const {return false;}
 };
-
 #endif

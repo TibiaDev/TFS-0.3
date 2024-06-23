@@ -228,20 +228,26 @@ bool parseXMLContentString(xmlNodePtr node, std::string& value)
 	std::string compareValue;
 	while(node)
 	{
-		if(!xmlStrcmp(node->name, (const xmlChar*)"text") || node->type == XML_CDATA_SECTION_NODE)
+		if(xmlStrcmp(node->name, (const xmlChar*)"text") && node->type != XML_CDATA_SECTION_NODE)
 		{
-			if(readXMLContentString(node, compareValue))
-			{
-				trim_left(compareValue, "\r");
-				trim_left(compareValue, "\n");
-				trim_left(compareValue, " ");
-				if(compareValue.length() > value.length())
-				{
-					value = compareValue;
-					if(!result)
-						result = true;
-				}
-			}
+			node = node->next;
+			continue;
+		}
+
+		if(!readXMLContentString(node, compareValue))
+		{
+			node = node->next;
+			continue;
+		}
+
+		trim_left(compareValue, "\r");
+		trim_left(compareValue, "\n");
+		trim_left(compareValue, " ");
+		if(compareValue.length() > value.length())
+		{
+			value = compareValue;
+			if(!result)
+				result = true;
 		}
 
 		node = node->next;
@@ -264,16 +270,16 @@ std::string getLastXMLError()
 bool utf8ToLatin1(char* intext, std::string& outtext)
 {
 	outtext = "";
-
-	if(intext == NULL)
+	if(!intext)
 		return false;
 
-	int32_t inlen  = strlen(intext);
-	if(inlen == 0)
+	int32_t inlen = strlen(intext);
+	if(!inlen)
 		return false;
 
 	int32_t outlen = inlen * 2;
 	uint8_t* outbuf = new uint8_t[outlen];
+
 	int32_t res = UTF8Toisolat1(outbuf, &outlen, (uint8_t*)intext, &inlen);
 	if(res < 0)
 	{
@@ -283,6 +289,7 @@ bool utf8ToLatin1(char* intext, std::string& outtext)
 
 	outbuf[outlen] = '\0';
 	outtext = (char*)outbuf;
+
 	delete[] outbuf;
 	return true;
 }
@@ -291,7 +298,6 @@ StringVec explodeString(const std::string& string, const std::string& separator)
 {
 	StringVec returnVector;
 	size_t start = 0, end = 0;
-
 	while((end = string.find(separator, start)) != std::string::npos)
 	{
 		returnVector.push_back(string.substr(start, end - start));
@@ -318,7 +324,7 @@ bool hasBitSet(uint32_t flag, uint32_t flags)
 
 int32_t round(float v)
 {
-	int32_t t = (long)std::floor(v);
+	int32_t t = (int32_t)std::floor(v);
 	if((v - t) > 0.5)
 		return t + 1;
 
@@ -336,31 +342,31 @@ float box_muller(float m, float s)
 	// mean m, standard deviation s
 	float x1, x2, w, y1;
 	static float y2;
-	static bool useLast = false;
 
+	static bool useLast = false;
 	if(useLast) // use value from previous call
 	{
 		y1 = y2;
 		useLast = false;
+		return (m + y1 * s);
 	}
-	else
+
+	do
 	{
-		do
-		{
-			double r1 = (((float)(rand()) / RAND_MAX));
-			double r2 = (((float)(rand()) / RAND_MAX));
+		double r1 = (((float)(rand()) / RAND_MAX));
+		double r2 = (((float)(rand()) / RAND_MAX));
 
-			x1 = 2.0 * r1 - 1.0;
-			x2 = 2.0 * r2 - 1.0;
-			w = x1 * x1 + x2 * x2;
-		}
-		while(w >= 1.0);
-
-		w = sqrt((-2.0 * log(w)) / w);
-		y1 = x1 * w;
-		y2 = x2 * w;
-		useLast = true;
+		x1 = 2.0 * r1 - 1.0;
+		x2 = 2.0 * r2 - 1.0;
+		w = x1 * x1 + x2 * x2;
 	}
+	while(w >= 1.0);
+	w = sqrt((-2.0 * log(w)) / w);
+
+	y1 = x1 * w;
+	y2 = x2 * w;
+
+	useLast = true;
 	return (m + y1 * s);
 }
 
@@ -380,17 +386,14 @@ int32_t random_range(int32_t lowestNumber, int32_t highestNumber, DistributionTy
 	{
 		case DISTRO_UNIFORM:
 			return (lowestNumber + ((int32_t)rand24b() % (highestNumber - lowestNumber + 1)));
-			break;
 		case DISTRO_NORMAL:
 			return (lowestNumber + int32_t(float(highestNumber - lowestNumber) * (float)std::min((float)1, std::max((float)0, box_muller(0.5, 0.25)))));
-			break;
 		default:
-		{
-			const float randMax = 16777216;
-			return (lowestNumber + int32_t(float(highestNumber - lowestNumber) * float(1.f - sqrt((1.f * rand24b()) / randMax))));
 			break;
-		}
 	}
+
+	const float randMax = 16777216;
+	return (lowestNumber + int32_t(float(highestNumber - lowestNumber) * float(1.f - sqrt((1.f * rand24b()) / randMax))));
 }
 
 char upchar(char character)
@@ -431,6 +434,7 @@ bool isValidAccountName(std::string text)
 		if(!isLowercaseLetter(text[size]) && !isNumber(text[size]))
 			return false;
 	}
+
 	return true;
 }
 
@@ -444,14 +448,14 @@ bool isValidPassword(std::string text)
 		if(!isLowercaseLetter(text[size]) && !isNumber(text[size]) && !isPasswordCharacter(text[size]))
 			return false;
 	}
+
 	return true;
 }
 
 bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 {
-	uint32_t textLength = text.length(), lenBeforeSpace = 1/*, lenBeforeQuote = 1*/, lenBeforeDash = 1, repeatedCharacter = 0; //Elf
+	uint32_t textLength = text.length(), lenBeforeSpace = 1, lenBeforeQuote = 1, lenBeforeDash = 1, repeatedCharacter = 0;
 	char lastChar = 32;
-
 	if(forceUppercaseOnFirstLetter)
 	{
 		if(!isUppercaseLetter(text[0]))
@@ -466,8 +470,7 @@ bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 		{
 			lenBeforeSpace++;
 
-			// [START] Elf
-			/*if(text[size] != 39)
+			if(text[size] != 39)
 				lenBeforeQuote++;
 			else
 			{
@@ -475,8 +478,7 @@ bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 					return false;
 
 				lenBeforeQuote = 0;
-			}*/
-			// [END] Elf
+			}
 
 			if(text[size] != 45)
 				lenBeforeDash++;
@@ -504,13 +506,14 @@ bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 			if(lenBeforeSpace <= 1 || size == textLength - 1 || text[size + 1] == 32)
 				return false;
 
-			lenBeforeSpace = /*lenBeforeQuote = */lenBeforeDash = 0; //Elf
+			lenBeforeSpace = lenBeforeQuote = lenBeforeDash = 0;
 		}
 
-		if(!(isLowercaseLetter(text[size]) || text[size] == 32/* || text[size] == 39*/ || text[size] == 45
+		if(!(isLowercaseLetter(text[size]) || text[size] == 32 || text[size] == 39 || text[size] == 45
 			|| (isUppercaseLetter(text[size]) && text[size - 1] == 32)))
 			return false;
 	}
+
 	return true;
 }
 
@@ -522,6 +525,7 @@ bool isNumbers(std::string text)
 		if(!isNumber(text[size]))
 			return false;
 	}
+
 	return true;
 }
 
@@ -535,6 +539,7 @@ std::string generateRecoveryKey(int32_t fieldCount, int32_t fieldLenght)
 {
 	std::stringstream key;
 	int32_t i = 0, j = 0, lastNumber = 99, number = 0;
+
 	char character = 0, lastCharacter = 0;
 	bool madeNumber = false, madeCharacter = false;
 	do
@@ -564,14 +569,13 @@ std::string generateRecoveryKey(int32_t fieldCount, int32_t fieldLenght)
 			}
 		}
 		while((!madeCharacter && !madeNumber) ? true : (++j && j < fieldLenght));
-
 		lastCharacter = character = number = j = 0;
+
 		lastNumber = 99;
 		if(i < fieldCount - 1)
 			key << "-";
 	}
 	while(++i && i < fieldCount);
-
 	return key.str();
 }
 
@@ -596,29 +600,36 @@ std::string parseParams(tokenizer::iterator &it, tokenizer::iterator end)
 			tmp += " " + (*it);
 			++it;
 		}
+
 		if(tmp.length() > 0 && tmp[tmp.length() - 1] == '"')
 			tmp.erase(tmp.length() - 1);
 	}
+
 	return tmp;
 }
 
-void formatIP(uint32_t ip, char* buffer/* atleast 17 */)
+std::string formatDate(time_t _time/* = 0*/)
 {
-	sprintf(buffer, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (ip >> 24));
-}
+	char buffer[21];
+	if(!_time)
+		_time = time(NULL);
 
-void formatDate(time_t time, char* buffer/* atleast 21 */)
-{
-	const tm* tms = localtime(&time);
+	const tm* tms = localtime(&_time);
 	if(tms)
 		sprintf(buffer, "%02d/%02d/%04d %02d:%02d:%02d", tms->tm_mday, tms->tm_mon + 1, tms->tm_year + 1900, tms->tm_hour, tms->tm_min, tms->tm_sec);
 	else
-		sprintf(buffer, "UNIX Time: %d", (int32_t)time);
+		sprintf(buffer, "UNIX Time: %d", (int32_t)_time);
+
+	return buffer;
 }
 
-void formatDate2(time_t time, char* buffer/* atleast 16 */, bool detailed/* = false*/)
+std::string formatDateShort(time_t _time, bool detailed/* = false*/)
 {
-	const tm* tms = localtime(&time);
+	char buffer[21];
+	if(!_time)
+		_time = time(NULL);
+
+	const tm* tms = localtime(&_time);
 	if(tms)
 	{
 		std::string format = "%d %b %Y";
@@ -628,13 +639,36 @@ void formatDate2(time_t time, char* buffer/* atleast 16 */, bool detailed/* = fa
 		strftime(buffer, 25, format.c_str(), tms);
 	}
 	else
-		sprintf(buffer, "UNIX Time: %d", (int32_t)time);
+		sprintf(buffer, "UNIX Time: %d", (int32_t)_time);
+
+	return buffer;
+}
+
+std::string formatTime(int32_t hours, int32_t minutes)
+{
+	std::stringstream time;
+	if(hours)
+		time << hours << " " << (hours > 1 ? "hours" : "hour") << (minutes ? " and " : "");
+
+	if(minutes)
+		time << minutes << " " << (minutes > 1 ? "minutes" : "minute");
+
+	return time.str();
+}
+
+std::string convertIPAddress(uint32_t ip)
+{
+	char buffer[17];
+	sprintf(buffer, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, (ip >> 24));
+	return buffer;
 }
 
 Skulls_t getSkull(std::string strValue)
 {
 	std::string tmpStrValue = asLowerCaseString(strValue);
-	if(tmpStrValue == "red" || tmpStrValue == "4")
+	if(tmpStrValue == "black" || tmpStrValue == "5")
+		return SKULL_BLACK;
+	else if(tmpStrValue == "red" || tmpStrValue == "4")
 		return SKULL_RED;
 	else if(tmpStrValue == "white" || tmpStrValue == "3")
 		return SKULL_WHITE;
@@ -793,18 +827,6 @@ Position getNextPosition(Direction direction, Position pos)
 	return pos;
 }
 
-std::string formatTime(int32_t hours, int32_t minutes)
-{
-	std::stringstream time;
-	if(hours)
-		time << hours << " " << (hours > 1 ? "hours" : "hour") << (minutes ? " and " : "");
-
-	if(minutes)
-		time << minutes << " " << (minutes > 1 ? "minutes" : "minute");
-
-	return time.str();
-}
-
 struct AmmoTypeNames
 {
 	const char* name;
@@ -814,19 +836,19 @@ struct AmmoTypeNames
 struct MagicEffectNames
 {
 	const char* name;
-	MagicEffectClasses effect;
+	MagicEffectClasses magicEffect;
 };
 
 struct ShootTypeNames
 {
 	const char* name;
-	ShootType_t shoot;
+	ShootType_t shootType;
 };
 
 struct CombatTypeNames
 {
 	const char* name;
-	CombatType_t combat;
+	CombatType_t combatType;
 };
 
 struct AmmoActionNames
@@ -839,6 +861,12 @@ struct FluidTypeNames
 {
 	const char* name;
 	FluidTypes_t fluidType;
+};
+
+struct SkillIdNames
+{
+	const char* name;
+	skills_t skillId;
 };
 
 MagicEffectNames magicEffectNames[] =
@@ -899,7 +927,17 @@ MagicEffectNames magicEffectNames[] =
 	{"watersplash",		NM_ME_WATERSPLASH},
 	{"plantattack",		NM_ME_PLANTATTACK},
 	{"tutorialarrow",	NM_ME_TUTORIALARROW},
-	{"tutorialsquare",	NM_ME_TUTORIALSQUARE}
+	{"tutorialsquare",	NM_ME_TUTORIALSQUARE},
+	{"mirrorhorizontal",	NM_ME_MIRRORHORIZONTAL},
+	{"mirrorvertical",	NM_ME_MIRRORVERTICAL},
+	{"skullhorizontal",	NM_ME_SKULLHORIZONTAL},
+	{"skullvertical",	NM_ME_SKULLVERTICAL},
+	{"assassin",		NM_ME_ASSASSIN},
+	{"stepshorizontal",	NM_ME_STEPSHORIZONTAL},
+	{"bloodysteps",		NM_ME_BLOODYSTEPS},
+	{"stepsvertical",	NM_ME_STEPSVERTICAL},
+	{"yalaharighost",	NM_ME_YALAHARIGHOST},
+	{"smoke",		NM_ME_SMOKE}
 };
 
 ShootTypeNames shootTypeNames[] =
@@ -957,7 +995,9 @@ CombatTypeNames combatTypeNames[] =
 	{"fire",		COMBAT_FIREDAMAGE},
 	{"undefined",		COMBAT_UNDEFINEDDAMAGE},
 	{"lifedrain",		COMBAT_LIFEDRAIN},
+	{"life drain",		COMBAT_LIFEDRAIN},
 	{"manadrain",		COMBAT_MANADRAIN},
+	{"mana drain",		COMBAT_MANADRAIN},
 	{"healing",		COMBAT_HEALING},
 	{"drown",		COMBAT_DROWNDAMAGE},
 	{"ice",			COMBAT_ICEDAMAGE},
@@ -968,37 +1008,40 @@ CombatTypeNames combatTypeNames[] =
 AmmoTypeNames ammoTypeNames[] =
 {
 	{"spear",		AMMO_SPEAR},
-	{"bolt",		AMMO_BOLT},
 	{"arrow",		AMMO_ARROW},
 	{"poisonarrow",		AMMO_ARROW},
 	{"burstarrow",		AMMO_ARROW},
-	{"throwingstar",	AMMO_THROWINGSTAR},
-	{"throwingknife",	AMMO_THROWINGKNIFE},
+	{"bolt",		AMMO_BOLT},
+	{"powerbolt",		AMMO_BOLT},
 	{"smallstone",		AMMO_STONE},
 	{"largerock",		AMMO_STONE},
+	{"throwingstar",	AMMO_THROWINGSTAR},
+	{"throwingknife",	AMMO_THROWINGKNIFE},
 	{"snowball",		AMMO_SNOWBALL},
-	{"powerbolt",		AMMO_BOLT},
-	{"infernalbolt",	AMMO_BOLT},
 	{"huntingspear",	AMMO_SPEAR},
-	{"enchantedspear",	AMMO_SPEAR},
 	{"royalspear",		AMMO_SPEAR},
+	{"enchantedspear",	AMMO_SPEAR},
 	{"sniperarrow",		AMMO_ARROW},
 	{"onyxarrow",		AMMO_ARROW},
 	{"piercingbolt",	AMMO_BOLT},
-	{"etherealspear",	AMMO_SPEAR},
+	{"infernalbolt",	AMMO_BOLT},
 	{"flasharrow",		AMMO_ARROW},
 	{"flammingarrow",	AMMO_ARROW},
 	{"flamingarrow",	AMMO_ARROW},
 	{"shiverarrow",		AMMO_ARROW},
-	{"eartharrow",		AMMO_ARROW}
+	{"eartharrow",		AMMO_ARROW},
+	{"etherealspear",	AMMO_SPEAR}
 };
 
 AmmoActionNames ammoActionNames[] =
 {
 	{"move",		AMMOACTION_MOVE},
 	{"moveback",		AMMOACTION_MOVEBACK},
+	{"move back",		AMMOACTION_MOVEBACK},
 	{"removecharge",	AMMOACTION_REMOVECHARGE},
-	{"removecount",		AMMOACTION_REMOVECOUNT}
+	{"remove charge",	AMMOACTION_REMOVECHARGE},
+	{"removecount",		AMMOACTION_REMOVECOUNT},
+	{"remove count",	AMMOACTION_REMOVECOUNT}
 };
 
 FluidTypeNames fluidTypeNames[] =
@@ -1015,21 +1058,41 @@ FluidTypeNames fluidTypeNames[] =
 	{"oil",			FLUID_OIL},
 	{"urine",		FLUID_URINE},
 	{"coconutmilk",		FLUID_COCONUTMILK},
+	{"coconut milk",	FLUID_COCONUTMILK},
 	{"wine",		FLUID_WINE},
 	{"mud",			FLUID_MUD},
 	{"fruitjuice",		FLUID_FRUITJUICE},
+	{"fruit juice",		FLUID_FRUITJUICE},
 	{"lava",		FLUID_LAVA},
 	{"rum",			FLUID_RUM},
 	{"swamp",		FLUID_SWAMP}
+};
+
+SkillIdNames skillIdNames[] =
+{
+	{"fist",		SKILL_FIST},
+	{"club",		SKILL_CLUB},
+	{"sword",		SKILL_SWORD},
+	{"axe",			SKILL_AXE},
+	{"distance",		SKILL_DIST},
+	{"dist",		SKILL_DIST},
+	{"shielding",		SKILL_SHIELD},
+	{"shield",		SKILL_SHIELD},
+	{"fishing",		SKILL_FISH},
+	{"fish",		SKILL_FISH},
+	{"level",		SKILL__LEVEL},
+	{"magiclevel",		SKILL__MAGLEVEL},
+	{"magic level",		SKILL__MAGLEVEL}
 };
 
 MagicEffectClasses getMagicEffect(const std::string& strValue)
 {
 	for(uint32_t i = 0; i < sizeof(magicEffectNames) / sizeof(MagicEffectNames); ++i)
 	{
-		if(strcasecmp(strValue.c_str(), magicEffectNames[i].name) == 0)
-			return magicEffectNames[i].effect;
+		if(!strcasecmp(strValue.c_str(), magicEffectNames[i].name))
+			return magicEffectNames[i].magicEffect;
 	}
+
 	return NM_ME_UNK;
 }
 
@@ -1037,9 +1100,10 @@ ShootType_t getShootType(const std::string& strValue)
 {
 	for(uint32_t i = 0; i < sizeof(shootTypeNames) / sizeof(ShootTypeNames); ++i)
 	{
-		if(strcasecmp(strValue.c_str(), shootTypeNames[i].name) == 0)
-			return shootTypeNames[i].shoot;
+		if(!strcasecmp(strValue.c_str(), shootTypeNames[i].name))
+			return shootTypeNames[i].shootType;
 	}
+
 	return NM_SHOOT_UNK;
 }
 
@@ -1047,29 +1111,21 @@ CombatType_t getCombatType(const std::string& strValue)
 {
 	for(uint32_t i = 0; i < sizeof(combatTypeNames) / sizeof(CombatTypeNames); ++i)
 	{
-		if(strcasecmp(strValue.c_str(), combatTypeNames[i].name) == 0)
-			return combatTypeNames[i].combat;
+		if(!strcasecmp(strValue.c_str(), combatTypeNames[i].name))
+			return combatTypeNames[i].combatType;
 	}
-	return COMBAT_NONE;
-}
 
-std::string getCombatName(CombatType_t combatType)
-{
-	for(uint32_t i = 0; i < sizeof(combatTypeNames) / sizeof(CombatTypeNames); ++i)
-	{
-		if(combatTypeNames[i].combat == combatType)
-			return combatTypeNames[i].name;
-	}
-	return "unknown";
+	return COMBAT_NONE;
 }
 
 Ammo_t getAmmoType(const std::string& strValue)
 {
 	for(uint32_t i = 0; i < sizeof(ammoTypeNames) / sizeof(AmmoTypeNames); ++i)
 	{
-		if(strcasecmp(strValue.c_str(), ammoTypeNames[i].name) == 0)
+		if(!strcasecmp(strValue.c_str(), ammoTypeNames[i].name))
 			return ammoTypeNames[i].ammoType;
 	}
+
 	return AMMO_NONE;
 }
 
@@ -1077,9 +1133,10 @@ AmmoAction_t getAmmoAction(const std::string& strValue)
 {
 	for(uint32_t i = 0; i < sizeof(ammoActionNames) / sizeof(AmmoActionNames); ++i)
 	{
-		if(strcasecmp(strValue.c_str(), ammoActionNames[i].name) == 0)
+		if(!strcasecmp(strValue.c_str(), ammoActionNames[i].name))
 			return ammoActionNames[i].ammoAction;
 	}
+
 	return AMMOACTION_NONE;
 }
 
@@ -1087,10 +1144,57 @@ FluidTypes_t getFluidType(const std::string& strValue)
 {
 	for(uint32_t i = 0; i < sizeof(fluidTypeNames) / sizeof(FluidTypeNames); ++i)
 	{
-		if(strcasecmp(strValue.c_str(), fluidTypeNames[i].name) == 0)
+		if(!strcasecmp(strValue.c_str(), fluidTypeNames[i].name))
 			return fluidTypeNames[i].fluidType;
 	}
+
 	return FLUID_NONE;
+}
+
+skills_t getSkillId(const std::string& strValue)
+{
+	for(uint32_t i = 0; i < sizeof(skillIdNames) / sizeof(SkillIdNames); ++i)
+	{
+		if(!strcasecmp(strValue.c_str(), skillIdNames[i].name))
+			return skillIdNames[i].skillId;
+	}
+
+	return SKILL_FIST;
+}
+
+std::string getCombatName(CombatType_t combatType)
+{
+	switch(combatType)
+	{
+		case COMBAT_PHYSICALDAMAGE:
+			return "physical";
+		case COMBAT_ENERGYDAMAGE:
+			return "energy";
+		case COMBAT_EARTHDAMAGE:
+			return "earth";
+		case COMBAT_FIREDAMAGE:
+			return "fire";
+		case COMBAT_UNDEFINEDDAMAGE:
+			return "undefined";
+		case COMBAT_LIFEDRAIN:
+			return "life drain";
+		case COMBAT_MANADRAIN:
+			return "mana drain";
+		case COMBAT_HEALING:
+			return "healing";
+		case COMBAT_DROWNDAMAGE:
+			return "drown";
+		case COMBAT_ICEDAMAGE:
+			return "ice";
+		case COMBAT_HOLYDAMAGE:
+			return "holy";
+		case COMBAT_DEATHDAMAGE:
+			return "death";
+		default:
+			break;
+	}
+
+	return "unknown";
 }
 
 std::string getSkillName(uint16_t skillId, bool suffix/* = true*/)
@@ -1145,29 +1249,11 @@ std::string getSkillName(uint16_t skillId, bool suffix/* = true*/)
 			return "magic level";
 		case SKILL__LEVEL:
 			return "level";
+		default:
+			break;
 	}
 
 	return "unknown";
-}
-
-skills_t getSkillId(std::string param)
-{
-	if(param == "fist")
-		return SKILL_FIST;
-	else if(param == "club")
-		return SKILL_CLUB;
-	else if(param == "sword")
-		return SKILL_SWORD;
-	else if(param == "axe")
-		return SKILL_AXE;
-	else if(param == "distance" || param == "dist")
-		return SKILL_DIST;
-	else if(param == "shielding" || param == "shield")
-		return SKILL_SHIELD;
-	else if(param == "fishing" || param == "fish")
-		return SKILL_FISH;
-
-	return SKILL_FIST;
 }
 
 std::string getReason(int32_t reasonId)
@@ -1216,10 +1302,8 @@ std::string getReason(int32_t reasonId)
 			return "Destructive Behaviour";
 		case 20:
 			return "Excessive Unjustified Player Killing";
-		case 21:
-			return "Invalid Payment";
-		case 22:
-			return "Spoiling Auction";
+		default:
+			break;
 	}
 
 	return "Unknown Reason";
@@ -1227,7 +1311,7 @@ std::string getReason(int32_t reasonId)
 
 std::string getAction(ViolationAction_t actionId, bool ipBanishment)
 {
-	std::string action;
+	std::string action = "Unknown";
 	switch(actionId)
 	{
 		case ACTION_NOTATION:
@@ -1235,6 +1319,9 @@ std::string getAction(ViolationAction_t actionId, bool ipBanishment)
 			break;
 		case ACTION_NAMEREPORT:
 			action = "Name Report";
+			break;
+		case ACTION_BANISHMENT:
+			action = "Banishment";
 			break;
 		case ACTION_BANREPORT:
 			action = "Name Report + Banishment";
@@ -1248,12 +1335,20 @@ std::string getAction(ViolationAction_t actionId, bool ipBanishment)
 		case ACTION_STATEMENT:
 			action = "Statement Report";
 			break;
+		//internal use
 		case ACTION_DELETION:
 			action = "Deletion";
 			break;
-		case ACTION_BANISHMENT:
+		case ACTION_NAMELOCK:
+			action = "Name Lock";
+			break;
+		case ACTION_BANLOCK:
+			action = "Name Lock + Banishment";
+			break;
+		case ACTION_BANLOCKFINAL:
+			action = "Name Lock + Banishment + Final Warning";
+			break;
 		default:
-			action = "Banishment";
 			break;
 	}
 
@@ -1356,17 +1451,14 @@ bool parseIntegerVec(std::string str, IntegerVec& intVector)
 	for(StringVec::iterator it = strVector.begin(); it != strVector.end(); ++it)
 	{
 		tmpIntVector = vectorAtoi(explodeString((*it), "-"));
-		if(!tmpIntVector[0] && tmpIntVector[0] != 0)
+		if(!tmpIntVector[0] && it->substr(0, 1) != "0")
 			continue;
 
 		intVector.push_back(tmpIntVector[0]);
 		if(tmpIntVector.size() > 1)
 		{
 			while(tmpIntVector[0] < tmpIntVector[1])
-			{
-				tmpIntVector[0]++;
-				intVector.push_back(tmpIntVector[0]);
-			}
+				intVector.push_back(++tmpIntVector[0]);
 		}
 	}
 
@@ -1410,13 +1502,15 @@ uint32_t adlerChecksum(uint8_t *data, size_t length)
 
 std::string getFilePath(FileType_t filetype, std::string filename)
 {
-	std::string path = "";
 	#ifdef __FILESYSTEM_HIERARCHY_STANDARD__
-	path = "/usr/share/tfs/";
+	std::string path = "/usr/share/tfs/";
 	#endif
-	path += g_config.getString(ConfigManager::DATA_DIRECTORY);
+	std::string path = g_config.getString(ConfigManager::DATA_DIRECTORY);
 	switch(filetype)
 	{
+		case FILE_TYPE_OTHER:
+			path += filename;
+			break;
 		case FILE_TYPE_XML:
 			path += "XML/" + filename;
 			break;
@@ -1427,9 +1521,15 @@ std::string getFilePath(FileType_t filetype, std::string filename)
 			path = "/var/log/tfs/" + filename;
 			#endif
 			break;
-		case FILE_TYPE_OTHER:
-			path += filename;
+		case FILE_TYPE_MOD:
+		{
+			#ifndef __FILESYSTEM_HIERARCHY_STANDARD__
+			path = "mods/" + filename;
+			#else
+			path = "/etc/tfs/mods/" + filename;
+			#endif
 			break;
+		}
 		case FILE_TYPE_CONFIG:
 		{
 			#if defined(__FILESYSTEM_HIERARCHY_STANDARD__) && defined(__HOMEDIR_CONF__)
@@ -1437,12 +1537,12 @@ std::string getFilePath(FileType_t filetype, std::string filename)
 				path = "~/.tfs/" + filename;
 			else
 				path = "/etc/tfs/" + filename;
-			#elif defined(__FILESYSTEM_HIERARCHY_STANDARD__)
-				path = "/etc/tfs/" + filename;
-			#else
-				path = filename;
-			#endif
 
+			#elif defined(__FILESYSTEM_HIERARCHY_STANDARD__)
+			path = "/etc/tfs/" + filename;
+			#else
+			path = filename;
+			#endif
 			break;
 		}
 		default:

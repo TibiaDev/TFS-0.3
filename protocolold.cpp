@@ -28,7 +28,6 @@
 
 #include "game.h"
 extern Game g_game;
-extern RSA* g_otservRSA;
 
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 uint32_t ProtocolOld::protocolOldCount = 0;
@@ -44,8 +43,7 @@ void ProtocolOld::deleteProtocolTask()
 
 void ProtocolOld::disconnectClient(uint8_t error, const char* message)
 {
-	OutputMessage_ptr output = OutputMessagePool::getInstance()->getOutputMessage(this, false);
-	if(output)
+	if(OutputMessage_ptr output = OutputMessagePool::getInstance()->getOutputMessage(this, false))
 	{
 		TRACK_MESSAGE(output);
 		output->AddByte(error);
@@ -69,12 +67,12 @@ bool ProtocolOld::parseFirstPacket(NetworkMessage& msg)
 	}
 
 	/*uint16_t operatingSystem = */msg.GetU16();
-	uint16_t version  = msg.GetU16();
+	uint16_t version = msg.GetU16();
 	msg.SkipBytes(12);
 	if(version <= 760)
 		disconnectClient(0x0A, CLIENT_VERSION_STRING);
 
-	if(!RSA_decrypt(g_otservRSA, msg))
+	if(!RSA_decrypt(msg))
 	{
 		getConnection()->close();
 		return false;

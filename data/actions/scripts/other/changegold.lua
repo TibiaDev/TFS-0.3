@@ -11,9 +11,13 @@ local coins = {
 }
 
 function onUse(cid, item, fromPosition, itemEx, toPosition)
+	if(getPlayerFlagValue(cid, PlayerFlag_CannotPickupItem)) then
+		return false
+	end
+
 	local coin = coins[item.itemid]
 	if(not coin) then
-		return FALSE
+		return false
 	end
 
 	if(coin.to ~= nil and item.type == ITEMCOUNT_MAX) then
@@ -25,5 +29,5 @@ function onUse(cid, item, fromPosition, itemEx, toPosition)
 		doPlayerAddItem(cid, coin.from, ITEMCOUNT_MAX)
 		doSendAnimatedText(fromPosition, "$$$", coins[coin.from].effect)
 	end
-	return TRUE
+	return true
 end

@@ -141,7 +141,7 @@ void Combat::getCombatArea(const Position& centerPos, const Position& targetPos,
 		Tile* tile = g_game.getTile(tmpX, tmpY, targetPos.z);
 		if(!tile)
 		{
-			tile = new Tile(tmpX, tmpY, targetPos.z);
+			tile = new StaticTile(tmpX, tmpY, targetPos.z);
 			g_game.setTile(tile);
 		}
 
@@ -283,7 +283,7 @@ ReturnValue Combat::canDoCombat(const Creature* attacker, const Creature* target
 				isProtected(const_cast<Player*>(attackerPlayer), const_cast<Player*>(targetPlayer))
 				|| (g_config.getBool(ConfigManager::CANNOT_ATTACK_SAME_LOOKFEET) &&
 				attackerPlayer->getDefaultOutfit().lookFeet == targetPlayer->getDefaultOutfit().lookFeet)
-				|| (targetPlayer->isInGhostMode() && !attackerPlayer->canSeeGhost(targetPlayer)))
+				|| !attackerPlayer->canSeeCreature(targetPlayer))
 				return RET_YOUMAYNOTATTACKTHISPLAYER;
 		}
 	}
@@ -308,14 +308,11 @@ ReturnValue Combat::canDoCombat(const Creature* attacker, const Creature* target
 		}
 	}
 
-	if(checkZones)
-	{
-		if(target->getTile()->hasFlag(TILESTATE_NOPVPZONE) || (attacker->getTile()->hasFlag(TILESTATE_NOPVPZONE) &&
-			!target->getTile()->hasFlag(TILESTATE_NOPVPZONE) && !target->getTile()->hasFlag(TILESTATE_PROTECTIONZONE)))
-			return RET_ACTIONNOTPERMITTEDINANOPVPZONE;
-	}
-
-	return RET_NOERROR;
+	return checkZones && (target->getTile()->hasFlag(TILESTATE_NOPVPZONE) ||
+		(attacker->getTile()->hasFlag(TILESTATE_NOPVPZONE)
+		&& !target->getTile()->hasFlag(TILESTATE_NOPVPZONE) &&
+		!target->getTile()->hasFlag(TILESTATE_PROTECTIONZONE))) ?
+		RET_ACTIONNOTPERMITTEDINANOPVPZONE : RET_NOERROR;
 }
 
 ReturnValue Combat::canTargetCreature(const Player* player, const Creature* target)
@@ -355,16 +352,16 @@ ReturnValue Combat::canTargetCreature(const Player* player, const Creature* targ
 	}
 
 	if(player->hasFlag(PlayerFlag_CannotUseCombat) || !target->isAttackable())
+		return target->getPlayer() ? RET_YOUMAYNOTATTACKTHISPLAYER : RET_YOUMAYNOTATTACKTHISCREATURE;
+
+	if(target->getPlayer() && !Combat::isInPvpZone(player, target) && player->getSkullClient(target->getPlayer()) == SKULL_NONE)
 	{
-		if(target->getPlayer())
+		if(player->getSecureMode() == SECUREMODE_ON)
+			return RET_TURNSECUREMODETOATTACKUNMARKEDPLAYERS;
+
+		if(player->getSkull() == SKULL_BLACK)
 			return RET_YOUMAYNOTATTACKTHISPLAYER;
-
-		return RET_YOUMAYNOTATTACKTHISCREATURE;
 	}
-
-	if(target->getPlayer() && player->getSecureMode() == SECUREMODE_ON && !Combat::isInPvpZone(player, target)
-		&& player->getSkullClient(target->getPlayer()) == SKULL_NONE)
-		return RET_TURNSECUREMODETOATTACKUNMARKEDPLAYERS;
 
 	return Combat::canDoCombat(player, target);
 }
@@ -529,7 +526,8 @@ bool Combat::CombatHealthFunc(Creature* caster, Creature* target, const CombatPa
 
 	if(healthChange < 0)
 	{
-		if(caster && caster->getPlayer() && target->getPlayer())
+		if(caster && caster->getPlayer() && target->getPlayer()
+			&& target->getPlayer()->getSkull() != SKULL_BLACK)
 			healthChange = healthChange / 2;
 	}
 
@@ -547,7 +545,8 @@ bool Combat::CombatManaFunc(Creature* caster, Creature* target, const CombatPara
 	int32_t manaChange = random_range(var->minChange, var->maxChange, DISTRO_NORMAL);
 	if(manaChange < 0)
 	{
-		if(caster && caster->getPlayer() && target->getPlayer())
+		if(caster && caster->getPlayer() && target->getPlayer()
+			&& target->getPlayer()->getSkull() != SKULL_BLACK)
 			manaChange = manaChange / 2;
 	}
 
@@ -607,8 +606,8 @@ void Combat::combatTileEffects(const SpectatorVec& list, Creature* caster, Tile*
 		{
 			if(caster->getPlayer())
 				player = caster->getPlayer();
-			else if(caster->isSummon() && caster->getMaster()->getPlayer())
-				player = caster->getMaster()->getPlayer();
+			else if(caster->isPlayerSummon())
+				player = caster->getPlayerMaster();
 		}
 
 		uint32_t itemId = params.itemId;
@@ -651,7 +650,8 @@ void Combat::combatTileEffects(const SpectatorVec& list, Creature* caster, Tile*
 	if(params.tileCallback)
 		params.tileCallback->onTileCombat(caster, tile);
 
-	if(params.impactEffect != NM_ME_NONE)
+	if(params.impactEffect != NM_ME_NONE &&
+		(!caster || !caster->isGhost() || g_config.getBool(ConfigManager::GHOST_SPELL_EFFECTS)))
 		g_game.addMagicEffect(list, tile->getPosition(), params.impactEffect);
 }
 
@@ -719,43 +719,46 @@ void Combat::CombatFunc(Creature* caster, const Position& pos, const AreaCombat*
 	SpectatorVec list;
 	g_game.getSpectators(list, pos, false, true, maxX + Map::maxViewportX, maxX + Map::maxViewportX,
 		maxY + Map::maxViewportY, maxY + Map::maxViewportY);
+
+	Tile* tile = NULL;
+	CreatureVector* creatures = NULL;
 	for(std::list<Tile*>::iterator it = tileList.begin(); it != tileList.end(); ++it)
 	{
-		if(canDoCombat(caster, (*it), params.isAggressive) == RET_NOERROR)
+		if(!(tile = (*it)) || canDoCombat(caster, (*it), params.isAggressive) != RET_NOERROR)
+			continue;
+
+		bool skip = true;
+		if((creatures = tile->getCreatures()))
 		{
-			bool skip = true;
-			if((*it)->creatures)
+			for(CreatureVector::iterator cit = creatures->begin(), cend = creatures->end(); skip && cit != cend; ++cit)
 			{
-				for(CreatureVector::iterator cit = (*it)->creatures->begin(); skip && cit != (*it)->creatures->end(); ++cit)
+				if(params.targetPlayersOrSummons && !(*cit)->getPlayer() && (!(*cit)->getMaster() || !(*cit)->getMaster()->getPlayer()))
+					continue;
+
+				if(params.targetCasterOrTopMost)
 				{
-					if(params.targetPlayersOrSummons && !(*cit)->getPlayer() && (!(*cit)->getMaster() || !(*cit)->getMaster()->getPlayer()))
-						continue;
-
-					if(params.targetCasterOrTopMost)
+					if(caster && caster->getTile() == tile)
 					{
-						if(caster && caster->getTile() == (*it))
-						{
-							if((*cit) == caster)
-								skip = false;
-						}
-						else if((*cit) == (*it)->getTopCreature())
+						if((*cit) == caster)
 							skip = false;
-
-						if(skip)
-							continue;
 					}
+					else if((*cit) == tile->getTopCreature())
+						skip = false;
 
-					if(!params.isAggressive || (caster != (*cit) && Combat::canDoCombat(caster, (*cit)) == RET_NOERROR))
-					{
-						func(caster, (*cit), params, data);
-						if(params.targetCallback)
-							params.targetCallback->onTargetCombat(caster, (*cit));
-					}
+					if(skip)
+						continue;
+				}
+
+				if(!params.isAggressive || (caster != (*cit) && Combat::canDoCombat(caster, (*cit)) == RET_NOERROR))
+				{
+					func(caster, (*cit), params, data);
+					if(params.targetCallback)
+						params.targetCallback->onTargetCombat(caster, (*cit));
 				}
 			}
-
-			combatTileEffects(list, caster, (*it), params);
 		}
+
+		combatTileEffects(list, caster, tile, params);
 	}
 
 	postCombatEffects(caster, pos, params);
@@ -802,10 +805,12 @@ void Combat::doCombatHealth(Creature* caster, Creature* target, int32_t minChang
 		var.maxChange = maxChange;
 
 		CombatHealthFunc(caster, target, params, (void*)&var);
-		if(params.impactEffect != NM_ME_NONE)
+
+		bool display = (!caster || !caster->isGhost() || g_config.getBool(ConfigManager::GHOST_SPELL_EFFECTS));
+		if(params.impactEffect != NM_ME_NONE && display)
 			g_game.addMagicEffect(target->getPosition(), params.impactEffect);
 
-		if(caster && params.distanceEffect != NM_ME_NONE)
+		if(caster && params.distanceEffect != NM_ME_NONE && display)
 			addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect);
 	}
 }
@@ -832,10 +837,11 @@ void Combat::doCombatMana(Creature* caster, Creature* target, int32_t minChange,
 		if(params.targetCallback)
 			params.targetCallback->onTargetCombat(caster, target);
 
-		if(params.impactEffect != NM_ME_NONE)
+		bool display = (!caster || !caster->isGhost() || g_config.getBool(ConfigManager::GHOST_SPELL_EFFECTS));
+		if(params.impactEffect != NM_ME_NONE && display)
 			g_game.addMagicEffect(target->getPosition(), params.impactEffect);
 
-		if(caster && params.distanceEffect != NM_ME_NONE)
+		if(caster && params.distanceEffect != NM_ME_NONE && display)
 			addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect);
 	}
 }
@@ -864,10 +870,11 @@ void Combat::doCombatCondition(Creature* caster, Creature* target, const CombatP
 		if(params.targetCallback)
 			params.targetCallback->onTargetCombat(caster, target);
 
-		if(params.impactEffect != NM_ME_NONE)
+		bool display = (!caster || !caster->isGhost() || g_config.getBool(ConfigManager::GHOST_SPELL_EFFECTS));
+		if(params.impactEffect != NM_ME_NONE && display)
 			g_game.addMagicEffect(target->getPosition(), params.impactEffect);
 
-		if(caster && params.distanceEffect != NM_ME_NONE)
+		if(caster && params.distanceEffect != NM_ME_NONE && display)
 			addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect);
 	}
 }
@@ -886,10 +893,11 @@ void Combat::doCombatDispel(Creature* caster, Creature* target, const CombatPara
 		if(params.targetCallback)
 			params.targetCallback->onTargetCombat(caster, target);
 
-		if(params.impactEffect != NM_ME_NONE)
+		bool display = (!caster || !caster->isGhost() || g_config.getBool(ConfigManager::GHOST_SPELL_EFFECTS));
+		if(params.impactEffect != NM_ME_NONE && display)
 			g_game.addMagicEffect(target->getPosition(), params.impactEffect);
 
-		if(caster && params.distanceEffect != NM_ME_NONE)
+		if(caster && params.distanceEffect != NM_ME_NONE && display)
 			addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect);
 	}
 }
@@ -904,10 +912,11 @@ void Combat::doCombatDefault(Creature* caster, Creature* target, const CombatPar
 		if(params.targetCallback)
 			params.targetCallback->onTargetCombat(caster, target);
 
-		if(params.impactEffect != NM_ME_NONE)
+		bool display = (!caster || !caster->isGhost() || g_config.getBool(ConfigManager::GHOST_SPELL_EFFECTS));
+		if(params.impactEffect != NM_ME_NONE && display)
 			g_game.addMagicEffect(target->getPosition(), params.impactEffect);
 
-		if(caster && params.distanceEffect != NM_ME_NONE)
+		if(caster && params.distanceEffect != NM_ME_NONE && display)
 			addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect);
 	}
 }
@@ -972,6 +981,7 @@ void ValueCallback::getMinMaxValues(Player* player, int32_t& min, int32_t& max, 
 			max = LuaScriptInterface::popNumber(L);
 			min = LuaScriptInterface::popNumber(L);
 			Vocation* vocation = player->getVocation();
+
 			float multiplier = 1.0;
 			if(max > 0)
 				multiplier = vocation->getMultiplier(MULTIPLIER_MAGICHEALING);
@@ -1016,7 +1026,7 @@ void TileCallback::onTileCombat(Creature* creature, Tile* tile) const
 		m_scriptInterface->releaseScriptEnv();
 	}
 	else
-		std::cout << "[Error] Call stack overflow. TileCallback::onTileCombat" << std::endl;
+		std::cout << "[Error - TileCallback::onTileCombat] Call stack overflow." << std::endl;
 }
 
 //**********************************************************
@@ -1098,7 +1108,7 @@ bool AreaCombat::getList(const Position& centerPos, const Position& targetPos, s
 					tile = g_game.getTile(tmpX, tmpY, targetPos.z);
 					if(!tile)
 					{
-						tile = new Tile(tmpX, tmpY, targetPos.z);
+						tile = new StaticTile(tmpX, tmpY, targetPos.z);
 						g_game.setTile(tile);
 					}
 
@@ -1347,7 +1357,7 @@ void AreaCombat::setupExtArea(const std::list<uint32_t>& list, uint32_t rows)
 
 void MagicField::onStepInField(Creature* creature, bool purposeful/* = true*/)
 {
-	if(isBlocking())
+	if(isBlocking() && (!creature->getPlayer() || !creature->isGhost()))
 	{
 		g_game.internalRemoveItem(creature, this, 1);
 		return;
@@ -1360,15 +1370,15 @@ void MagicField::onStepInField(Creature* creature, bool purposeful/* = true*/)
 	if(!it.condition)
 		return;
 
-	Condition* conditionCopy = it.condition->clone();
+	Condition* condition = it.condition->clone();
 	uint32_t ownerId = getOwner();
 	if(ownerId && !getTile()->hasFlag(TILESTATE_PVPZONE))
 	{
 		if(Creature* owner = g_game.getCreatureByID(ownerId))
 		{
 			bool harmful = true;
-			if((g_game.getWorldType() == WORLD_TYPE_NO_PVP || getTile()->hasFlag(TILESTATE_NOPVPZONE)) &&
-				(owner->getPlayer() || (owner->isSummon() && owner->getMaster()->getPlayer())))
+			if((g_game.getWorldType() == WORLD_TYPE_NO_PVP || getTile()->hasFlag(TILESTATE_NOPVPZONE))
+				&& (owner->getPlayer() || owner->isPlayerSummon()))
 				harmful = false;
 			else if(Player* targetPlayer = creature->getPlayer())
 			{
@@ -1378,9 +1388,9 @@ void MagicField::onStepInField(Creature* creature, bool purposeful/* = true*/)
 
 			if(!harmful || (OTSYS_TIME() - createTime) <= (uint32_t)g_config.getNumber(
 				ConfigManager::FIELD_OWNERSHIP) || creature->hasBeenAttacked(ownerId))
-				conditionCopy->setParam(CONDITIONPARAM_OWNER, ownerId);
+				condition->setParam(CONDITIONPARAM_OWNER, ownerId);
 		}
 	}
 
-	creature->addCondition(conditionCopy);
+	creature->addCondition(condition);
 }

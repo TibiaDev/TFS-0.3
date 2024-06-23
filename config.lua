@@ -12,7 +12,29 @@
 	newPlayerMagicLevel = 0
 	generateAccountNumber = "no"
 
+	-- Unjustified kills
+	-- NOTE: *Banishment and *BlackSkull variables are >summed up<
+	-- (dailyFragsToRedSkull + dailyFragsToBanishment) with their
+	-- *RedSkull equivalents.
+	-- Auto banishing works only if useBlackSkull set to negative.
+	redSkullLength = 30 * 24 * 60 * 60
+	blackSkullLength = 45 * 24 * 60 * 60
+	dailyFragsToRedSkull = 3
+	weeklyFragsToRedSkull = 5
+	monthlyFragsToRedSkull = 10
+	dailyFragsToBlackSkull = dailyFragsToRedSkull
+	weeklyFragsToBlackSkull = weeklyFragsToRedSkull
+	monthlyFragsToBlackSkull = monthlyFragsToRedSkull
+	dailyFragsToBanishment = dailyFragsToRedSkull
+	weeklyFragsToBanishment = weeklyFragsToRedSkull
+	monthlyFragsToBanishment = monthlyFragsToRedSkull
+	blackSkulledDeathHealth = 40
+	blackSkulledDeathMana = 0
+	useBlackSkull = "yes"
+	advancedFragList = "no"
+
 	-- Banishments
+	-- violationNameReportActionType 1 = just a report, 2 = name lock, 3 = player banishment
 	notationsToBan = 3
 	warningsToFinalBan = 4
 	warningsToDeletion = 5
@@ -20,29 +42,27 @@
 	finalBanLength = 30 * 24 * 60 * 60
 	ipBanishmentLength = 1 * 24 * 60 * 60
 	broadcastBanishments = "yes"
-	killsToBan = 5
 	maxViolationCommentSize = 200
+	violationNameReportActionType = 2
 	autoBanishUnknownBytes = "no"
 
 	-- Battle
-	-- NOTE: loginProtectionPeriod is the famous Tibia anti-magebomb system.
+	-- NOTE: showHealingDamageForMonsters inheritates from showHealingDamage.
+	-- loginProtectionPeriod is the famous Tibia anti-magebomb system.
 	-- deathLostPercent set to nil enables manual mode.
-	-- showHealingDamageForMonsters inheritates from showHealingDamage.
 	worldType = "pvp"
 	protectionLevel = 1
 	pvpTileIgnoreLevelAndVocationProtection = "yes"
-	killsToRedSkull = 3
 	pzLocked = 60 * 1000
+	huntingDuration = 60 * 1000
 	criticalHitChance = 7
 	criticalHitMultiplier = 1
 	displayCriticalHitNotify = "no"
 	removeWeaponAmmunition = "yes"
 	removeWeaponCharges = "yes"
 	removeRuneCharges = "yes"
-	timeToDecreaseFrags = 24 * 60 * 60 * 1000
 	whiteSkullTime = 15 * 60 * 1000
 	noDamageToSameLookfeet = "no"
-	experienceByKillingPlayers = "no"
 	showHealingDamage = "no"
 	showHealingDamageForMonsters = "no"
 	fieldOwnershipDuration = 5 * 1000
@@ -54,10 +74,14 @@
 	pushCreatureDelay = 2 * 1000
 	deathContainerId = 1987
 	gainExperienceColor = 215
+	addManaSpentInPvPZone = "yes"
+	squareColor = 0
+	allowFightback = "yes"
 
 	-- Connection config
 	worldId = 0
 	ip = "127.0.0.1"
+	bindOnlyConfiguredIpAddress = "no"
 	loginPort = 7171
 	gamePort = 7172
 	adminPort = 7171
@@ -69,7 +93,7 @@
 	motd = "Welcome to the Forgotten Server!"
 	displayOnOrOffAtCharlist = "no"
 	onePlayerOnlinePerAccount = "yes"
-	allowClones = 0
+	allowClones = "no"
 	serverName = "Forgotten"
 	loginMessage = "Welcome to the Forgotten Server!"
 	statusTimeout = 5 * 60 * 1000
@@ -90,11 +114,13 @@
 	sqlFile = "forgottenserver.s3db"
 	sqlKeepAlive = 0
 	mysqlReadTimeout = 10
-	mysqlWriteTImeout = 10
+	mysqlWriteTimeout = 10
 	passwordType = "plain"
 
 	-- Deathlist
 	deathListEnabled = "yes"
+	deathListRequiredTime = 1 * 60 * 1000
+	deathAssistCount = 19
 	maxDeathRecords = 5
 
 	-- Guilds
@@ -118,6 +144,7 @@
 	housePriceAsRent = "no"
 	housePriceEachSquare = 1000
 	houseRentPeriod = "never"
+	guildHalls = "no"
 
 	-- Item usage
 	timeBetweenActions = 200
@@ -135,6 +162,7 @@
 	useHouseDataStorage = "no"
 	storeTrash = "yes"
 	cleanProtectedZones = "yes"
+	mailboxDisabledTowns = "-1"
 
 	-- Startup
 	-- NOTE: defaultPriority works only on Windows and niceLevel on *nix
@@ -145,7 +173,7 @@
 	coresUsed = "-1"
 	optimizeDatabaseAtStartup = "yes"
 	removePremiumOnInit = "yes"
-	confirmOutdatedVersion = "yes"
+	confirmOutdatedVersion = "no"
 
 	-- Muted buffer
 	maxMessageBuffer = 4
@@ -154,22 +182,33 @@
 	-- Miscellaneous
 	-- NOTE: promptExceptionTracerErrorBox works only with precompiled support feature,
 	-- called "exception tracer" (__EXCEPTION_TRACER__ flag).
+	-- monsterLootMessage 0 to disable, 1 - only party, 2 - only player, 3 - party or player (like Tibia's)
 	dataDirectory = "data/"
-	kickIdlePlayerAfterMinutes = 15
 	allowChangeOutfit = "yes"
 	allowChangeColors = "yes"
 	allowChangeAddons = "yes"
 	disableOutfitsForPrivilegedPlayers = "no"
 	bankSystem = "yes"
 	saveGlobalStorage = "yes"
-	ghostModeInvisibleEffect = "no"
 	displaySkillLevelOnAdvance = "no"
 	spellNameInsteadOfWords = "no"
 	emoteSpells = "no"
-	expireReportsAfterReads = 1
 	promptExceptionTracerErrorBox = "yes"
 	storePlayerDirection = "no"
+	monsterLootMessage = 3
+	monsterLootMessageType = 25
+
+	-- Ghost mode
+	ghostModeInvisibleEffect = "no"
+	ghostModeSpellEffects = "yes"
+
+	-- Limits
+	idleWarningTime = 14 * 60 * 1000
+	idleKickTime = 15 * 60 * 1000
+	expireReportsAfterReads = 1
 	playerQueryDeepness = 2
+	maxItemsPerPZTile = 0
+	maxItemsPerHouseTile = 0
 
 	-- Premium-related
 	freePremium = "no"
@@ -185,12 +224,22 @@
 
 	-- Rates
 	-- NOTE: experienceStages configuration is located in data/XML/stages.xml.
+	-- rateExperienceFromPlayers 0 to disable.
 	experienceStages = "no"
 	rateExperience = 5.0
+	rateExperienceFromPlayers = 0
 	rateSkill = 3.0
 	rateMagic = 3.0
 	rateLoot = 2.0
 	rateSpawn = 1
+
+	-- Experience from players
+	-- NOTE: min~Threshold* set to 0 will disable the minimum threshold:
+	-- player will gain experience from every lower leveled player.
+	-- max~Threshold* set to 0 will disable the maximum threshold:
+	-- player will gain experience from every higher leveled player.
+	minLevelThresholdForKilledPlayer = 0.9
+	maxLevelThresholdForKilledPlayer = 1.1
 
 	-- Stamina
 	-- NOTE: Stamina is stored in miliseconds, so seconds are multiplied by 1000.
@@ -220,6 +269,7 @@
 	experienceShareLevelDifference = 2 / 3
 	extraPartyExperienceLimit = 20
 	extraPartyExperiencePercent = 5
+	experienceShareActivity = 2 * 60 * 1000
 
 	-- Global save
 	-- NOTE: globalSaveHour means like 03:00, not that it will save every 3 hours,
@@ -251,7 +301,7 @@
 	adminLogsEnabled = "no"
 	displayPlayersLogging = "yes"
 	prefixChannelLogs = ""
-	runeFile = ""
+	runFile = ""
 	outLogName = ""
 	errorLogName = ""
 	truncateLogsOnStartup = "no"

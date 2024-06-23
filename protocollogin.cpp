@@ -34,10 +34,10 @@
 #include "configmanager.h"
 #include "game.h"
 
-extern RSA* g_otservRSA;
 extern ConfigManager g_config;
-extern IPList serverIPs;
 extern Game g_game;
+
+extern IpList serverIps;
 
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 uint32_t ProtocolLogin::protocolLoginCount = 0;
@@ -77,12 +77,12 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 		return false;
 	}
 
-	uint32_t clientIP = getConnection()->getIP();
+	uint32_t clientIp = getConnection()->getIP();
 	/*uint16_t operatingSystem = */msg.GetU16();
-	uint16_t version  = msg.GetU16();
+	uint16_t version = msg.GetU16();
 	msg.SkipBytes(12);
 
-	if(!RSA_decrypt(g_otservRSA, msg))
+	if(!RSA_decrypt(msg))
 	{
 		getConnection()->close();
 		return false;
@@ -103,7 +103,7 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 			password = "1";
 		else
 		{
-			disconnectClient(0x0A, "Invalid Account Name.");
+			disconnectClient(0x0A, "Invalid account name.");
 			return false;
 		}
 	}
@@ -114,32 +114,33 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 		return false;
 	}
 
-	if(g_game.getGameState() == GAME_STATE_STARTUP)
+	if(g_game.getGameState() < GAME_STATE_NORMAL)
 	{
-		disconnectClient(0x0A, "Gameworld is starting up. Please wait.");
+		disconnectClient(0x0A, "Server is just starting up, please wait.");
 		return false;
 	}
 
 	if(g_game.getGameState() == GAME_STATE_MAINTAIN)
 	{
-		disconnectClient(0x0A, "Gameworld is under maintenance. Please re-connect in a while.");
+		disconnectClient(0x0A, "Server is under maintenance, please re-connect in a while.");
 		return false;
 	}
 
-	if(ConnectionManager::getInstance()->isDisabled(clientIP, protocolId))
+	if(ConnectionManager::getInstance()->isDisabled(clientIp, protocolId))
 	{
-		disconnectClient(0x0A, "Too many connections attempts from this IP. Please try again later.");
+		disconnectClient(0x0A, "Too many connections attempts from your IP address, please try again later.");
 		return false;
 	}
 
-	if(IOBan::getInstance()->isIpBanished(clientIP))
+	if(IOBan::getInstance()->isIpBanished(clientIp))
 	{
 		disconnectClient(0x0A, "Your IP is banished!");
 		return false;
 	}
 
 	Account account;
-	if(IOLoginData::getInstance()->getAccountId(name, id) || (!name.length() && g_config.getBool(ConfigManager::ACCOUNT_MANAGER)))
+	if(IOLoginData::getInstance()->getAccountId(name, id) || (!name.length()
+		&& g_config.getBool(ConfigManager::ACCOUNT_MANAGER)))
 	{
 		account = IOLoginData::getInstance()->loadAccount(id);
 		if(id < 1 || id != account.number || !passwordTest(password, account.password))
@@ -148,8 +149,32 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 
 	if(!account.number)
 	{
-		ConnectionManager::getInstance()->addAttempt(clientIP, protocolId, false);
+		ConnectionManager::getInstance()->addAttempt(clientIp, protocolId, false);
 		disconnectClient(0x0A, "Account name or password is not correct.");
+		return false;
+	}
+
+	Ban ban;
+	ban.value = account.number;
+
+	ban.type = BAN_ACCOUNT;
+	if(IOBan::getInstance()->getData(ban) && !IOLoginData::getInstance()->hasFlag(account.number, PlayerFlag_CannotBeBanned))
+	{
+		bool deletion = ban.expires < 0;
+		std::string name_ = "Automatic ";
+		if(ban.adminId == 0)
+			name_ += (deletion ? "deletion" : "banishment");
+		else
+			IOLoginData::getInstance()->getNameByGuid(ban.adminId, name_, true);
+
+		char buffer[500 + ban.comment.length()];
+		sprintf(buffer, "Your account has been %s at:\n%s by: %s,\nfor the following reason:\n%s.\nThe action taken was:\n%s.\nThe comment given was:\n%s.\nYour %s%s.",
+			(deletion ? "deleted" : "banished"), formatDateShort(ban.added).c_str(), name_.c_str(),
+			getReason(ban.reason).c_str(), getAction(ban.action, false).c_str(), ban.comment.c_str(),
+			(deletion ? "account won't be undeleted" : "banishment will be lifted at:\n"),
+			(deletion ? "." : formatDateShort(ban.expires, true).c_str()));
+
+		disconnectClient(0x0A, buffer);
 		return false;
 	}
 
@@ -157,29 +182,29 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 	IOLoginData::getInstance()->removePremium(account);
 	if(!g_config.getBool(ConfigManager::ACCOUNT_MANAGER) && !account.charList.size())
 	{
-		disconnectClient(0x0A, std::string("This account does not contain any character yet.\nCreate a new character on the " + g_config.getString(ConfigManager::SERVER_NAME) + " website at " + g_config.getString(ConfigManager::URL) + ".").c_str());
+		disconnectClient(0x0A, std::string("This account does not contain any character yet.\nCreate a new character on the "
+			+ g_config.getString(ConfigManager::SERVER_NAME) + " website at " + g_config.getString(ConfigManager::URL) + ".").c_str());
 		return false;
 	}
 
-	ConnectionManager::getInstance()->addAttempt(clientIP, protocolId, true);
+	ConnectionManager::getInstance()->addAttempt(clientIp, protocolId, true);
 	if(OutputMessage_ptr output = OutputMessagePool::getInstance()->getOutputMessage(this, false))
 	{
 		TRACK_MESSAGE(output);
-
-		//Add MOTD
 		output->AddByte(0x14);
+
 		char motd[1300];
 		sprintf(motd, "%d\n%s", g_game.getMotdNum(), g_config.getString(ConfigManager::MOTD).c_str());
 		output->AddString(motd);
 
-		uint32_t serverIP = serverIPs[0].first;
-		for(uint32_t i = 0; i < serverIPs.size(); i++)
+		uint32_t serverIp = serverIps[0].first;
+		for(IpList::iterator it = serverIps.begin(); it != serverIps.end(); ++it)
 		{
-			if((serverIPs[i].first & serverIPs[i].second) == (clientIP & serverIPs[i].second))
-			{
-				serverIP = serverIPs[i].first;
-				break;
-			}
+			if((it->first & it->second) != (clientIp & it->second))
+				continue;
+
+			serverIp = it->first;
+			break;
 		}
 
 		//Add char list
@@ -189,7 +214,7 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 			output->AddByte((uint8_t)account.charList.size() + 1);
 			output->AddString("Account Manager");
 			output->AddString(g_config.getString(ConfigManager::SERVER_NAME));
-			output->AddU32(serverIP);
+			output->AddU32(serverIp);
 			output->AddU16(g_config.getNumber(ConfigManager::GAME_PORT));
 		}
 		else
@@ -209,7 +234,7 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 			else
 				output->AddString(g_config.getString(ConfigManager::SERVER_NAME));
 
-			output->AddU32(serverIP);
+			output->AddU32(serverIp);
 			output->AddU16(g_config.getNumber(ConfigManager::GAME_PORT));
 			#else
 			if(version < it->second->getVersionMin() || version > it->second->getVersionMax())

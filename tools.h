@@ -1,26 +1,24 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_TOOLS_H__
-#define __OTSERV_TOOLS_H__
+#ifndef __TOOLS__
+#define __TOOLS__
 #include "otsystem.h"
+
 #include "enums.h"
 #include "const.h"
 
@@ -46,7 +44,8 @@ enum FileType_t
 	FILE_TYPE_XML,
 	FILE_TYPE_LOG,
 	FILE_TYPE_OTHER,
-	FILE_TYPE_CONFIG
+	FILE_TYPE_CONFIG,
+	FILE_TYPE_MOD
 };
 
 std::string transformToMD5(std::string plainText, bool upperCase = false);
@@ -108,10 +107,10 @@ Direction getDirectionTo(Position pos1, Position pos2, bool extended = true);
 Direction getReverseDirection(Direction dir);
 Position getNextPosition(Direction direction, Position pos);
 
-void formatDate(time_t time, char* buffer);
-void formatDate2(time_t time, char* buffer, bool detailed = false);
-void formatIP(uint32_t ip, char* buffer);
+std::string formatDate(time_t _time = 0);
+std::string formatDateShort(time_t _time = 0, bool detailed = false);
 std::string formatTime(int32_t hours, int32_t minutes);
+std::string convertIPAddress(uint32_t ip);
 
 MagicEffectClasses getMagicEffect(const std::string& strValue);
 ShootType_t getShootType(const std::string& strValue);
@@ -119,10 +118,10 @@ Ammo_t getAmmoType(const std::string& strValue);
 AmmoAction_t getAmmoAction(const std::string& strValue);
 CombatType_t getCombatType(const std::string& strValue);
 FluidTypes_t getFluidType(const std::string& strValue);
-std::string getCombatName(CombatType_t combatType);
+skills_t getSkillId(const std::string& strValue);
 
-std::string getSkillName(uint16_t skillid, bool suffix = true);
-skills_t getSkillId(std::string param);
+std::string getCombatName(CombatType_t combatType);
+std::string getSkillName(uint16_t skillId, bool suffix = true);
 
 std::string getReason(int32_t reasonId);
 std::string getAction(ViolationAction_t actionId, bool ipBanishment);

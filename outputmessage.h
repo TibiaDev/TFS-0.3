@@ -1,29 +1,27 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_OUTPUT_MESSAGE_H__
-#define __OTSERV_OUTPUT_MESSAGE_H__
+#ifndef __OUTPUT_MESSAGE__
+#define __OUTPUT_MESSAGE__
 #include "otsystem.h"
-
-#include "networkmessage.h"
 #include "tools.h"
+
+#include "connection.h"
+#include "networkmessage.h"
 
 #ifdef __TRACK_NETWORK__
 #include <iostream>
@@ -31,8 +29,6 @@
 #endif
 
 class Protocol;
-class Connection;
-
 #define OUTPUT_POOL_SIZE 100
 
 class OutputMessage : public NetworkMessage, boost::noncopyable
@@ -43,9 +39,11 @@ class OutputMessage : public NetworkMessage, boost::noncopyable
 	public:
 		virtual ~OutputMessage() {}
 
-		char* getOutputBuffer() {return (char*)&m_MsgBuf[m_outputBufferStart];}
 		Protocol* getProtocol() const {return m_protocol;}
 		Connection* getConnection() const {return m_connection;}
+
+		char* getOutputBuffer() {return (char*)&m_MsgBuf[m_outputBufferStart];}
+		uint64_t getFrame() const {return m_frame;}
 
 		void writeMessageLength() {addHeader((uint16_t)(m_MsgSize));}
 		void addCryptoHeader(bool addChecksum)
@@ -65,6 +63,11 @@ class OutputMessage : public NetworkMessage, boost::noncopyable
 			std::ostringstream os;
 			os << /*file << ":" */"line " << line << " " << func;
 			lastUses.push_back(os.str());
+		}
+
+		virtual void clearTrack()
+		{
+			lastUses.clear();
 		}
 
 		void PrintTrace()
@@ -120,7 +123,6 @@ class OutputMessage : public NetworkMessage, boost::noncopyable
 		OutputMessageState getState() const {return m_state;}
 
 		void setFrame(uint64_t frame) {m_frame = frame;}
-		uint64_t getFrame() const {return m_frame;}
 
 		Protocol* m_protocol;
 		Connection* m_connection;
@@ -142,7 +144,6 @@ class OutputMessagePool
 
 	public:
 		virtual ~OutputMessagePool();
-
 		static OutputMessagePool* getInstance()
 		{
 			static OutputMessagePool instance;
@@ -155,11 +156,14 @@ class OutputMessagePool
 		void sendAll();
 
 		void startExecutionFrame();
+
+		void autoSend(OutputMessage_ptr msg) {m_toAddQueue.push_back(msg);}
 		void stop() {m_shutdown = true;}
 
 		size_t getTotalMessageCount() const {return m_allOutputMessages.size();}
 		size_t getAvailableMessageCount() const {return m_outputMessages.size();}
 		size_t getAutoMessageCount() const {return m_autoSendOutputMessages.size();}
+		size_t getQueuedMessageCount() const {return m_toAddQueue.size();}
 
 	protected:
 		void configureOutputMessage(OutputMessage_ptr msg, Protocol* protocol, bool autosend);
@@ -169,6 +173,7 @@ class OutputMessagePool
 
 		typedef std::list<OutputMessage_ptr> OutputMessageList;
 		OutputMessageList m_autoSendOutputMessages;
+		OutputMessageList m_toAddQueue;
 
 		typedef std::list<OutputMessage*> InternalOutputMessageList;
 		InternalOutputMessageList m_outputMessages;

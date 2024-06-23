@@ -1,3 +1,20 @@
+////////////////////////////////////////////////////////////////////////
+// OpenTibia - an opensource roleplaying game
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
+
 #ifndef __CONSOLE__
 	#define ID_KICK 101
 	#define ID_BAN 102
@@ -42,30 +59,31 @@
 	#define ID_MENU_RELOAD_HOUSEPRICES 223
 	#define ID_MENU_RELOAD_ITEMS 224
 	#define ID_MENU_RELOAD_MONSTERS 225
-	#define ID_MENU_RELOAD_MOVEMENTS 226
-	#define ID_MENU_RELOAD_NPCS 227
-	#define ID_MENU_RELOAD_OUTFITS 228
-	#define ID_MENU_RELOAD_QUESTS 229
-	#define ID_MENU_RELOAD_RAIDS 230
-	#define ID_MENU_RELOAD_SPELLS 231
-	#define ID_MENU_RELOAD_STAGES 232
-	#define ID_MENU_RELOAD_TALKACTIONS 233
-	#define ID_MENU_RELOAD_VOCATIONS 234
-	#define ID_MENU_RELOAD_WEAPONS 235
-	#define ID_MENU_RELOAD_ALL 236
+	#define ID_MENU_RELOAD_MODS 226
+	#define ID_MENU_RELOAD_MOVEMENTS 227
+	#define ID_MENU_RELOAD_NPCS 228
+	#define ID_MENU_RELOAD_OUTFITS 229
+	#define ID_MENU_RELOAD_QUESTS 230
+	#define ID_MENU_RELOAD_RAIDS 231
+	#define ID_MENU_RELOAD_SPELLS 232
+	#define ID_MENU_RELOAD_STAGES 233
+	#define ID_MENU_RELOAD_TALKACTIONS 234
+	#define ID_MENU_RELOAD_VOCATIONS 235
+	#define ID_MENU_RELOAD_WEAPONS 236
+	#define ID_MENU_RELOAD_ALL 237
 #endif
 
-#define CLIENT_VERSION_MIN 841
-#define CLIENT_VERSION_MAX 842
-#define CLIENT_VERSION_STRING "Only clients with protocol 8.41 or 8.42 allowed!"
+#define CLIENT_VERSION_MIN 850
+#define CLIENT_VERSION_MAX 850
+#define CLIENT_VERSION_STRING "Only clients with protocol 8.5 allowed!"
 
 #define STATUS_SERVER_NAME "The Forgotten Server"
-#define STATUS_SERVER_VERSION "0.3.4"
+#define STATUS_SERVER_VERSION "0.3.5"
 #define STATUS_SERVER_CODENAME "Crying Damson"
-#define STATUS_SERVER_PROTOCOL "8.42"
+#define STATUS_SERVER_PROTOCOL "8.5"
 
 #define VERSION_CHECK "http://forgottenserver.otland.net/version.xml"
-#define VERSION_PATCH 2
-#define VERSION_TIMESTAMP 1242396574
-#define VERSION_BUILD 1879
-#define VERSION_DATABASE 13
+#define VERSION_PATCH 0
+#define VERSION_TIMESTAMP 1249584126
+#define VERSION_BUILD 2564
+#define VERSION_DATABASE 21

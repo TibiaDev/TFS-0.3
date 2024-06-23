@@ -1,25 +1,23 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-// Implementation of game protocol
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_PROTOCOLGAME_H__
-#define __OTSERV_PROTOCOLGAME_H__
+#ifndef __PROTOCOLGAME__
+#define __PROTOCOLGAME__
+
 #include "otsystem.h"
 #include "enums.h"
 
@@ -33,9 +31,9 @@ class House;
 class Container;
 class Tile;
 class Connection;
+class Quest;
 
 typedef boost::shared_ptr<NetworkMessage> NetworkMessage_ptr;
-
 class ProtocolGame : public Protocol
 {
 	public:
@@ -48,7 +46,7 @@ class ProtocolGame : public Protocol
 			protocolGameCount++;
 #endif
 			player = NULL;
-			m_nextTask = m_nextPing = m_lastTaskCheck = m_messageCount = m_rejectCount = eventConnect = 0;
+			m_nextPing = m_eventConnect = 0;
 			m_debugAssertSent = m_acceptPackets = false;
 		}
 
@@ -66,7 +64,7 @@ class ProtocolGame : public Protocol
 		static const char* protocolName() {return "game protocol";}
 
 		bool login(const std::string& name, uint32_t accnumber, const std::string& password,
-			OperatingSystem_t operatingSystem, uint32_t version, bool gamemasterLogin);
+			OperatingSystem_t operatingSystem, uint16_t version, bool gamemasterLogin);
 		bool logout(bool displayEffect, bool forced, bool executeLogout = true);
 
 		void setPlayer(Player* p);
@@ -77,7 +75,7 @@ class ProtocolGame : public Protocol
 		std::list<uint32_t> knownCreatureList;
 		void checkCreatureAsKnown(uint32_t id, bool& known, uint32_t& removedKnown);
 
-		bool connect(uint32_t playerId);
+		bool connect(uint32_t playerId, OperatingSystem_t operatingSystem, uint16_t version);
 		void disconnect();
 
 		virtual void releaseProtocol();
@@ -129,15 +127,15 @@ class ProtocolGame : public Protocol
 		void parsePlayerSale(NetworkMessage& msg);
 		void parseCloseShop(NetworkMessage& msg);
 
-		void parseQuestLog(NetworkMessage& msg);
-		void parseQuestLine(NetworkMessage& msg);
+		void parseQuests(NetworkMessage& msg);
+		void parseQuestInfo(NetworkMessage& msg);
 
 		void parseInviteToParty(NetworkMessage& msg);
 		void parseJoinParty(NetworkMessage& msg);
 		void parseRevokePartyInvite(NetworkMessage& msg);
 		void parsePassPartyLeadership(NetworkMessage& msg);
 		void parseLeaveParty(NetworkMessage& msg);
-		void parseEnableSharedPartyExperience(NetworkMessage& msg);
+		void parseSharePartyExperience(NetworkMessage& msg);
 
 		//trade methods
 		void parseRequestTrade(NetworkMessage& msg);
@@ -192,9 +190,7 @@ class ProtocolGame : public Protocol
 		void sendCancelWalk();
 		void sendChangeSpeed(const Creature* creature, uint32_t speed);
 		void sendCancelTarget();
-		void sendCreatureVisible(const Creature* creature, bool visible);
 		void sendCreatureOutfit(const Creature* creature, const Outfit_t& outfit);
-		void sendCreatureInvisible(const Creature* creature);
 		void sendStats();
 		void sendTextMessage(MessageClasses mclass, const std::string& message);
 		void sendReLoginWindow();
@@ -214,7 +210,10 @@ class ProtocolGame : public Protocol
 		void sendTextWindow(uint32_t windowTextId, Item* item, uint16_t maxLen, bool canWrite);
 		void sendTextWindow(uint32_t windowTextId, uint32_t itemId, const std::string& text);
 		void sendHouseWindow(uint32_t windowTextId, House* house, uint32_t listId, const std::string& text);
+
 		void sendOutfitWindow();
+		void sendQuests();
+		void sendQuestInfo(Quest* quest);
 
 		void sendVIPLogIn(uint32_t guid);
 		void sendVIPLogOut(uint32_t guid);
@@ -231,7 +230,7 @@ class ProtocolGame : public Protocol
 		void sendRemoveTileItem(const Tile* tile, const Position& pos, uint32_t stackpos);
 		void sendUpdateTile(const Tile* tile, const Position& pos);
 
-		void sendAddCreature(const Creature* creature, const Position& pos, uint32_t stackpos, bool isLogin);
+		void sendAddCreature(const Creature* creature, const Position& pos, uint32_t stackpos);
 		void sendRemoveCreature(const Creature* creature, const Position& pos, uint32_t stackpos, bool isLogout);
 		void sendMoveCreature(const Creature* creature, const Tile* newTile, const Position& newPos, uint32_t newStackPos,
 			const Tile* oldTile, const Position& oldPos, uint32_t oldStackpos, bool teleport);
@@ -255,11 +254,11 @@ class ProtocolGame : public Protocol
 		void GetTileDescription(const Tile* tile, NetworkMessage_ptr msg);
 
 		// translate a floor to clientreadable format
-		void GetFloorDescription(NetworkMessage_ptr msg, uint16_t x, uint16_t y, uint16_t z,
+		void GetFloorDescription(NetworkMessage_ptr msg, int32_t x, int32_t y, int32_t z,
 			int32_t width, int32_t height, int32_t offset, int32_t& skip);
 
 		// translate a map area to clientreadable format
-		void GetMapDescription(uint16_t x, uint16_t y, uint16_t z,
+		void GetMapDescription(int32_t x, int32_t y, int32_t z,
 			int32_t width, int32_t height, NetworkMessage_ptr msg);
 
 		void AddMapDescription(NetworkMessage_ptr msg, const Position& pos);
@@ -272,8 +271,7 @@ class ProtocolGame : public Protocol
 		void AddCreatureSpeak(NetworkMessage_ptr msg, const Creature* creature, SpeakClasses type,
 			std::string text, uint16_t channelId, uint32_t time = 0, Position* pos = NULL);
 		void AddCreatureHealth(NetworkMessage_ptr msg, const Creature* creature);
-		void AddCreatureOutfit(NetworkMessage_ptr msg, const Creature* creature, const Outfit_t& outfit);
-		void AddCreatureInvisible(NetworkMessage_ptr msg, const Creature* creature);
+		void AddCreatureOutfit(NetworkMessage_ptr msg, const Creature* creature, const Outfit_t& outfit, bool outfitWindow = false);
 		void AddPlayerSkills(NetworkMessage_ptr msg);
 		void AddWorldLight(NetworkMessage_ptr msg, const LightInfo& lightInfo);
 		void AddCreatureLight(NetworkMessage_ptr msg, const Creature* creature);
@@ -313,10 +311,7 @@ class ProtocolGame : public Protocol
 		friend class Player;
 		Player* player;
 
-		int64_t m_now, m_nextTask, m_nextPing, m_lastTaskCheck;
-		int32_t m_messageCount, m_rejectCount;
-		uint32_t eventConnect;
+		uint32_t m_nextPing, m_eventConnect;
 		bool m_debugAssertSent, m_acceptPackets;
 };
-
 #endif

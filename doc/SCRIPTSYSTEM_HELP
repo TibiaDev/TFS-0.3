@@ -3,7 +3,7 @@
 		The Forgotten Server
 
 	Version
-		0.3.4
+		0.3.5
 
 	Codenamed
 		Crying Damson
@@ -26,7 +26,7 @@
 			actionid
 			uniqueid
 			itemid
-			fromid,toid
+			fromid, toid
 				Defined in which situations action should be triggered.
 				Execution order: unique, action, id, runeid
 			allowfaruse
@@ -38,6 +38,8 @@
 			function
 				Default hardcoded functions.
 				Values: increaseItemId, deincreaseItemId
+		Function
+			onUse(cid, item, fromPosition, itemEx, toPosition)
 
 	*CREATURESCRIPTS
 		File: creaturescripts/creaturescripts.xml
@@ -46,10 +48,11 @@
 				Event type
 				Values:
 					login, logout
-					advance, statschange
+					advance, statschange, direction
 					sendmail, receivemail
+					traderequest, tradeaccept
 					joinchannel, leavechannel
-					look, think, textedit
+					look, think, textedit, reportbug
 					target, follow
 					attack, combat, areacombat, cast
 					kill, death, preparedeath
@@ -58,31 +61,48 @@
 			onLogout(cid)
 			onAdvance(cid, skill, oldLevel, newLevel)
 			onStatsChange(cid, attacker, type, combat, value)
+			onDirection(cid, old, current)
 			onSendMail(cid, receiver, item, openBox)
 			onReceiveMail(cid, sender, item, openBox)
+			onTradeRequest(cid, target, item)
+			onTradeAccept(cid, target, item, targetItem)
 			onJoinChannel(cid, channel, users)
 			onLeaveChannel (cid, channel, users)
 			onLook(cid, thing, position, lookDistance)
 			onThink(cid, interval)
 			onTextEdit(cid, item, newText)
+			onReportBug(cid, comment)
 			onAreaCombat(cid, tileItem, tilePosition, isAggressive)
 			onTarget(cid, target)
 			onFollow(cid, target)
 			onCombat(cid, target)
 			onAttack(cid, target)
 			onCast(cid, target)
-			onKill(cid, target)
-			onDeath(cid, corpse, lastHitKiller, mostDamageKiller)
-			onPrepareDeath(cid, lastHitKiller, mostDamageKiller)
+			onKill(cid, target, lastHit)
+			onDeath(cid, corpse, deathList)
+			onPrepareDeath(cid, deathList)
 
 	*GLOBALEVENTS
 		File: globalevents/globalevents.xml
 		Attributes
 			type
-				Not done yet. IGNORE.
-
+				Server events, script can be executed at server start, shutdown or players record.
+				Values:
+					start
+					shutdown
+					record
 			interval
 				Script will be executed every x seconds.
+				Ignored if 'type' specified.
+			time
+				Script will be executed at specified time.
+				For example: '12:00'
+		Functions
+			onThink(interval, lastExecution, thinkInterval)
+			onStartup()
+			onShutdown()
+			onRecord(current, old, cid)
+			onTimer()
 
 	*MOVEMENTS
 		File: movements/movements.xml
@@ -122,6 +142,13 @@
 					onRemoveField
 					onEquipItem
 					onDeEquipItem
+		Functions
+			onStepIn(cid, item, position, lastPosition, fromPosition, toPosition, actor)
+			onStepOut(cid, item, position, lastPosition, fromPosition, toPosition, actor)
+			onEquip(cid, item, slot)
+			onDeEquip(cid, item, slot)
+			onAddItem(moveItem, tileItem, position, cid)
+			onRemoveItem(moveItem, tileItem, position, cid)
 
 	*SPELLS
 		File: spells/spells.xml
@@ -134,6 +161,10 @@
 		Attributes
 			words
 				Words used to execute this talkaction.
+				Can be separated by a semicolon, fe. words="/a; /b",
+					or using own separator, fe. words="/a, /b" separator=","
+			seperator
+				Read "words".
 			access
 				Access required.
 			channel
@@ -147,6 +178,8 @@
 			log
 				Defines if talkaction should be logged.
 				Default: no
+			hide
+				Defines if talkaction should be hidden from displaying it when using /commands
 			case-sensitive
 				Defines if talkaction should be case sensitive. Is 'no' - then /command will be same as /CoMmAnD
 				Default: yes

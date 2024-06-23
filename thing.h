@@ -1,25 +1,22 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __THING_H__
-#define __THING_H__
+#ifndef __THING__
+#define __THING__
 #include "position.h"
 
 /*Notice: remember to add new error codes to global.lua*/
@@ -87,8 +84,9 @@ enum ReturnValue
 	RET_NAMEISTOOAMBIGUOUS = 60,
 	RET_CANONLYUSEONESHIELD = 61,
 	RET_YOUARENOTTHEOWNER = 62,
-	RET_NOPARTYMEMBERSINRANGE = 63,
-	RET_DONTSHOWMESSAGE = 64
+	RET_YOUMAYNOTCASTAREAONBLACKSKULL = 63,
+	RET_DONTSHOWMESSAGE = 64,
+	RET_TILEISFULL = 65
 };
 
 class Tile;
@@ -99,10 +97,10 @@ class Creature;
 class Thing
 {
 	protected:
-		Thing();
+		Thing(): parent(NULL), useCount(0) {}
 
 	public:
-		virtual ~Thing();
+		virtual ~Thing() {}
 
 		void useThing2() {++useCount;}
 		void releaseThing2()
@@ -125,7 +123,7 @@ class Thing
 		virtual Tile* getTile();
 		virtual const Tile* getTile() const;
 
-		virtual const Position& getPosition() const;
+		virtual Position getPosition() const;
 		virtual int32_t getThrowRange() const = 0;
 		virtual bool isPushable() const = 0;
 
@@ -140,5 +138,4 @@ class Thing
 		Cylinder* parent;
 		int32_t useCount;
 };
-
-#endif //__THING_H__
+#endif

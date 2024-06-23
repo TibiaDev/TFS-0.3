@@ -18,12 +18,13 @@
 #include <iostream>
 #include <libxml/xmlmemory.h>
 
-#include "configmanager.h"
 #include "items.h"
+#include "condition.h"
 #include "weapons.h"
 
-#include "condition.h"
+#include "configmanager.h"
 #include "spells.h"
+
 extern Spells* g_spells;
 extern ConfigManager g_config;
 
@@ -33,22 +34,13 @@ uint32_t Items::dwBuildNumber = 0;
 
 ItemType::ItemType()
 {
-	article = "";
 	group = ITEM_GROUP_NONE;
 	type = ITEM_TYPE_NONE;
-	stackable = false;
-	useable	= false;
-	moveable = true;
-	alwaysOnTop = false;
-	alwaysOnTopOrder = 0;
-	pickupable = rotable = false;
-	rotateTo = 0;
-	hasHeight = forceSerialize = false;
-
-	floorChangeDown = true;
-	floorChangeNorth = floorChangeSouth = floorChangeEast = floorChangeWest = false;
-
+	stackable = useable = alwaysOnTop = lookThrough = pickupable = rotable = hasHeight = forceSerialize = false;
 	blockSolid = blockProjectile = blockPathFind = allowPickupable = false;
+	moveable = true;
+	alwaysOnTopOrder = 0;
+	rotateTo = 0;
 
 	wieldInfo = 0;
 	minReqLevel = 0;
@@ -100,10 +92,13 @@ ItemType::ItemType()
 	worth = 0;
 
 	bedPartnerDir = NORTH;
-	transformToOnUse[PLAYERSEX_MALE] = 0;
 	transformToOnUse[PLAYERSEX_FEMALE] = 0;
+	transformToOnUse[PLAYERSEX_MALE] = 0;
 	transformToFree = 0;
 	levelDoor = 0;
+
+	for(int32_t i = CHANGE_PRE_FIRST; i < CHANGE_LAST; ++i)
+		floorChange[i] = false;
 }
 
 ItemType::~ItemType()
@@ -184,7 +179,7 @@ int32_t Items::loadFromOtb(std::string file)
 		std::cout << "[Error - Items::loadFromOtb] New version detected, an older version of items.otb is required." << std::endl;
 		return ERROR_INVALID_FORMAT;
 	}
-	else if(Items::dwMinorVersion != CLIENT_VERSION_842)
+	else if(Items::dwMinorVersion != CLIENT_VERSION_850)
 	{
 		std::cout << "[Error - Items::loadFromOtb] Another (client) version of items.otb is required." << std::endl;
 		return ERROR_INVALID_FORMAT;
@@ -241,13 +236,6 @@ int32_t Items::loadFromOtb(std::string file)
 		iType->moveable = hasBitSet(FLAG_MOVEABLE, flags);
 		iType->stackable = hasBitSet(FLAG_STACKABLE, flags);
 
-		//not longer saved in otb_version >= 3
-		iType->floorChangeDown = hasBitSet(FLAG_FLOORCHANGEDOWN, flags);
-		iType->floorChangeNorth = hasBitSet(FLAG_FLOORCHANGENORTH, flags);
-		iType->floorChangeEast = hasBitSet(FLAG_FLOORCHANGEEAST, flags);
-		iType->floorChangeSouth = hasBitSet(FLAG_FLOORCHANGESOUTH, flags);
-		iType->floorChangeWest = hasBitSet(FLAG_FLOORCHANGEWEST, flags);
-
 		iType->alwaysOnTop = hasBitSet(FLAG_ALWAYSONTOP, flags);
 		iType->isVertical = hasBitSet(FLAG_VERTICAL, flags);
 		iType->isHorizontal = hasBitSet(FLAG_HORIZONTAL, flags);
@@ -256,6 +244,7 @@ int32_t Items::loadFromOtb(std::string file)
 		iType->rotable = hasBitSet(FLAG_ROTABLE, flags);
 		iType->canReadText = hasBitSet(FLAG_READABLE, flags);
 		iType->clientCharges = hasBitSet(FLAG_CLIENTCHARGES, flags);
+		iType->lookThrough = hasBitSet(FLAG_LOOKTHROUGH, flags);
 
 		attribute_t attrib;
 		datasize_t datalen = 0;
@@ -520,6 +509,9 @@ void Items::parseItemNode(xmlNodePtr itemNode, uint32_t id)
 	}
 
 	ItemType& it = Item::items.getItemType(id);
+	if(!it.name.empty() && (!readXMLString(itemNode, "override", strValue) || !booleanString(strValue)))
+		std::cout << "[Warning - Items::loadFromXml] Duplicate registered item with id " << id << std::endl;
+
 	if(readXMLString(itemNode, "name", strValue))
 		it.name = strValue;
 
@@ -656,15 +648,23 @@ void Items::parseItemNode(xmlNodePtr itemNode, uint32_t id)
 				{
 					tmpStrValue = asLowerCaseString(strValue);
 					if(tmpStrValue == "down")
-						it.floorChangeDown = true;
+						it.floorChange[CHANGE_DOWN] = true;
 					else if(tmpStrValue == "north")
-						it.floorChangeNorth = true;
+						it.floorChange[CHANGE_NORTH] = true;
 					else if(tmpStrValue == "south")
-						it.floorChangeSouth = true;
+						it.floorChange[CHANGE_SOUTH] = true;
 					else if(tmpStrValue == "west")
-						it.floorChangeWest = true;
+						it.floorChange[CHANGE_WEST] = true;
 					else if(tmpStrValue == "east")
-						it.floorChangeEast = true;
+						it.floorChange[CHANGE_EAST] = true;
+					else if(tmpStrValue == "northex")
+						it.floorChange[CHANGE_NORTH_EX] = true;
+					else if(tmpStrValue == "southex")
+						it.floorChange[CHANGE_SOUTH_EX] = true;
+					else if(tmpStrValue == "westex")
+						it.floorChange[CHANGE_WEST_EX] = true;
+					else if(tmpStrValue == "eastex")
+						it.floorChange[CHANGE_EAST_EX] = true;
 				}
 			}
 			else if(tmpStrValue == "corpsetype")
@@ -1027,12 +1027,12 @@ void Items::parseItemNode(xmlNodePtr itemNode, uint32_t id)
 				if(readXMLInteger(itemAttributesNode, "value", intValue))
 					it.abilities.skills[SKILL_FIST] = intValue;
 			}
-			else if(tmpStrValue == "maxhealthpoints")
+			else if(tmpStrValue == "maxhealthpoints" || tmpStrValue == "maxhitpoints")
 			{
 				if(readXMLInteger(itemAttributesNode, "value", intValue))
 					it.abilities.stats[STAT_MAXHEALTH] = intValue;
 			}
-			else if(tmpStrValue == "maxhealthpercent")
+			else if(tmpStrValue == "maxhealthpercent" || tmpStrValue == "maxhitpointspercent")
 			{
 				if(readXMLInteger(itemAttributesNode, "value", intValue))
 					it.abilities.statsPercent[STAT_MAXHEALTH] = intValue;
@@ -1042,7 +1042,7 @@ void Items::parseItemNode(xmlNodePtr itemNode, uint32_t id)
 				if(readXMLInteger(itemAttributesNode, "value", intValue))
 					it.abilities.stats[STAT_MAXMANA] = intValue;
 			}
-			else if(tmpStrValue == "maxmanapercent")
+			else if(tmpStrValue == "maxmanapercent" || tmpStrValue == "maxmanapointspercent")
 			{
 				if(readXMLInteger(itemAttributesNode, "value", intValue))
 					it.abilities.statsPercent[STAT_MAXMANA] = intValue;
@@ -1052,17 +1052,17 @@ void Items::parseItemNode(xmlNodePtr itemNode, uint32_t id)
 				if(readXMLInteger(itemAttributesNode, "value", intValue))
 					it.abilities.stats[STAT_SOUL] = intValue;
 			}
-			else if(tmpStrValue == "soulpercent")
+			else if(tmpStrValue == "soulpercent" || tmpStrValue == "soulpointspercent")
 			{
 				if(readXMLInteger(itemAttributesNode, "value", intValue))
 					it.abilities.statsPercent[STAT_SOUL] = intValue;
 			}
-			else if(tmpStrValue == "magiclevelpoints")
+			else if(tmpStrValue == "magiclevelpoints" || tmpStrValue == "magicpoints")
 			{
 				if(readXMLInteger(itemAttributesNode, "value", intValue))
 					it.abilities.stats[STAT_MAGICLEVEL] = intValue;
 			}
-			else if(tmpStrValue == "magiclevelpercent")
+			else if(tmpStrValue == "magiclevelpercent" || tmpStrValue == "magicpointspercent")
 			{
 				if(readXMLInteger(itemAttributesNode, "value", intValue))
 					it.abilities.statsPercent[STAT_MAGICLEVEL] = intValue;
@@ -1484,10 +1484,10 @@ void Items::parseItemNode(xmlNodePtr itemNode, uint32_t id)
 				{
 					it.transformToOnUse[PLAYERSEX_MALE] = intValue;
 					ItemType& ot = getItemType(intValue);
-					if(ot.transformToFree == 0)
+					if(!ot.transformToFree)
 						ot.transformToFree = it.id;
 
-					if(it.transformToOnUse[PLAYERSEX_FEMALE] == 0)
+					if(!it.transformToOnUse[PLAYERSEX_FEMALE])
 						it.transformToOnUse[PLAYERSEX_FEMALE] = intValue;
 				}
 			}
@@ -1497,10 +1497,10 @@ void Items::parseItemNode(xmlNodePtr itemNode, uint32_t id)
 				{
 					it.transformToOnUse[PLAYERSEX_FEMALE] = intValue;
 					ItemType& ot = getItemType(intValue);
-					if(ot.transformToFree == 0)
+					if(!ot.transformToFree)
 						ot.transformToFree = it.id;
 
-					if(it.transformToOnUse[PLAYERSEX_MALE] == 0)
+					if(!it.transformToOnUse[PLAYERSEX_MALE])
 						it.transformToOnUse[PLAYERSEX_MALE] = intValue;
 				}
 			}
@@ -1597,10 +1597,10 @@ int32_t Items::getItemIdByName(const std::string& name)
 	if(!name.empty())
 	{
 		uint32_t i = 100;
-		ItemType* iType;
+		ItemType* iType = NULL;
 		do
 		{
-			if((iType = items.getElement(i)) && strcasecmp(name.c_str(), iType->name.c_str()) == 0)
+			if((iType = items.getElement(i)) && !strcasecmp(name.c_str(), iType->name.c_str()))
 				return i;
 
 			i++;

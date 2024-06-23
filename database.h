@@ -1,28 +1,25 @@
-//////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-//////////////////////////////////////////////////////////////////////
-//
-//////////////////////////////////////////////////////////////////////
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
+////////////////////////////////////////////////////////////////////////
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-//////////////////////////////////////////////////////////////////////
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////
 
-#ifndef __OTSERV_DATABASE_H__
-#define __OTSERV_DATABASE_H__
+#ifndef __DATABASE__
+#define __DATABASE__
 #include "otsystem.h"
-#include "enums.h"
 
+#include "enums.h"
 #include <sstream>
 
 #ifdef MULTI_SQL_DRIVERS
@@ -171,18 +168,19 @@ class _Database
 		DATABASE_VIRTUAL std::string escapeBlob(const char* s, uint32_t length) {return "''";}
 
 		/**
-		* Resource freeing.
-		*
-		* @param DBResult* resource to be freed
-		*/
-		DATABASE_VIRTUAL void freeResult(DBResult* result);
+		 * Retrieve id of last inserted row
+		 *
+		 * @return id on success, 0 if last query did not result on any rows with auto_increment keys
+		 */
+		DATABASE_VIRTUAL uint64_t getLastInsertId() {return 0;}
 
 		/**
 		* Get case insensitive string comparison operator
 		*
 		* @return the case insensitive operator
 		*/
-		DATABASE_VIRTUAL std::string getStringComparisonOperator() {return "=";}
+		DATABASE_VIRTUAL std::string getStringComparison() {return "=";}
+		DATABASE_VIRTUAL std::string getUpdateLimiter() {return " LIMIT 1";}
 
 		/**
 		* Get database engine
@@ -364,7 +362,5 @@ class DBTransaction
 		TransactionStates_t m_state;
 		Database* m_database;
 };
-
 #endif
-
 #endif
