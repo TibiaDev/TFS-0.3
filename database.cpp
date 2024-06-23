@@ -40,7 +40,7 @@
 extern ConfigManager g_config;
 #endif
 
-OTSYS_THREAD_LOCKVAR DBQuery::database_lock;
+OTSYS_THREAD_LOCKVAR DBQuery::databaseLock;
 
 Database* _Database::_instance = NULL;
 
@@ -68,7 +68,7 @@ Database* _Database::getInstance()
 #else
 		_instance = new Database;
 #endif
-		OTSYS_THREAD_LOCKVARINIT(DBQuery::database_lock);
+		OTSYS_THREAD_LOCKVARINIT(DBQuery::databaseLock);
 	}
 	return _instance;
 }
@@ -86,12 +86,12 @@ DBResult* _Database::verifyResult(DBResult* result)
 
 DBQuery::DBQuery()
 {
-	OTSYS_THREAD_LOCK(database_lock, NULL);
+	OTSYS_THREAD_LOCK(databaseLock, NULL);
 }
 
 DBQuery::~DBQuery()
 {
-	OTSYS_THREAD_UNLOCK(database_lock, NULL);
+	OTSYS_THREAD_UNLOCK(databaseLock, NULL);
 }
 
 DBInsert::DBInsert(Database* db)

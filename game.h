@@ -46,7 +46,8 @@ enum stackPosType_t
 	STACKPOS_NORMAL,
 	STACKPOS_MOVE,
 	STACKPOS_LOOK,
-	STACKPOS_USE
+	STACKPOS_USE,
+	STACKPOS_USEITEM
 };
 
 enum WorldType_t
@@ -80,11 +81,7 @@ enum LightState_t
 struct RuleViolation
 {
 	RuleViolation(Player* _reporter, const std::string& _text, uint32_t _time) :
-		reporter(_reporter),
-		gamemaster(NULL),
-		text(_text),
-		time(_time),
-		isOpen(true)
+		reporter(_reporter), gamemaster(NULL), text(_text), time(_time), isOpen(true)
 	{}
 
 	Player* reporter;
@@ -116,9 +113,9 @@ class Game
 		virtual ~Game();
 
 		Highscore getHighscore(uint16_t skill);
-		void timedHighscoreUpdate();
-		bool reloadHighscores();
 		std::string getHighscoreString(uint16_t skill);
+		void checkHighscores();
+		bool reloadHighscores();
 
 		void prepareGlobalSave();
 		void globalSave();
@@ -156,19 +153,20 @@ class Game
 		/**
 		  * Get a single tile of the map.
 		  * \returns A pointer to the tile
-		*/
-		Tile* getTile(uint32_t x, uint32_t y, uint32_t z);
+		  */
+		Tile* getTile(uint16_t x, uint16_t y, uint8_t z) {return map->getTile(x, y, z);}
+		Tile* getTile(const Position& pos) {return map->getTile(pos);}
 
 		/**
 		  * Set a single tile of the map, position is read from this tile
-		*/
-		void setTile(Tile* newTile);
+		  */
+		void setTile(Tile* newTile) {if(map) return map->setTile(newTile->getPosition(), newTile);}
 
 		/**
 		  * Get a leaf of the map.
 		  * \returns A pointer to a leaf
-		*/
-		QTreeLeafNode* getLeaf(uint32_t x, uint32_t y);
+		  */
+		QTreeLeafNode* getLeaf(uint32_t x, uint32_t y) {return map->getLeaf(x, y);}
 
 		/**
 		  * Returns a creature based on the unique creature identifier
@@ -234,7 +232,7 @@ class Game
 		  * \param pos The position to place the creature
 		  * \param forced If true, placing the creature will not fail because of obstacles (creatures/items)
 		  */
-		bool internalPlaceCreature(Creature* creature, const Position& pos, bool forced = false);
+		bool internalPlaceCreature(Creature* creature, const Position& pos, bool extendedPos = false, bool forced = false);
 
 		/**
 		  * Place Creature on the map.
@@ -242,7 +240,7 @@ class Game
 		  * \param pos The position to place the creature
 		  * \param forced If true, placing the creature will not fail because of obstacles (creatures/items)
 		  */
-		bool placeCreature(Creature* creature, const Position& pos, bool force = false);
+		bool placeCreature(Creature* creature, const Position& pos, bool extendedPos = false, bool forced = false);
 		ReturnValue placeSummon(Creature* creature, const std::string& name);
 
 		/**
@@ -288,7 +286,7 @@ class Game
 
 		ReturnValue internalAddItem(Cylinder* toCylinder, Item* item, int32_t index = INDEX_WHEREEVER,
 			uint32_t flags = 0, bool test = false);
-		ReturnValue internalRemoveItem(Item* item, int32_t count = -1,  bool test = false);
+		ReturnValue internalRemoveItem(Item* item, int32_t count = -1,  bool test = false, uint32_t flags = 0);
 
 		ReturnValue internalPlayerAddItem(Player* player, Item* item, bool dropOnMap = true);
 
@@ -351,9 +349,10 @@ class Game
 		  * Teleports an object to another position
 		  * \param thing is the object to teleport
 		  * \param newPos is the new position
+		  * \param flags optional flags to modify default behavior
 		  * \returns true if the teleportation was successful
 		  */
-		ReturnValue internalTeleport(Thing* thing, const Position& newPos, bool pushMove);
+		ReturnValue internalTeleport(Thing* thing, const Position& newPos, bool pushMove, uint32_t flags = 0);
 
 		/**
 			* Turn a creature to a different direction.
@@ -367,10 +366,11 @@ class Game
 		  * \param creature Creature pointer
 		  * \param type Type of message
 		  * \param text The text to say
+		  * \param pos Appear as sent from different position
 		  */
-		bool internalCreatureSay(Creature* creature, SpeakClasses type, const std::string& text);
+		bool internalCreatureSay(Creature* creature, SpeakClasses type, const std::string& text, Position* pos = NULL);
 
-		Position getClosestFreeTile(Creature* creature, Position toPos);
+		Position getClosestFreeTile(Creature* creature, Position pos, bool extended = false, bool ignoreHouse = true);
 		std::string getSearchString(const Position lookPos, const Position searchPos, bool player = false);
 
 		int32_t getMotdNum();
@@ -479,9 +479,12 @@ class Game
 
 		GameState_t getGameState();
 		void setGameState(GameState_t newState);
+
 		void saveGameState(bool savePlayers);
 		void loadGameState();
+
 		void refreshMap();
+		void cleanMap(uint32_t& count) const {if(map) count = map->clean();}
 
 		//Events
 		void checkCreatureWalk(uint32_t creatureId);
@@ -493,7 +496,7 @@ class Game
 		bool combatBlockHit(CombatType_t combatType, Creature* attacker, Creature* target,
 			int32_t& healthChange, bool checkDefense, bool checkArmor);
 
-		bool combatChangeHealth(CombatType_t combatType, Creature* attacker, Creature* target, int32_t healthChange);
+		bool combatChangeHealth(CombatType_t combatType, Creature* attacker, Creature* target, int32_t healthChange, bool force = false);
 		bool combatChangeMana(Creature* attacker, Creature* target, int32_t manaChange);
 
 		//animation help functions
@@ -503,15 +506,15 @@ class Game
 		void addAnimatedText(const SpectatorVec& list, const Position& pos, uint8_t textColor, const std::string& text);
 		void addMagicEffect(const Position& pos, uint8_t effect, bool ghostMode = false);
 		void addMagicEffect(const SpectatorVec& list, const Position& pos, uint8_t effect, bool ghostMode = false);
-		void addDistanceEffect(const Position& fromPos, const Position& toPos,
-		uint8_t effect);
+		void addDistanceEffect(const SpectatorVec& list, const Position& fromPos, const Position& toPos, uint8_t effect);
+		void addDistanceEffect(const Position& fromPos, const Position& toPos, uint8_t effect);
 
 		void startDecay(Item* item);
 
 		Map* getMap() {return map;}
 		const Map* getMap() const {return map;}
 
-		int32_t getLightHour() {return light_hour;}
+		int32_t getLightHour() {return lightHour;}
 
 		void npcSpeakToPlayer(Npc* npc, Player* player, const std::string& text, bool publicize);
 
@@ -535,7 +538,7 @@ class Game
 		bool playerContinueReport(Player* player, const std::string& text);
 
 		Highscore highscoreStorage[9];
-		time_t lastHSUpdate;
+		time_t lastHighscoreCheck;
 
 		bool globalSaveMessage[2];
 
@@ -555,7 +558,7 @@ class Game
 		struct GameEvent
 		{
 			int64_t tick;
-			int type;
+			int32_t type;
 			void* data;
 		};
 
@@ -571,10 +574,10 @@ class Game
 		static const int32_t LIGHT_LEVEL_NIGHT = 40;
 		static const int32_t SUNSET = 1305;
 		static const int32_t SUNRISE = 430;
-		int32_t lightlevel;
-		LightState_t light_state;
-		int32_t light_hour;
-		int32_t light_hour_delta;
+		int32_t lightLevel;
+		LightState_t lightState;
+		int32_t lightHour;
+		int32_t lightHourDelta;
 
 		uint32_t maxPlayers;
 		uint32_t inFightTicks;
@@ -589,7 +592,6 @@ class Game
 
 		typedef std::map<int32_t,int32_t> StageList;
 		StageList stages;
-		bool stagesEnabled;
 		uint32_t lastStageLevel;
 		bool useLastStageLevel;
 };

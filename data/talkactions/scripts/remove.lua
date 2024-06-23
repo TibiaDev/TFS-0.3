@@ -36,12 +36,7 @@ function onSay(cid, words, param)
 		return TRUE
 	end
 
-	local limit = 1
-	if(getPlayerAccess(cid) >= 5) then
-		limit = 0
-	end
-
-	for i = 5, limit, -1 do
+	for i = 5, 1, -1 do
 		toPos.stackpos = i
 		tmp = getThingFromPos(toPos)
 		if(tmp.uid ~= 0) then
@@ -57,5 +52,5 @@ function onSay(cid, words, param)
 	end
 
 	doSendMagicEffect(getCreaturePosition(cid), CONST_ME_POFF)
-	return FALSE
+	return TRUE
 end

@@ -3,7 +3,7 @@
 		The Forgotten Server
 
 	Version
-		0.3 Alpha 4
+		0.3 Beta 1
 
 	Codenamed
 		\
@@ -16,12 +16,15 @@
 ]
 
 [ IDS
-	Depottile
+	Depot Tile
 		100 + DepotID
 
-	Leveltile
+	Level Tile
 		1000 + Required Level
 
-	Leveldoor
+	Level Door
 		1000 + Required Level
+
+	Quest Reward
+		2000
 ]

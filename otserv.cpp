@@ -74,6 +74,10 @@
 #include "allocator.h"
 #endif
 
+#ifdef __SIGNAL_CONTROLLING__
+#include <signal.h>
+#endif
+
 #ifdef BOOST_NO_EXCEPTIONS
 	#include <exception>
 	void boost::throw_exception(std::exception const & e)
@@ -84,7 +88,7 @@
 
 IPList serverIPs;
 extern GlobalEvents* g_globalEvents;
-extern AdminProtocolConfig* g_adminConfig;
+extern Admin* g_admin;
 Game g_game;
 Npcs g_npcs;
 ConfigManager g_config;
@@ -114,10 +118,10 @@ OTSYS_THREAD_SIGNALVAR g_loaderSignal;
 #endif
 #include "networkmessage.h"
 
-void startupErrorMessage(std::string errorStr)
+void startupErrorMessage(std::string error)
 {
-	if(errorStr.length() > 0)
-		std::cout << "> ERROR: " << errorStr << std::endl;
+	if(error.length() > 0)
+		std::cout << "> ERROR: " << error << std::endl;
 
 	#ifdef WIN32
 	#ifndef __CONSOLE__
@@ -129,22 +133,62 @@ void startupErrorMessage(std::string errorStr)
 	exit(-1);
 }
 
-void mainLoader(
-#ifdef __CONSOLE__
-	int argc, char *argv[]
+#ifndef WIN32
+void signalHandler(int32_t sig)
+{
+	uint32_t tmp = 0;
+	switch(sig)
+	{
+		case SIGHUP:
+			g_game.setGameState(GAME_STATE_MAINTAIN);
+			g_game.saveGameState(true);
+			g_game.setGameState(GAME_STATE_NORMAL);
+			break;
+		case SIGTRAP:
+			g_game.setGameState(GAME_STATE_MAINTAIN);
+			g_game.cleanMap(tmp);
+			g_game.setGameState(GAME_STATE_NORMAL);
+			break;
+		case SIGUSR1:
+			Dispatcher::getDispatcher().addTask(
+				createTask(boost::bind(&Game::setGameState, &g_game, GAME_STATE_CLOSED)));
+			break;
+		case SIGUSR2:
+			g_game.setGameState(GAME_STATE_NORMAL);
+			break;
+		case SIGWINCH:
+			//TODO: reload all
+			break;
+		case SIGQUIT:
+			Dispatcher::getDispatcher().addTask(
+				createTask(boost::bind(&Game::setGameState, &g_game, GAME_STATE_SHUTDOWN)));
+			break;
+		case SIGTERM:
+                        Dispatcher::getDispatcher().addTask(
+                                createTask(boost::bind(&Game::shutdown, &g_game)));
+			break;
+		case SIGKILL:
+			exit(-1);
+		default:
+			break;
+	}
+}
+#endif
+
+void otserv(
+#if not defined(WIN32) || defined(__CONSOLE__)
+int argc, char *argv[]
 #endif
 );
 
-#ifndef __CONSOLE__
-void serverMain(void* param)
-#else
+#if not defined(WIN32) || defined(__CONSOLE__)
 int main(int argc, char *argv[])
+#else
+void serverMain(void* param)
 #endif
 {
-	#ifdef WIN32
-	#ifndef __CONSOLE__
+	#if defined(WIN32) && not defined(__CONSOLE__)
 	std::cout.rdbuf(&logger);
-	#endif
 	#endif
 	#ifdef __OTSERV_ALLOCATOR_STATS__
 	OTSYS_CREATE_THREAD(allocatorStatsThread, NULL);
@@ -155,24 +199,32 @@ int main(int argc, char *argv[])
 	mainExceptionHandler.InstallHandler();
 	#endif
 
+	#ifndef WIN32
 	// ignore sigpipe...
-	#ifdef WIN32
-	//nothing yet
-	#else
 	struct sigaction sigh;
 	sigh.sa_handler = SIG_IGN;
 	sigh.sa_flags = 0;
 	sigemptyset(&sigh.sa_mask);
 	sigaction(SIGPIPE, &sigh, NULL);
+
+	// register signals
+	signal(SIGHUP, signalHandler); //save
+	signal(SIGTRAP, signalHandler); //clean
+	signal(SIGUSR1, signalHandler); //close server
+	signal(SIGUSR2, signalHandler); //open server
+	signal(SIGWINCH, signalHandler); //reload all
+	signal(SIGQUIT, signalHandler); //save & shutdown
+	signal(SIGTERM, signalHandler); //shutdown
+	signal(SIGKILL, signalHandler); //exit
 	#endif
 
 	OTSYS_THREAD_LOCKVARINIT(g_loaderLock);
 	OTSYS_THREAD_SIGNALVARINIT(g_loaderSignal);
 
-	Dispatcher::getDispatcher().addTask(createTask(boost::bind(mainLoader
-#ifdef __CONSOLE__
+	Dispatcher::getDispatcher().addTask(createTask(boost::bind(otserv
+	#if not defined(WIN32) || defined(__CONSOLE__)
 	, argc, argv
-#endif
+	#endif
 	)));
 
 	OTSYS_THREAD_LOCK(g_loaderLock, "main()");
@@ -180,7 +232,7 @@ int main(int argc, char *argv[])
 
 	Server server(INADDR_ANY, g_config.getNumber(ConfigManager::PORT));
 	std::cout << ">> " << g_config.getString(ConfigManager::SERVER_NAME) << " server Online!" << std::endl << std::endl;
-	#ifndef __CONSOLE__
+	#if defined(WIN32) && not defined(__CONSOLE__)
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Status: Online!");
 	GUI::getInstance()->m_connections = true;
 	#endif
@@ -196,11 +248,11 @@ int main(int argc, char *argv[])
 #endif
 }
 
-#ifdef __CONSOLE__
-void mainLoader(int argc, char *argv[])
-#else
-void mainLoader()
+void otserv(
+#if not defined(WIN32) || defined(__CONSOLE__)
+int argc, char *argv[]
 #endif
+)
 {
 	//dispatcher thread
 	g_game.setGameState(GAME_STATE_STARTUP);
@@ -374,13 +426,13 @@ void mainLoader()
 	if(!outfits->loadFromXml())
 		startupErrorMessage("Unable to load outfits!");
 
-	g_adminConfig = new AdminProtocolConfig();
-	std::cout << ">> Loading administration protocol config" << std::endl;
+	g_admin = new Admin();
+	std::cout << ">> Loading administration protocol" << std::endl;
 	#ifndef __CONSOLE__
-	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading admin protocol config");
+	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading administration protocol");
 	#endif
-	if(!g_adminConfig->loadXMLConfig())
-		startupErrorMessage("Unable to load admin protocol config!");
+	if(!g_admin->loadXMLConfig())
+		startupErrorMessage("Unable to load administration protocol!");
 
 	std::cout << ">> Loading experience stages" << std::endl;
 	#ifndef __CONSOLE__
@@ -391,18 +443,26 @@ void mainLoader()
 
 	std::cout << ">> Checking world type... ";
 	std::string worldType = asLowerCaseString(g_config.getString(ConfigManager::WORLD_TYPE));
-	if(worldType == "pvp")
+	if(worldType == "pvp" || worldType == "2" || worldType == "normal")
+	{
 		g_game.setWorldType(WORLD_TYPE_PVP);
-	else if(worldType == "no-pvp")
+		std::cout << "PvP" << std::endl;
+	}
+	else if(worldType == "no-pvp" || worldType == "nopvp" || worldType == "non-pvp" || worldType == "nonpvp" || worldType == "1" || worldType == "safe")
+	{
 		g_game.setWorldType(WORLD_TYPE_NO_PVP);
-	else if(worldType == "pvp-enforced")
+		std::cout << "NoN-PvP" << std::endl;
+	}
+	else if(worldType == "pvp-enforced" || worldType == "pvpenforced" || worldType == "pvp-enfo" || worldType == "pvpenfo" || worldType == "pvpe" || worldType == "enforced" || worldType == "enfo" || worldType == "3" || worldType == "war")
+	{
 		g_game.setWorldType(WORLD_TYPE_PVP_ENFORCED);
+		std::cout << "PvP-Enforced" << std::endl;
+	}
 	else
 	{
 		std::cout << std::endl;
 		startupErrorMessage("Unknown world type: " + g_config.getString(ConfigManager::WORLD_TYPE));
 	}
-	std::cout << asUpperCaseString(worldType) << std::endl;
 
 	std::cout << ">> Loading map and spawns..." << std::endl;
 	#ifndef __CONSOLE__
@@ -424,8 +484,7 @@ void mainLoader()
 
 	if(g_config.getBool(ConfigManager::GLOBALSAVE_ENABLED) && g_config.getNumber(ConfigManager::GLOBALSAVE_H) >= 1 && g_config.getNumber(ConfigManager::GLOBALSAVE_H) <= 24)
 	{
-		int32_t prepareGlobalSaveHour = g_config.getNumber(ConfigManager::GLOBALSAVE_H) - 1;
-		int32_t hoursLeft = 0, minutesLeft = 0, minutesToRemove = 0;
+		int32_t prepareGlobalSaveHour = g_config.getNumber(ConfigManager::GLOBALSAVE_H) - 1, hoursLeft = 0, minutesLeft = 0, minutesToRemove = 0;
 		bool ignoreEvent = false;
 		time_t timeNow = time(NULL);
 		const tm* theTime = localtime(&timeNow);
@@ -526,7 +585,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 			SendMessage(GUI::getInstance()->m_logWindow, WM_SETFONT, (WPARAM)GUI::getInstance()->m_font, 0);
 			NID.hWnd = hwnd;
 			NID.hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(ID_ICON));
-			NID.uCallbackMessage = WM_USER+1;
+			NID.uCallbackMessage = WM_USER + 1;
 			NID.uFlags = NIF_TIP | NIF_ICON | NIF_MESSAGE;
 			strcpy(NID.szTip, STATUS_SERVER_NAME);
 			Shell_NotifyIcon(NIM_ADD, &NID);
@@ -670,10 +729,12 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 				{
 					if(g_game.getGameState() != GAME_STATE_STARTUP)
 					{
+						uint32_t count = 0;
 						g_game.setGameState(GAME_STATE_MAINTAIN);
-						char buffer[100];
-						sprintf(buffer, "Map has been cleaned, collected %u items.", g_game.getMap()->clean());
+						g_game.cleanMap(count);
 						g_game.setGameState(GAME_STATE_NORMAL);
+						char buffer[100];
+						sprintf(buffer, "Map has been cleaned, collected %u items.", count);
 						MessageBox(NULL, buffer, "Clean map", MB_OK);
 					}
 					break;
@@ -682,8 +743,7 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 				{
 					if(g_game.getGameState() != GAME_STATE_STARTUP && GUI::getInstance()->m_connections)
 					{
-						Dispatcher::getDispatcher().addTask(
-							createTask(boost::bind(&Game::setGameState, &g_game, GAME_STATE_NORMAL)));
+						g_game.setGameState(GAME_STATE_NORMAL);
 						ModifyMenu(GetMenu(hwnd), ID_MENU_SERVER_OPEN, MF_STRING, ID_MENU_SERVER_CLOSE, "&Close server");
 					}
 					break;
@@ -945,6 +1005,7 @@ int32_t WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszA
 		TranslateMessage(&messages);
 		DispatchMessage(&messages);
 	}
+
 	return messages.wParam;
 }
 #endif

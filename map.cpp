@@ -87,7 +87,7 @@ bool Map::loadMap(const std::string& identifier)
 	IOMapSerialize.loadHouseInfo(this);
 	IOMapSerialize.loadMap(this);
 
-	std::cout << "> Serialization loading time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
+	std::cout << "> Unserialization time: " << (OTSYS_TIME() - start) / (1000.) << " seconds." << std::endl;
 	return true;
 }
 
@@ -145,6 +145,12 @@ Tile* Map::getTile(const Position& pos)
 
 void Map::setTile(uint16_t x, uint16_t y, uint8_t z, Tile* newTile)
 {
+	if(z >= MAP_MAX_LAYERS)
+	{
+		std::cout << "[Error - Map::setTile]: Attempt to set tile on invalid Z coordinate - " << z << "!" << std::endl;
+		return;
+	}
+
 	QTreeLeafNode::newLeaf = false;
 	QTreeLeafNode* leaf = root.createLeaf(x, y, 15);
 	if(QTreeLeafNode::newLeaf)
@@ -191,44 +197,49 @@ void Map::setTile(uint16_t x, uint16_t y, uint8_t z, Tile* newTile)
 	}
 }
 
-bool Map::placeCreature(const Position& centerPos, Creature* creature, bool forceLogin /*=false*/)
+bool Map::placeCreature(const Position& centerPos, Creature* creature, bool extendedPos /*= false*/, bool forced /*= false*/)
 {
+	bool foundTile = false, placeInPz = false;
 	Tile* tile = getTile(centerPos);
-
-	bool foundTile = false;
-	bool placeInPZ = false;
-
 	if(tile)
 	{
-		placeInPZ = tile->hasFlag(TILESTATE_PROTECTIONZONE);
-		ReturnValue ret;
-		if(creature->getPlayer() && creature->isAccountManager())
-			ret = tile->__queryAdd(0, creature, 1, FLAG_IGNOREBLOCKITEM | FLAG_IGNOREBLOCKCREATURE);
-		else
-			ret = tile->__queryAdd(0, creature, 1, FLAG_IGNOREBLOCKITEM);
+		placeInPz = tile->hasFlag(TILESTATE_PROTECTIONZONE);
+		uint32_t flags = FLAG_IGNOREBLOCKITEM;
+		if(creature->isAccountManager())
+			flags |= FLAG_IGNOREBLOCKCREATURE;
 
-		if(forceLogin || ret == RET_NOERROR || ret == RET_PLAYERISNOTINVITED)
+		ReturnValue ret = tile->__queryAdd(0, creature, 1, flags);
+		if(forced || ret == RET_NOERROR || ret == RET_PLAYERISNOTINVITED)
 			foundTile = true;
 	}
 
-	typedef std::pair<int32_t, int32_t> relPair;
-	std::vector<relPair> relList;
-	relList.push_back(relPair(-1, -1));
-	relList.push_back(relPair(-1, 0));
-	relList.push_back(relPair(-1, 1));
-	relList.push_back(relPair(0, -1));
-	relList.push_back(relPair(0, 1));
-	relList.push_back(relPair(1, -1));
-	relList.push_back(relPair(1, 0));
-	relList.push_back(relPair(1, 1));
+	size_t shufflePos = 0;
+	PositionVec relList;
+	if(extendedPos)
+	{
+		shufflePos = 8;
+		relList.push_back(PositionPair(-2, 0));
+		relList.push_back(PositionPair(0, -2));
+		relList.push_back(PositionPair(0, 2));
+		relList.push_back(PositionPair(2, 0));
+		std::random_shuffle(relList.begin(), relList.end());
+	}
 
-	std::random_shuffle(relList.begin(), relList.end());
+	relList.push_back(PositionPair(-1, -1));
+	relList.push_back(PositionPair(-1, 0));
+	relList.push_back(PositionPair(-1, 1));
+	relList.push_back(PositionPair(0, -1));
+	relList.push_back(PositionPair(0, 1));
+	relList.push_back(PositionPair(1, -1));
+	relList.push_back(PositionPair(1, 0));
+	relList.push_back(PositionPair(1, 1));
+	std::random_shuffle(relList.begin() + shufflePos, relList.end());
+
 	uint32_t radius = 1;
-
 	Position tryPos;
 	for(uint32_t n = 1; n <= radius && !foundTile; ++n)
 	{
-		for(std::vector<relPair>::iterator it = relList.begin(); it != relList.end() && !foundTile; ++it)
+		for(PositionVec::iterator it = relList.begin(); it != relList.end() && !foundTile; ++it)
 		{
 			int32_t dx = it->first * n;
 			int32_t dy = it->second * n;
@@ -238,13 +249,24 @@ bool Map::placeCreature(const Position& centerPos, Creature* creature, bool forc
 			tryPos.y = tryPos.y + dy;
 
 			tile = getTile(tryPos);
-			if(!tile || (placeInPZ && !tile->hasFlag(TILESTATE_PROTECTIONZONE)))
+			if(!tile || (placeInPz && !tile->hasFlag(TILESTATE_PROTECTIONZONE)))
 				continue;
 
 			if(tile->__queryAdd(0, creature, 1, 0) == RET_NOERROR)
 			{
-				foundTile = true;
-				break;
+				if(extendedPos)
+				{
+					if(isSightClear(centerPos, tryPos, false))
+					{
+						foundTile = true;
+						break;
+					}
+				}
+				else
+				{
+					foundTile = true;
+					break;
+				}
 			}
 		}
 	}
@@ -264,7 +286,6 @@ bool Map::placeCreature(const Position& centerPos, Creature* creature, bool forc
 #ifdef __DEBUG__
 	std::cout << "Failed to place creature onto map!" << std::endl;
 #endif
-
 	return false;
 }
 

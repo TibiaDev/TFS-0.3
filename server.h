@@ -33,10 +33,9 @@ class Server : boost::noncopyable
 {
 	public:
 		Server(uint32_t serverip, uint16_t port);
-		~Server();
+		virtual ~Server();
 
-		void run() { m_io_service.run(); }
-
+		void run() {m_io_service.run();}
 		void stop();
 
 	private:
@@ -52,6 +51,7 @@ class Server : boost::noncopyable
 		boost::asio::ip::tcp::acceptor* m_acceptor;
 
 		uint32_t m_listenErrors;
+		bool m_shutdown;
 
 		uint32_t m_serverIp;
 		uint16_t m_serverPort;

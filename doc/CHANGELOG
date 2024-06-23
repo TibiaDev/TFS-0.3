@@ -3,7 +3,7 @@
 		The Forgotten Server
 
 	Version
-		0.3 Alpha 4
+		0.3 Beta 1
 
 	Codenamed
 		\
@@ -22,12 +22,6 @@
 
 	A...
 		data/
-			compat.lua
-				* Added for compatibility with other engines - will contain deprecated functions
-
-			functions.lua
-				* Contains all lua-made functions from global.lua
-
 			actions/
 				scripts/
 					liquids/
@@ -39,9 +33,11 @@
 						obsidian_knife.lua
 							* Added
 
-			classes/
-				*.*
-					* Added all _needed_ class files
+					other/
+						stuffeddragon.lua
+							* Added as example of position param for doCreatureSay function
+						highscores.lua
+							* Added due to hardcoded highscores function deprecation
 
 			creaturescripts/
 				scripts/
@@ -56,7 +52,15 @@
 				scripts/
 					*.lua
 						* Added basic scripts
-
+			lib/
+				data.lua
+				constant.lua
+				function.lua
+				compat.lua
+				database.lua
+				exhaustion.lua
+					* Added files created from global.lua (organized)
+				
 			logs/
 				server/
 					* Created directory for GUI logs
@@ -92,6 +96,7 @@
 					broadcastclass.lua
 					mode.lua
 					multicheck.lua
+					masskick.lua
 						* Added (...)
 					buypremium.lua
 						* File name change
@@ -122,6 +127,11 @@
 						doors.lua
 							* Fixed special doors
 							* Fixed disappearing doors
+					liquids/
+						containers.lua
+							* Fixed few issues of fluids
+						mastermind_potion.lua
+							* Fixed issue with not working condition
 
 			creaturescripts/
 				creaturescripts.xml
@@ -142,6 +152,10 @@
 					* Compatibility with protocol 8.22
 					* Compatibility with OTBv3
 
+			lib/
+				function.lua
+					* Fixes and optimializations
+
 			monster/
 				monsters.xml
 					* Added most 8.1 monsters
@@ -157,6 +171,7 @@
 					* Added protocol 8.2 elemental armory with limitations
 					* Fixed protocol 8.2 elemental armory due to OTBv3 update
 					* Added items requiring vocation, level or magic level
+					* Added 'shield'/'hand' slot
 				scripts/
 					swimming/
 						*.lua
@@ -168,11 +183,12 @@
 				lib/
 					npc.lua
 						* Protocol 8.22 npcsystem compatibility
+						* Fixed some functions and added keyword tables support for 'msgcontains' function
 					npcsystem/
-						* Full protocol 8.22 npcsystem
+						* Full protocol 8.31 npcsystem
 				scripts/
 					*.lua
-						* 8.22 npcsystem compatibility
+						* 8.31 npcsystem compatibility
 
 			spells/
 				lib/
@@ -191,6 +207,7 @@
 					* Added "exhaustion=" back to spells.xml
 					* Charges and names fixed
 					* Fixed spell range
+					* Fixed exhaustions
 
 			talkactions/
 				talkactions.xml
@@ -203,6 +220,7 @@
 						* Removed permission checking from access needing talkactions
 						* Fixed return values
 						* Fixes regarding params
+						* Fixed all talkactions, added access and ghost checks
 					changesex.lua
 						* Updated due to deprecated LUA function
 						* Added a check for gratis premium account
@@ -214,26 +232,25 @@
 				forgotten.otbm
 					* Placed some NPC's on the map
 					* Updated to OTBv3
+					* Re-added spawns file
 
 			XML/
-				commands.xml
-					* Replaced old tags of acctype="" and group="" to new access system access=""
-					* Added log="" tags responsible for commands logging
-					* Re-grouped for new groups
+				stages.xml
+					* Deprecated configuration and moved to config.lua
 
-			global.lua
-				* Fixed conditions values
-				* Split to functions.lua and compat.lua
-				* Added guild levels
-				* Re-grouped global.lua
-				* Updated to protocol 8.2
+				servers.xml
+					* Changed 'ip' tag to 'address'
 
 	D...
 		data/
+			global.lua
+				* Moved to lib/ directory
+
 			actions/
 				scripts/
 					fluids.lua
 					potions.lua
+						* New liquids system
 
 			movements/
 				scripts/
@@ -243,10 +260,12 @@
 			talkactions/
 				scripts/
 					buyprem.lua
+						* Renamed
 
 			weapons/
 				scripts/
 					explosive_arrow.lua
+						* Renamed
 ]
 
 [ Milestone
@@ -321,6 +340,20 @@
 	Raids position may be now stored under one tag, which will be exploded- *x"="10" *y="10" *z="7"; can be now added as *pos="10;10;7" (Elf)
 	Merged Commands class with TalkActions, hardcoded commands may be now used as functions (Elf)
 	House information being stored at database, houses table (Elf)
+	onDeath event has now also new parameter- creature, that did most damage to dying creature (Elf)
+	New icon! ;-) (Macroman)
+	DescriptionHideLevel flag replaced with HideLevel, which is used now also for hiding player level in chat (Elf)
+	Signal handler, basic control signals (Elf, Kiper)
+	Revamped talkactions- more errors printing, more checks, more compatibility (Elf)
+	New Quest System and core support of it (Elf)
+	getClosestFreeTile function bumps - possibility to check does destination tile belongs to a house and extended position addon (Elf)
+	Spell parameters working as in Tibia (Elf)
+	Quest outfits (Elf)
+	NPC descriptions (Elf)
+	New onPrepareDeath creature event- no overflows and FALSE return denies death (Elf)
+	onStatsChange creature event (Elf)
+	Player and Global Storage now supports strings as values (Elf)
+	Deprecated hardcoded highscores function and rewritten as Lua function (Elf)
 ]
 
 [ Deprecated
@@ -368,4 +401,6 @@
 	Guild name not being validated when creating guild (Elf)
 	Liquids issue (Elf)
 	No possibility to logout without account name and password when Account Manager was enabled (Elf)
+	Unaccurate conditions length (Elf, OpenTibia SVN)
+	Players being unable to throw items at borders (Elf, OpenTibia SVN)
 ]

@@ -279,7 +279,41 @@ function doMutePlayer(cid, time)
 	return doAddCondition(cid, condition)
 end
 
-function convertIntToIP(int, mask)
+function getPlayerVocationName(cid)
+	return getVocationInfo(getPlayerVocation(cid)).name
+end
+
+function getPromotedVocation(vid)
+	return getVocationInfo(vid).promotedVocation
+end
+
+function doPlayerRemovePremiumDays(cid, days)
+	return doPlayerAddPremiumDays(cid, -days)
+end
+
+function getPlayerMasterPos(cid)
+	return getTownTemplePosition(getPlayerTown(cid))
+end
+
+function getOnlinePlayers()
+	local tmp = getPlayersOnline()
+	local players = {}
+	for i, cid in ipairs(tmp) do
+		table.insert(players, getCreatureName(cid))
+	end
+	return players
+end
+
+function getPlayerByName(name)
+	local cid = getCreatureByName(name)
+	return isPlayer(cid) == TRUE and cid or nil
+end
+
+function getPlayerFrags(cid)
+	return math.ceil((getPlayerRedSkullTicks(cid) / getConfigInfo('timeToDecreaseFrags')) + 1)
+end
+
+function doConvertIntegerToIp(int, mask)
 	local b4 = bit.urshift(bit.uband(int, 4278190080), 24)
 	local b3 = bit.urshift(bit.uband(int, 16711680), 16)
 	local b2 = bit.urshift(bit.uband(int, 65280), 8)
@@ -302,41 +336,31 @@ function convertIntToIP(int, mask)
 	return b1 .. "." .. b2 .. "." .. b3 .. "." .. b4
 end
 
-exhaustion =
-{
-	check = function (cid, storage)
-		local exhaust = getPlayerStorageValue(cid, storage)
-		if (os.time(t) >= exhaust) then
-			return FALSE
-		else
-			return TRUE
-		end
-	end,
+function getBooleanFromString(str)
+	return (str:lower() == "yes" or str:lower() == "true" or (tonumber(str) and tonumber(str) > 0)) and TRUE or FALSE
+end
 
-	get = function (cid, storage)
-		local exhaust = getPlayerStorageValue(cid, storage)
-		local left = exhaust - os.time(t)
-		if (left >= 0) then
-			return left
-		else
-			return FALSE
-		end
-	end,
+function doCopyItem(item, attributes)
+	local attributes = attributes or FALSE
 
-	set = function (cid, storage, time)
-		setPlayerStorageValue(cid, storage, os.time(t) + time)
-	end,
-
-	make = function (cid, storage, time)
-		local exhaust = exhaustion.get(cid, storage)
-		if (exhaust > 0) then
-			return FALSE
-		else
-			exhaustion.set(cid, storage, time)
-			return TRUE
+	local ret = doCreateItemEx(item.itemid, item.type)
+	if(attributes == TRUE) then
+		if(item.actionid > 0) then
+			doSetItemActionId(ret, item.actionid)
 		end
 	end
-}
+
+	if(isContainer(item.uid) == TRUE) then
+		for i = (getContainerSize(item.uid) - 1), 0, -1 do
+			local tmp = getContainerItem(item.uid, i)
+			if(tmp.itemid > 0) then
+				doAddContainerItemEx(ret, doCopyItem(tmp, TRUE).uid)
+			end
+		end
+	end
+
+	return getThing(ret)
+end
 
 table.find = function (table, value)
 	for i, v in pairs(table) do
@@ -344,18 +368,18 @@ table.find = function (table, value)
 			return i
 		end
 	end
+
 	return nil
 end
 
 table.isStrIn = function (txt, str)
-	local result = false
 	for i, v in pairs(str) do
-		result = (string.find(txt, v) and not string.find(txt, '(%w+)' .. v) and not string.find(txt, v .. '(%w+)'))
-		if(result) then
-			break
+		if(txt:find(v) and not txt:find('(%w+)' .. v) and not txt:find(v .. '(%w+)')) then
+			return true
 		end
 	end
-	return result
+
+	return false
 end
 
 table.countElements = function (table, item)
@@ -365,6 +389,7 @@ table.countElements = function (table, item)
 			count = count + 1
 		end
 	end
+
 	return count
 end
 
@@ -396,6 +421,7 @@ table.getCombinations = function (table, num)
 			a[j] = a[i] + j - i
 		end
 	end
+
 	return newlist
 end
 
@@ -406,7 +432,7 @@ string.split = function (str)
 		return ""
 	end
 
-	if(not str:gsub("%w+", helper):find"%S") then
+	if(not str:gsub("%w+", helper):find("%S")) then
 		return t
 	end
 end
@@ -421,11 +447,11 @@ string.explode = function (str, sep)
 		return
 	end
 
-	for s, e in function() return string.find(str, sep, pos) end do
-		table.insert(t, string.trim(string.sub(str, pos, s - 1)))
+	for s, e in function() return str:find(sep, pos) end do
+		table.insert(t, str:sub(pos, s - 1):trim())
 		pos = e + 1
 	end
 
-	table.insert(t, string.trim(string.sub(str, pos)))
+	table.insert(t, str:sub(pos):trim())
 	return t
 end

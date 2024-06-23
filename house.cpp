@@ -33,7 +33,7 @@ extern ConfigManager g_config;
 extern Game g_game;
 
 House::House(uint32_t _houseid) :
-transfer_container(ITEM_LOCKER1)
+transferContainer(ITEM_LOCKER1)
 {
 	isLoaded = false;
 	houseName = "Forgotten headquarter (Flat 1, Area 42)";
@@ -402,9 +402,9 @@ HouseTransferItem* House::getTransferItem()
 	if(transferItem != NULL)
 		return NULL;
 
-	transfer_container.setParent(NULL);
+	transferContainer.setParent(NULL);
 	transferItem = HouseTransferItem::createHouseTransferItem(this);
-	transfer_container.__addThing(transferItem);
+	transferContainer.__addThing(transferItem);
 	return transferItem;
 }
 
@@ -414,8 +414,8 @@ void House::resetTransferItem()
 	{
 		Item* tmpItem = transferItem;
 		transferItem = NULL;
-		transfer_container.setParent(NULL);
-		transfer_container.__removeThing(tmpItem, tmpItem->getItemCount());
+		transferContainer.setParent(NULL);
+		transferContainer.__removeThing(tmpItem, tmpItem->getItemCount());
 		g_game.FreeThing(tmpItem);
 	}
 }
@@ -824,7 +824,7 @@ bool Houses::loadHousesXML(std::string filename)
 					entryPos.z = intValue;
 
 				house->setEntryPos(entryPos);
-				if(entryPos.x == 0 || entryPos.y == 0 || entryPos.z == 0)
+				if(entryPos.x == 0 || entryPos.y == 0)
 					std::cout << "[Warning - Houses::loadHousesXML] House entry not set for: " << house->getName() << " (" << _houseid << ")" << std::endl;
 
 				if(readXMLInteger(houseNode, "rent", intValue))
@@ -894,15 +894,14 @@ bool Houses::payHouses()
 			if(!town)
 			{
 				#ifdef __DEBUG_HOUSES__
-				std::cout << "Warning: [Houses::payHouses] town = NULL, townid = " <<
+				std::cout << "[Warning - Houses::payHouses]: town = NULL, townid = " <<
 					house->getTownId() << ", houseid = " << house->getHouseId() << std::endl;
 				#endif
 				continue;
 			}
 
-			uint32_t ownerid = house->getHouseOwner();
 			std::string name;
-			if(!IOLoginData::getInstance()->getNameByGuid(ownerid, name))
+			if(!IOLoginData::getInstance()->getNameByGuid(house->getHouseOwner(), name))
 			{
 				house->setHouseOwner(0);
 				continue;
@@ -915,7 +914,7 @@ bool Houses::payHouses()
 				if(!IOLoginData::getInstance()->loadPlayer(player, name))
 				{
 					#ifdef __DEBUG__
-					std::cout << "Failure: [Houses::payHouses], can not load player: " << name << std::endl;
+					std::cout << "[Failure - Houses::payHouses]: Cannot load player " << name << std::endl;
 					#endif
 					delete player;
 					continue;
@@ -925,7 +924,7 @@ bool Houses::payHouses()
 			bool savePlayerHere = true;
 			if(Depot* depot = player->getDepot(town->getTownID(), true))
 			{
-				if(g_config.getBool(ConfigManager::HOUSE_NEED_PREMIUM) || player->isPremium())
+				if(player->isPremium() || !g_config.getBool(ConfigManager::HOUSE_NEED_PREMIUM))
 				{
 					//get money from depot then from bank
 					bool paid = false;
@@ -988,12 +987,14 @@ bool Houses::payHouses()
 									break;
 							}
 
-							char warningText[200];
-							sprintf(warningText, "Warning! \nThe %s rent of %d gold for your house \"%s\" is payable. Have it within %d days or you will lose this house.", period.c_str(), house->getRent(), house->getName().c_str(), (7 - house->getPayRentWarnings()));
+							if(Item* letter = Item::CreateItem(ITEM_LETTER_STAMPED))
+							{
+								char warningText[200];
+								sprintf(warningText, "Warning! \nThe %s rent of %d gold for your house \"%s\" is payable. Have it within %d days or you will lose this house.", period.c_str(), house->getRent(), house->getName().c_str(), (7 - house->getPayRentWarnings()));
+								letter->setText(warningText);
+								g_game.internalAddItem(depot, letter, INDEX_WHEREEVER, FLAG_NOLIMIT);
+							}
 
-							Item* letter = Item::CreateItem(ITEM_LETTER_STAMPED);
-							letter->setText(warningText);
-							g_game.internalAddItem(depot, letter, INDEX_WHEREEVER, FLAG_NOLIMIT);
 							house->setPayRentWarnings(house->getPayRentWarnings() + 1);
 							house->setLastWarning(currentTime);
 						}

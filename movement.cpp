@@ -130,7 +130,7 @@ bool MoveEvents::registerEvent(Event* event, xmlNodePtr p)
 
 	bool success = true;
 	int32_t id, endId;
-	std::string str;
+	std::string strValue;
 
 	MoveEvent_t eventType = moveEvent->getEventType();
 	if(eventType == MOVE_EVENT_ADD_ITEM || eventType == MOVE_EVENT_REMOVE_ITEM)
@@ -153,6 +153,7 @@ bool MoveEvents::registerEvent(Event* event, xmlNodePtr p)
 
 	if(readXMLInteger(p, "itemid", id))
 	{
+		addEvent(moveEvent, id, m_itemIdMap);
 		if(moveEvent->getEventType() == MOVE_EVENT_EQUIP)
 		{
 			ItemType& it = Item::items.getItemType(id);
@@ -161,11 +162,10 @@ bool MoveEvents::registerEvent(Event* event, xmlNodePtr p)
 			it.minReqMagicLevel = moveEvent->getReqMagLv();
 			it.vocationString = moveEvent->getVocationString();
 		}
-
-		addEvent(moveEvent, id, m_itemIdMap);
 	}
 	else if(readXMLInteger(p, "fromid", id) && readXMLInteger(p, "toid", endId))
 	{
+		addEvent(moveEvent, id, m_itemIdMap);
 		if(moveEvent->getEventType() == MOVE_EVENT_EQUIP)
 		{
 			ItemType& it = Item::items.getItemType(id);
@@ -174,20 +174,20 @@ bool MoveEvents::registerEvent(Event* event, xmlNodePtr p)
 			it.minReqMagicLevel = moveEvent->getReqMagLv();
 			it.vocationString = moveEvent->getVocationString();
 
-			addEvent(moveEvent, id, m_itemIdMap);
 			while(id < endId)
 			{
-				addEvent(new MoveEvent(moveEvent), ++id, m_itemIdMap);
-				it = Item::items.getItemType(id);
-				it.wieldInfo = moveEvent->getWieldInfo();
-				it.minReqLevel = moveEvent->getReqLevel();
-				it.minReqMagicLevel = moveEvent->getReqMagLv();
-				it.vocationString = moveEvent->getVocationString();
+				id++;
+				addEvent(new MoveEvent(moveEvent), id, m_itemIdMap);
+
+				ItemType& tit = Item::items.getItemType(id);
+				tit.wieldInfo = moveEvent->getWieldInfo();
+				tit.minReqLevel = moveEvent->getReqLevel();
+				tit.minReqMagicLevel = moveEvent->getReqMagLv();
+				tit.vocationString = moveEvent->getVocationString();
 			}
 		}
 		else
 		{
-			addEvent(moveEvent, id, m_itemIdMap);
 			while(id < endId)
 				addEvent(new MoveEvent(moveEvent), ++id, m_itemIdMap);
 		}
@@ -208,9 +208,9 @@ bool MoveEvents::registerEvent(Event* event, xmlNodePtr p)
 		while(id < endId)
 			addEvent(new MoveEvent(moveEvent), ++id, m_actionIdMap);
 	}
-	else if(readXMLString(p, "pos", str))
+	else if(readXMLString(p, "pos", strValue))
 	{
-		std::vector<int32_t> posList = vectorAtoi(explodeString(str, ";"));
+		std::vector<int32_t> posList = vectorAtoi(explodeString(strValue, ";"));
 		if(posList.size() >= 3)
 		{
 			Position pos(posList[0], posList[1], posList[2]);
@@ -240,24 +240,63 @@ void MoveEvents::addEvent(MoveEvent* moveEvent, int32_t id, MoveListMap& map)
 		for(std::list<MoveEvent*>::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
 		{
 			if((*it)->getSlot() == moveEvent->getSlot())
-				std::cout << "Warning: [MoveEvents::addEvent] Duplicate move event found: " << id << std::endl;
+				std::cout << "[Warning - MoveEvents::addEvent] Duplicate move event found: " << id << std::endl;
 		}
+
 		moveEventList.push_back(moveEvent);
 	}
 }
 
 MoveEvent* MoveEvents::getEvent(Item* item, MoveEvent_t eventType, slots_t slot)
 {
+	uint32_t slotp = 0;
+	switch(slot)
+	{
+		case SLOT_HEAD:
+			slotp = SLOTP_HEAD;
+			break;
+		case SLOT_NECKLACE:
+			slotp = SLOTP_NECKLACE;
+			break;
+		case SLOT_BACKPACK:
+			slotp = SLOTP_BACKPACK;
+			break;
+		case SLOT_ARMOR:
+			slotp = SLOTP_ARMOR;
+			break;
+		case SLOT_RIGHT:
+			slotp = SLOTP_RIGHT;
+			break;
+		case SLOT_LEFT:
+			slotp = SLOTP_LEFT;
+			break;
+		case SLOT_LEGS:
+			slotp = SLOTP_LEGS;
+			break;
+		case SLOT_FEET:
+			slotp = SLOTP_FEET;
+			break;
+		case SLOT_AMMO:
+			slotp = SLOTP_AMMO;
+			break;
+		case SLOT_RING:
+			slotp = SLOTP_RING;
+			break;
+		default:
+			break;
+	}
+
 	MoveListMap::iterator it = m_itemIdMap.find(item->getID());
 	if(it != m_itemIdMap.end())
 	{
 		std::list<MoveEvent*>& moveEventList = it->second.moveEvent[eventType];
 		for(std::list<MoveEvent*>::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
 		{
-			if((*it)->getSlot() == slot)
+			if(((*it)->getSlot() & slotp) != 0)
 				return *it;
 		}
 	}
+
 	return NULL;
 }
 
@@ -310,7 +349,7 @@ void MoveEvents::addEvent(MoveEvent* moveEvent, Position pos, MovePosListMap& ma
 	{
 		std::list<MoveEvent*>& moveEventList = it->second.moveEvent[moveEvent->getEventType()];
 		if(!moveEventList.empty())
-			std::cout << "Warning: [MoveEvents::addEvent] Duplicate move event found: " << pos << std::endl;
+			std::cout << "[Warning - MoveEvents::addEvent] Duplicate move event found: " << pos << std::endl;
 		moveEventList.push_back(moveEvent);
 	}
 }
@@ -324,25 +363,24 @@ MoveEvent* MoveEvents::getEvent(Tile* tile, MoveEvent_t eventType)
 		if(!moveEventList.empty())
 			return *moveEventList.begin();
 	}
+
 	return NULL;
 }
 
-uint32_t MoveEvents::onCreatureMove(Creature* creature, Tile* tile, bool isIn)
+uint32_t MoveEvents::onCreatureMove(Creature* creature, Tile* tile, bool isStepping)
 {
-	MoveEvent_t eventType;
-	if(isIn)
+	MoveEvent_t eventType = MOVE_EVENT_STEP_OUT;
+	if(isStepping)
 		eventType = MOVE_EVENT_STEP_IN;
-	else
-		eventType = MOVE_EVENT_STEP_OUT;
 
 	uint32_t ret = 1;
 	MoveEvent* moveEvent = getEvent(tile, eventType);
 	if(moveEvent)
 		ret = ret & moveEvent->fireStepEvent(creature, NULL, tile->getPosition());
 
-	int32_t j = tile->__getLastIndex();
+	int32_t tmp = tile->__getLastIndex();
 	Item* tileItem = NULL;
-	for(int32_t i = tile->__getFirstIndex(); i < j; ++i)
+	for(int32_t i = tile->__getFirstIndex(); i < tmp; ++i)
 	{
 		Thing* thing = tile->__getThing(i);
 		if(thing && (tileItem = thing->getItem()))
@@ -352,38 +390,33 @@ uint32_t MoveEvents::onCreatureMove(Creature* creature, Tile* tile, bool isIn)
 				ret = ret & moveEvent->fireStepEvent(creature, tileItem, tile->getPosition());
 		}
 	}
+
 	return ret;
 }
 
 uint32_t MoveEvents::onPlayerEquip(Player* player, Item* item, slots_t slot)
 {
-	MoveEvent* moveEvent = getEvent(item, MOVE_EVENT_EQUIP, slot);
-	if(moveEvent && slot == moveEvent->getSlot())
+	if(MoveEvent* moveEvent = getEvent(item, MOVE_EVENT_EQUIP, slot))
 		return moveEvent->fireEquip(player, item, slot, false);
+
 	return 1;
 }
 
 uint32_t MoveEvents::onPlayerDeEquip(Player* player, Item* item, slots_t slot, bool isRemoval)
 {
-	MoveEvent* moveEvent = getEvent(item, MOVE_EVENT_DEEQUIP, slot);
-	if(moveEvent && slot == moveEvent->getSlot())
+	if(MoveEvent* moveEvent = getEvent(item, MOVE_EVENT_DEEQUIP, slot))
 		return moveEvent->fireEquip(player, item, slot, isRemoval);
+
 	return 1;
 }
 
 uint32_t MoveEvents::onItemMove(Item* item, Tile* tile, bool isAdd)
 {
-	MoveEvent_t eventType1;
-	MoveEvent_t eventType2;
+	MoveEvent_t eventType1 = MOVE_EVENT_REMOVE_ITEM, eventType2 = MOVE_EVENT_REMOVE_ITEM_ITEMTILE;
 	if(isAdd)
 	{
 		eventType1 = MOVE_EVENT_ADD_ITEM;
 		eventType2 = MOVE_EVENT_ADD_ITEM_ITEMTILE;
-	}
-	else
-	{
-		eventType1 = MOVE_EVENT_REMOVE_ITEM;
-		eventType2 = MOVE_EVENT_REMOVE_ITEM_ITEMTILE;
 	}
 
 	uint32_t ret = 1;
@@ -395,9 +428,9 @@ uint32_t MoveEvents::onItemMove(Item* item, Tile* tile, bool isAdd)
 	if(moveEvent)
 		ret = ret & moveEvent->fireAddRemItem(item, NULL, tile->getPosition());
 
-	int32_t j = tile->__getLastIndex();
+	int32_t tmp = tile->__getLastIndex();
 	Item* tileItem = NULL;
-	for(int32_t i = tile->__getFirstIndex(); i < j; ++i)
+	for(int32_t i = tile->__getFirstIndex(); i < tmp; ++i)
 	{
 		Thing* thing = tile->__getThing(i);
 		if(thing && (tileItem = thing->getItem()) && (tileItem != item))
@@ -407,24 +440,26 @@ uint32_t MoveEvents::onItemMove(Item* item, Tile* tile, bool isAdd)
 				ret = ret & moveEvent->fireAddRemItem(item, tileItem, tile->getPosition());
 		}
 	}
+
 	return ret;
 }
 
-MoveEvent::MoveEvent(LuaScriptInterface* _interface) :
-	Event(_interface)
+MoveEvent::MoveEvent(LuaScriptInterface* _interface):
+Event(_interface)
 {
 	m_eventType = MOVE_EVENT_NONE;
 	stepFunction = NULL;
 	moveFunction = NULL;
 	equipFunction = NULL;
-	slot = SLOT_WHEREEVER;
+	slot = SLOTP_WHEREEVER;
+	wieldInfo = 0;
 	reqLevel = 0;
 	reqMagLevel = 0;
 	premium = false;
 }
 
-MoveEvent::MoveEvent(const MoveEvent* copy) :
-	Event(copy)
+MoveEvent::MoveEvent(const MoveEvent* copy):
+Event(copy)
 {
 	m_eventType = copy->m_eventType;
 	stepFunction = copy->stepFunction;
@@ -476,7 +511,7 @@ std::string MoveEvent::getScriptEventName()
 			break;
 
 		default:
-			std::cout << "Error: [MoveEvent::getScriptEventName()] No valid event type." << std::endl;
+			std::cout << "[Error - MoveEvent::getScriptEventName] No valid event type." << std::endl;
 			return "";
 			break;
 	}
@@ -484,58 +519,60 @@ std::string MoveEvent::getScriptEventName()
 
 bool MoveEvent::configureEvent(xmlNodePtr p)
 {
-	std::string str;
+	std::string strValue;
 	int32_t intValue;
-	if(readXMLString(p, "event", str))
+	if(readXMLString(p, "event", strValue))
 	{
-		std::string tmpStr = asLowerCaseString(str);
-		if(tmpStr == "stepin")
+		std::string tmpStrValue = asLowerCaseString(strValue);
+		if(tmpStrValue == "stepin")
 			m_eventType = MOVE_EVENT_STEP_IN;
-		else if(tmpStr == "stepout")
+		else if(tmpStrValue == "stepout")
 			m_eventType = MOVE_EVENT_STEP_OUT;
-		else if(tmpStr == "equip")
+		else if(tmpStrValue == "equip")
 			m_eventType = MOVE_EVENT_EQUIP;
-		else if(tmpStr == "deequip")
+		else if(tmpStrValue == "deequip")
 			m_eventType = MOVE_EVENT_DEEQUIP;
-		else if(tmpStr == "additem")
+		else if(tmpStrValue == "additem")
 			m_eventType = MOVE_EVENT_ADD_ITEM;
-		else if(tmpStr == "removeitem")
+		else if(tmpStrValue == "removeitem")
 			m_eventType = MOVE_EVENT_REMOVE_ITEM;
 		else
 		{
-			std::cout << "Error: [MoveEvent::configureMoveEvent] No valid event name " << str << std::endl;
+			std::cout << "[Error - MoveEvent::configureMoveEvent] No valid event name \"" << strValue << "\"" << std::endl;
 			return false;
 		}
 
 		if(m_eventType == MOVE_EVENT_EQUIP || m_eventType == MOVE_EVENT_DEEQUIP)
 		{
-			if(readXMLString(p, "slot", str))
+			if(readXMLString(p, "slot", strValue))
 			{
-				std::string tmpStr = asLowerCaseString(str);
-				if(tmpStr == "head")
-					slot = SLOT_HEAD;
-				else if(tmpStr == "necklace")
-					slot = SLOT_NECKLACE;
-				else if(tmpStr == "backpack")
-					slot = SLOT_BACKPACK;
-				else if(tmpStr == "armor")
-					slot = SLOT_ARMOR;
-				else if(tmpStr == "right-hand")
-					slot = SLOT_RIGHT;
-				else if(tmpStr == "left-hand")
-					slot = SLOT_LEFT;
-				else if(tmpStr == "two-handed") // A "cheated" slot type
-					slot = SLOT_LEFT;
-				else if(tmpStr == "legs")
-					slot = SLOT_LEGS;
-				else if(tmpStr == "feet")
-					slot = SLOT_FEET;
-				else if(tmpStr == "ring")
-					slot = SLOT_RING;
-				else if(tmpStr == "ammo")
-					slot = SLOT_AMMO;
+				std::string tmpStrValue = asLowerCaseString(strValue);
+				if(tmpStrValue == "head")
+					slot = SLOTP_HEAD;
+				else if(tmpStrValue == "necklace")
+					slot = SLOTP_NECKLACE;
+				else if(tmpStrValue == "backpack")
+					slot = SLOTP_BACKPACK;
+				else if(tmpStrValue == "armor")
+					slot = SLOTP_ARMOR;
+				else if(tmpStrValue == "right-hand")
+					slot = SLOTP_RIGHT;
+				else if(tmpStrValue == "left-hand")
+					slot = SLOTP_LEFT;
+				else if(tmpStrValue == "two-handed")
+					slot = SLOTP_TWO_HAND;
+				else if(tmpStrValue == "hand" || tmpStrValue == "shield")
+					slot = SLOTP_RIGHT | SLOTP_LEFT;
+				else if(tmpStrValue == "legs")
+					slot = SLOTP_LEGS;
+				else if(tmpStrValue == "feet")
+					slot = SLOTP_FEET;
+				else if(tmpStrValue == "ring")
+					slot = SLOTP_RING;
+				else if(tmpStrValue == "ammo")
+					slot = SLOTP_AMMO;
 				else
-					std::cout << "Warning: [MoveEvent::configureMoveEvent] " << "Unknown slot type " << str << std::endl;
+					std::cout << "[Warning - MoveEvent::configureMoveEvent]: Unknown slot type \"" << strValue << "\"" << std::endl;
 			}
 
 			wieldInfo = 0;
@@ -553,22 +590,23 @@ bool MoveEvent::configureEvent(xmlNodePtr p)
 					wieldInfo |= WIELDINFO_MAGLV;
 			}
 
-			if(readXMLInteger(p, "prem", intValue) || readXMLInteger(p, "premium", intValue))
+			if(readXMLString(p, "prem", strValue) || readXMLString(p, "premium", strValue))
 			{
-				premium = (intValue != 0);
+				premium = booleanString(strValue);
 				if(premium)
 					wieldInfo |= WIELDINFO_PREMIUM;
 			}
 
 			STRING_LIST vocStringList;
+
 			xmlNodePtr vocationNode = p->children;
 			while(vocationNode)
 			{
 				if(xmlStrcmp(vocationNode->name,(const xmlChar*)"vocation") == 0)
 				{
-					if(readXMLString(vocationNode, "name", str))
+					if(readXMLString(vocationNode, "name", strValue))
 					{
-						int32_t vocationId = g_vocations.getVocationId(str);
+						int32_t vocationId = g_vocations.getVocationId(strValue);
 						if(vocationId != -1)
 						{
 							vocEquipMap[vocationId] = true;
@@ -580,8 +618,8 @@ bool MoveEvent::configureEvent(xmlNodePtr p)
 							readXMLInteger(vocationNode, "showInDescription", intValue);
 							if(intValue != 0)
 							{
-								toLowerCaseString(str);
-								vocStringList.push_back(str);
+								toLowerCaseString(strValue);
+								vocStringList.push_back(strValue);
 							}
 						}
 					}
@@ -612,9 +650,10 @@ bool MoveEvent::configureEvent(xmlNodePtr p)
 	}
 	else
 	{
-		std::cout << "Error: [MoveEvent::configureMoveEvent] No event found." << std::endl;
+		std::cout << "[Error - MoveEvent::configureMoveEvent] No event found." << std::endl;
 		return false;
 	}
+
 	return true;
 }
 
@@ -647,9 +686,10 @@ MoveEvent_t MoveEvent::getEventType() const
 {
 	if(m_eventType == MOVE_EVENT_NONE)
 	{
-		std::cout << "Error: [MoveEvent::getEventType()] MOVE_EVENT_NONE" << std::endl;
+		std::cout << "[Error - MoveEvent::getEventType] MOVE_EVENT_NONE" << std::endl;
 		return (MoveEvent_t)0;
 	}
+
 	return m_eventType;
 }
 
@@ -660,9 +700,7 @@ void MoveEvent::setEventType(MoveEvent_t type)
 
 uint32_t MoveEvent::StepInField(Creature* creature, Item* item, const Position& pos)
 {
-	MagicField* field = item->getMagicField();
-
-	if(field)
+	if(MagicField* field = item->getMagicField())
 	{
 		field->onStepInField(creature);
 		return 1;
@@ -695,26 +733,24 @@ uint32_t MoveEvent::RemoveItemField(Item* item, Item* tileItem, const Position& 
 	return 1;
 }
 
-uint32_t MoveEvent::EquipItem(Player* player, Item* item, slots_t slot, bool transform)
+uint32_t MoveEvent::EquipItem(MoveEvent* moveEvent, Player* player, Item* item, slots_t slot, bool isRemoval)
 {
 	if(player->isItemAbilityEnabled(slot))
 		return 1;
 
-	//Enable item only when requirements are complete
-	//This includes item transforming
-	MoveEvent* moveEvent = g_moveEvents->getEvent(item, MOVE_EVENT_EQUIP);
-	if(moveEvent && !player->hasFlag(PlayerFlag_IgnoreWeaponCheck))
+	if(!player->hasFlag(PlayerFlag_IgnoreEquipCheck) && moveEvent->getWieldInfo() != 0)
 	{
-		if((int32_t)player->getLevel() < moveEvent->getReqLevel() || (int32_t)player->getMagicLevel() < moveEvent->getReqMagLv() ||
-			(!player->isPremium() && moveEvent->isPremium()) || (!moveEvent->getVocEquipMap().empty() &&
-			moveEvent->getVocEquipMap().find(player->getVocationId()) == moveEvent->getVocEquipMap().end()))
-		{
+		if(player->getLevel() < (uint32_t)moveEvent->getReqLevel() || player->getMagicLevel() < (uint32_t)moveEvent->getReqMagLv())
 			return 1;
-		}
+
+		if(moveEvent->isPremium() && !player->isPremium())
+			return 1;
+
+		if(!moveEvent->getVocEquipMap().empty() && moveEvent->getVocEquipMap().find(player->getVocationId()) == moveEvent->getVocEquipMap().end())
+			return 1;
 	}
 
 	const ItemType& it = Item::items[item->getID()];
-
 	if(it.transformEquipTo != 0)
 	{
 		Item* newItem = g_game.transformItem(item, it.transformEquipTo);
@@ -764,7 +800,6 @@ uint32_t MoveEvent::EquipItem(Player* player, Item* item, slots_t slot, bool tra
 		player->addCondition(condition);
 	}
 
-	//skill modifiers
 	bool needUpdateSkills = false;
 	for(int32_t i = SKILL_FIRST; i <= SKILL_LAST; ++i)
 	{
@@ -778,7 +813,6 @@ uint32_t MoveEvent::EquipItem(Player* player, Item* item, slots_t slot, bool tra
 	if(needUpdateSkills)
 		player->sendSkills();
 
-	//stat modifiers
 	bool needUpdateStats = false;
 	for(int32_t s = STAT_FIRST; s <= STAT_LAST; ++s)
 	{
@@ -801,7 +835,7 @@ uint32_t MoveEvent::EquipItem(Player* player, Item* item, slots_t slot, bool tra
 	return 1;
 }
 
-uint32_t MoveEvent::DeEquipItem(Player* player, Item* item, slots_t slot, bool isRemoval)
+uint32_t MoveEvent::DeEquipItem(MoveEvent* moveEvent, Player* player, Item* item, slots_t slot, bool isRemoval)
 {
 	if(!player->isItemAbilityEnabled(slot))
 		return 1;
@@ -809,7 +843,6 @@ uint32_t MoveEvent::DeEquipItem(Player* player, Item* item, slots_t slot, bool i
 	player->setItemAbility(slot, false);
 
 	const ItemType& it = Item::items[item->getID()];
-
 	if(isRemoval && it.transformDeEquipTo != 0)
 	{
 		g_game.transformItem(item, it.transformDeEquipTo);
@@ -832,7 +865,6 @@ uint32_t MoveEvent::DeEquipItem(Player* player, Item* item, slots_t slot, bool i
 	if(it.abilities.regeneration)
 		player->removeCondition(CONDITION_REGENERATION, (ConditionId_t)slot);
 
-	//skill modifiers
 	bool needUpdateSkills = false;
 	for(int32_t i = SKILL_FIRST; i <= SKILL_LAST; ++i)
 	{
@@ -846,7 +878,6 @@ uint32_t MoveEvent::DeEquipItem(Player* player, Item* item, slots_t slot, bool i
 	if(needUpdateSkills)
 		player->sendSkills();
 
-	//stat modifiers
 	bool needUpdateStats = false;
 	for(int32_t s = STAT_FIRST; s <= STAT_LAST; ++s)
 	{
@@ -865,6 +896,7 @@ uint32_t MoveEvent::DeEquipItem(Player* player, Item* item, slots_t slot, bool i
 
 	if(needUpdateStats)
 		player->sendStats();
+
 	return 1;
 }
 
@@ -872,14 +904,14 @@ uint32_t MoveEvent::fireStepEvent(Creature* creature, Item* item, const Position
 {
 	if(m_scripted)
 		return executeStep(creature, item, pos);
-	else
-		return stepFunction(creature, item, pos);
+
+	return stepFunction(creature, item, pos);
 }
 
 uint32_t MoveEvent::executeStep(Creature* creature, Item* item, const Position& pos)
 {
-	//onStepIn(cid, item, pos, fromPosition)
-	//onStepOut(cid, item, pos, fromPosition)
+	//onStepIn(cid, item, position, fromPosition)
+	//onStepOut(cid, item, position, fromPosition)
 	if(m_scriptInterface->reserveScriptEnv())
 	{
 		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
@@ -907,11 +939,11 @@ uint32_t MoveEvent::executeStep(Creature* creature, Item* item, const Position& 
 		int32_t result = m_scriptInterface->callFunction(4);
 		m_scriptInterface->releaseScriptEnv();
 
-		return (result != LUA_FALSE);
+		return (result == LUA_TRUE);
 	}
 	else
 	{
-		std::cout << "[Error] Call stack overflow. MoveEvent::executeStep" << std::endl;
+		std::cout << "[Error - MoveEvent::executeStep] Call stack overflow." << std::endl;
 		return 0;
 	}
 }
@@ -920,8 +952,8 @@ uint32_t MoveEvent::fireEquip(Player* player, Item* item, slots_t slot, bool isR
 {
 	if(m_scripted)
 		return executeEquip(player, item, slot);
-	else
-		return equipFunction(player, item, slot, isRemoval);
+
+	return equipFunction(this, player, item, slot, isRemoval);
 }
 
 uint32_t MoveEvent::executeEquip(Player* player, Item* item, slots_t slot)
@@ -934,7 +966,7 @@ uint32_t MoveEvent::executeEquip(Player* player, Item* item, slots_t slot)
 
 		#ifdef __DEBUG_LUASCRIPTS__
 		std::stringstream desc;
-		desc << player->getName() << " itemid: " << item->getID() << " slot: " slot;
+		desc << player->getName() << " itemid: " << item->getID() << " slot: " << slot;
 		env->setEventDesc(desc.str());
 		#endif
 
@@ -954,11 +986,11 @@ uint32_t MoveEvent::executeEquip(Player* player, Item* item, slots_t slot)
 		int32_t result = m_scriptInterface->callFunction(3);
 		m_scriptInterface->releaseScriptEnv();
 
-		return (result != LUA_FALSE);
+		return (result == LUA_TRUE);
 	}
 	else
 	{
-		std::cout << "[Error] Call stack overflow. MoveEvent::executeEquip" << std::endl;
+		std::cout << "[Error - MoveEvent::executeEquip] Call stack overflow." << std::endl;
 		return 0;
 	}
 }
@@ -967,14 +999,14 @@ uint32_t MoveEvent::fireAddRemItem(Item* item, Item* tileItem, const Position& p
 {
 	if(m_scripted)
 		return executeAddRemItem(item, tileItem, pos);
-	else
-		return moveFunction(item, tileItem, pos);
+
+	return moveFunction(item, tileItem, pos);
 }
 
 uint32_t MoveEvent::executeAddRemItem(Item* item, Item* tileItem, const Position& pos)
 {
-	//onAddItem(moveitem, tileitem, pos)
-	//onRemoveItem(moveitem, tileitem, pos)
+	//onAddItem(moveitem, tileitem, position)
+	//onRemoveItem(moveitem, tileitem, position)
 	if(m_scriptInterface->reserveScriptEnv())
 	{
 		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
@@ -983,6 +1015,7 @@ uint32_t MoveEvent::executeAddRemItem(Item* item, Item* tileItem, const Position
 		std::stringstream desc;
 		if(tileItem)
 			desc << "tileid: " << tileItem->getID();
+
 		desc << " itemid: " << item->getID() << " - " << pos;
 		env->setEventDesc(desc.str());
 		#endif
@@ -1003,11 +1036,11 @@ uint32_t MoveEvent::executeAddRemItem(Item* item, Item* tileItem, const Position
 		int32_t result = m_scriptInterface->callFunction(3);
 		m_scriptInterface->releaseScriptEnv();
 
-		return (result != LUA_FALSE);
+		return (result == LUA_TRUE);
 	}
 	else
 	{
-		std::cout << "[Error] Call stack overflow. MoveEvent::executeAddRemItem" << std::endl;
+		std::cout << "[Error - MoveEvent::executeAddRemItem] Call stack overflow." << std::endl;
 		return 0;
 	}
 }

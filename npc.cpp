@@ -190,6 +190,11 @@ bool Npc::loadFromXml(const std::string& filename)
 		else
 			name = "";
 
+		if(readXMLString(root, "namedescription", strValue))
+			nameDescription = strValue;
+		else
+			nameDescription = name;
+
 		if(readXMLInteger(root, "speed", intValue))
 			baseSpeed = intValue;
 		else
@@ -207,8 +212,8 @@ bool Npc::loadFromXml(const std::string& filename)
 			walkTicks = 2000;
 		}
 
-		if(readXMLInteger(root, "floorchange", intValue))
-			floorChange = (intValue != 0);
+		if(readXMLString(root, "floorchange", strValue))
+			floorChange = booleanString(strValue);
 
 		if(readXMLString(root, "skull", strValue))
 		{
@@ -818,10 +823,10 @@ ResponseList Npc::loadInteraction(xmlNodePtr node)
 								}
 								else if(tmpStrValue == "storage")
 								{
-									if(readXMLInteger(subNode, "value", intValue))
+									if(readXMLString(subNode, "value", strValue))
 									{
 										action.actionType = ACTION_SETSTORAGE;
-										action.intValue = intValue;
+										action.strValue = strValue;
 									}
 								}
 								else if(tmpStrValue == "addqueue")
@@ -993,6 +998,8 @@ NpcState* Npc::getState(const Player* player, bool makeNew /*= true*/)
 	state->amount = 1;
 	state->itemId = 0;
 	state->subType = -1;
+	state->ignoreCap = false;
+	state->inBackpacks = false;
 	state->spellName = "";
 	state->listName = "";
 	state->listPluralName = "";
@@ -1014,13 +1021,6 @@ bool Npc::canSee(const Position& pos) const
 		return false;
 
 	return Creature::canSee(getPosition(), pos, Map::maxClientViewportX, Map::maxClientViewportY);
-}
-
-std::string Npc::getDescription(int32_t lookDistance) const
-{
-	std::stringstream s;
-	s << name << ".";
-	return s.str();
 }
 
 void Npc::onAddTileItem(const Tile* tile, const Position& pos, const Item* item)
@@ -1144,7 +1144,7 @@ void Npc::onCreatureTurn(const Creature* creature, uint32_t stackpos)
 	Creature::onCreatureTurn(creature, stackpos);
 }
 
-void Npc::onCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text)
+void Npc::onCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text, Position* pos/* = NULL*/)
 {
 	if(creature->getID() == this->getID())
 		return;
@@ -1153,20 +1153,25 @@ void Npc::onCreatureSay(const Creature* creature, SpeakClasses type, const std::
 	if(const Player* player = creature->getPlayer())
 	{
 		if(m_npcEventHandler)
-			m_npcEventHandler->onCreatureSay(player, type, text);
+			m_npcEventHandler->onCreatureSay(player, type, text, pos);
 
 		if(type == SPEAK_SAY || type == SPEAK_PRIVATE_PN)
 		{
+			Position destPos = creature->getPosition();
+			if(pos)
+				destPos = (*pos);
+
 			const Position& myPos = getPosition();
-			const Position& pos = creature->getPosition();
 			if(canSee(myPos))
 			{
-				if ((pos.x >= myPos.x - talkRadius) && (pos.x <= myPos.x + talkRadius) &&
-					(pos.y >= myPos.y - talkRadius) && (pos.y <= myPos.y + talkRadius))
+				if((destPos.x >= myPos.x - talkRadius) && (destPos.x <= myPos.x + talkRadius) &&
+					(destPos.y >= myPos.y - talkRadius) && (destPos.y <= myPos.y + talkRadius))
 				{
-					NpcState* npcState = getState(player);
-					npcState->respondToText = text;
-					npcState->respondToCreature = player->getID();
+					if(NpcState* npcState = getState(player))
+					{
+						npcState->respondToText = text;
+						npcState->respondToCreature = player->getID();
+					}
 				}
 			}
 		}
@@ -1433,7 +1438,7 @@ void Npc::executeResponse(Player* player, NpcState* npcState, const NpcResponse*
 				case ACTION_SETSTORAGE:
 				{
 					if((*it).key > 0)
-						player->addStorageValue((*it).key, (*it).intValue);
+						player->addStorageValue((*it).key, (*it).strValue);
 					break;
 				}
 
@@ -1595,9 +1600,10 @@ void Npc::executeResponse(Player* player, NpcState* npcState, const NpcResponse*
 						{
 							bool adddelim = (n + 1 != response->prop.itemList.size());
 							scriptstream << "{id = " << iit->itemId
-								<< ", subtype = " << iit->subType
-								<< ", buy=" << iit->buyPrice
-								<< ", sell=" << iit->sellPrice << "}";
+								<< ", subType = " << iit->subType
+								<< ", buy = " << iit->buyPrice
+								<< ", sell = " << iit->sellPrice
+								<< ", name = '" << iit->name << "'}";
 
 							if(adddelim)
 								scriptstream << "," << std::endl;
@@ -1775,6 +1781,8 @@ void Npc::onPlayerTrade(Player* player, ShopEvent_t type, int32_t callback, uint
 			npcState->subType = count;
 			npcState->itemId = itemId;
 			npcState->buyPrice = getListItemPrice(itemId, SHOPEVENT_BUY);
+			npcState->ignoreCap = ignoreCap;
+			npcState->inBackpacks = inBackpacks;
 			const NpcResponse* response = getResponse(player, npcState, EVENT_PLAYER_SHOPBUY);
 			executeResponse(player, npcState, response);
 		}
@@ -2073,45 +2081,47 @@ const NpcResponse* Npc::getResponse(const ResponseList& list, const Player* play
 
 		if((*it)->getStorageId() != -1)
 		{
-			int32_t playerStorageValue = -1;
-			if(!player->getStorageValue((*it)->getStorageId(), playerStorageValue))
-				playerStorageValue = -1;
-
 			int32_t storageValue = (*it)->getStorageValue();
-			StorageComparision_t comp = (*it)->getStorageComp();
-			switch(comp)
+			std::string playerStorageValue;
+
+			int32_t tmp = -1;
+			if(player->getStorageValue((*it)->getStorageId(), playerStorageValue))
+				tmp = atoi(playerStorageValue.c_str());
+
+			switch((*it)->getStorageComp())
 			{
 				case STORAGE_LESS:
 				{
-					if(playerStorageValue >= storageValue)
+					if(tmp >= storageValue)
 						continue;
 					break;
 				}
 				case STORAGE_LESSOREQUAL:
 				{
-					if(playerStorageValue > storageValue)
+					if(tmp > storageValue)
 						continue;
 					break;
 				}
 				case STORAGE_EQUAL:
 				{
-					if(playerStorageValue != storageValue)
+					if(tmp != storageValue)
 						continue;
 					break;
 				}
 				case STORAGE_GREATEROREQUAL:
 				{
-					if(playerStorageValue < storageValue)
+					if(tmp < storageValue)
 						continue;
 					break;
 				}
 				case STORAGE_GREATER:
 				{
-					if(playerStorageValue <= storageValue)
+					if(tmp <= storageValue)
 						continue;
 					break;
 				}
-				default: break;
+				default:
+					break;
 			}
 			++matchCount;
 		}
@@ -3069,7 +3079,7 @@ void NpcScript::onCreatureMove(const Creature* creature, const Position& oldPos,
 		std::cout << "[Error - NpcScript::onCreatureMove] NPC Name: " << m_npc->getName() << " - Call stack overflow" << std::endl;
 }
 
-void NpcScript::onCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text)
+void NpcScript::onCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text, Position* pos/* = NULL*/)
 {
 	if(m_onCreatureSay == -1)
 		return;

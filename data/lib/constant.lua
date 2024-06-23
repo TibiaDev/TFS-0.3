@@ -1,10 +1,3 @@
--- Load functions
-dofile('data/functions.lua')
-dofile('data/compat.lua')
-
--- Load classes
-dofile('data/classes/database.lua')
-
 TRUE = 1
 FALSE = 0
 
@@ -299,6 +292,11 @@ PLAYERLOSS_MANA = 1
 PLAYERLOSS_SKILL = 2
 PLAYERLOSS_ITEMS = 3
 
+STATSCHANGE_HEALTHGAIN = 1
+STATSCHANGE_HEALTHLOSS = 2
+STATSCHANGE_MANAGAIN = 3
+STATSCHANGE_MANALOSS = 4
+
 SKILL_FIST = 0
 SKILL_CLUB = 1
 SKILL_SWORD = 2
@@ -399,6 +397,7 @@ RETURNVALUE_YOUNEEDAMAGICITEMTOCASTSPELL = 57
 RETURNVALUE_CANNOTCONJUREITEMHERE = 58
 RETURNVALUE_YOUNEEDTOSPLITYOURSPEARS = 59
 RETURNVALUE_NAMEISTOOAMBIGIOUS = 60
+RETURNVALUE_YOUARENOTTHEOWNER = 61
 
 ITEM_GOLD_COIN = 2148
 ITEM_PLATINUM_COIN = 2152
@@ -476,7 +475,7 @@ PlayerCustomFlag_NotGainUnjustified = 17
 PlayerCustomFlag_CanSeeStaffChannel = 18
 PlayerCustomFlag_CanSeeCounsellorChannel = 19
 PlayerCustomFlag_DescriptionGroupInsteadVocation = 20
-PlayerCustomFlag_DescriptionHideLevel = 21
+PlayerCustomFlag_HideLevel = 21
 
 maleOutfits = {128, 129, 130, 131, 132, 133, 134, 143, 144, 145, 146, 151, 152, 153, 154, 251, 268, 273, 278, 289}
 femaleOutfits = {136, 137, 138, 139, 140, 141, 142, 147, 148, 149, 150, 155, 156, 157, 158, 252, 269, 270, 279, 288}

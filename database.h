@@ -250,7 +250,7 @@ class DBQuery : public std::stringstream
 		virtual ~DBQuery();
 
 	protected:
-		static OTSYS_THREAD_LOCKVAR database_lock;
+		static OTSYS_THREAD_LOCKVAR databaseLock;
 };
 
 /**

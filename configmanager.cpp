@@ -138,7 +138,7 @@ bool ConfigManager::loadFile(const std::string& _filename)
 	m_confNumber[HOUSES_PER_ACCOUNT] = getGlobalNumber(L, "housesPerAccount", 0);
 	m_confBool[HOUSE_BUY_AND_SELL] = getGlobalBool(L, "buyableAndSellableHouses", "yes");
 	m_confBool[REPLACE_KICK_ON_LOGIN] = getGlobalBool(L, "replaceKickOnLogin", "yes");
-	m_confBool[HOUSE_NEED_PREMIUM] = getGlobalBool(L, "houseNeedPremiumAccount", "yes");
+	m_confBool[HOUSE_NEED_PREMIUM] = getGlobalBool(L, "houseNeedPremium", "yes");
 	m_confBool[HOUSE_RENTASPRICE] = getGlobalBool(L, "houseRentAsPrice", "no");
 	m_confBool[HOUSE_PRICEASRENT] = getGlobalBool(L, "housePriceAsRent", "no");
 	m_confNumber[FRAG_TIME] = getGlobalNumber(L, "timeToDecreaseFrags", 24 * 60 * 60 * 1000);
@@ -153,16 +153,22 @@ bool ConfigManager::loadFile(const std::string& _filename)
 	m_confBool[PREMIUM_FOR_PROMOTION] = getGlobalBool(L, "premiumForPromotion", "yes");
 	m_confBool[REMOVE_PREMIUM_ON_INIT] = getGlobalBool(L, "removePremiumOnInit", "yes");
 	m_confBool[SHOW_HEALING_DAMAGE] = getGlobalBool(L, "showHealingDamage", "no");
-	//m_confBool[TELEPORT_SUMMONS] = getGlobalString(L, "teleportAllSummons", "no");
-	//m_confBool[TELEPORT_PLAYER_SUMMONS] = getGlobalBool(L, "teleportPlayerSummons", "no");
+	m_confBool[TELEPORT_SUMMONS] = getGlobalBool(L, "teleportAllSummons", "no");
+	m_confBool[TELEPORT_PLAYER_SUMMONS] = getGlobalBool(L, "teleportPlayerSummons", "no");
 	m_confBool[PVP_TILE_IGNORE_PROTECTION] = getGlobalBool(L, "pvpTileIgnoreLevelAndVocationProtection", "yes");
 	m_confBool[DISPLAY_CRITICAL_HIT] = getGlobalBool(L, "displayCriticalHitNotify", "no");
 	m_confBool[ADVANCING_SKILL_LEVEL] = getGlobalBool(L, "displaySkillLevelOnAdvance", "no");
 	m_confBool[CLEAN_PROTECTED_ZONES] = getGlobalBool(L, "cleanProtectedZones", "yes");
-	m_confBool[SPELL_NAME_INSTEAD_WORDS] = getGlobalBool(L, "spellNameInsteadOfWordsOnCast", "no");
+	m_confBool[SPELL_NAME_INSTEAD_WORDS] = getGlobalBool(L, "spellNameInsteadOfWords", "no");
+	m_confBool[EMOTE_SPELLS] = getGlobalBool(L, "emoteSpells", "no");
 	m_confNumber[MAX_PLAYER_SUMMONS] = getGlobalNumber(L, "maxPlayerSummons", 2);
 	m_confBool[SAVE_GLOBAL_STORAGE] = getGlobalBool(L, "saveGlobalStorage", "yes");
 	m_confBool[FORCE_CLOSE_SLOW_CONNECTION] = getGlobalBool(L, "forceSlowConnectionsToDisconnect", "no");
+	m_confBool[EXPERIENCE_STAGES] = getGlobalBool(L, "experienceStages", "no");
+	m_confBool[BLESSING_ONLY_PREMIUM] = getGlobalBool(L, "blessingsOnlyPremium", "yes");
+	m_confBool[BED_REQUIRE_PREMIUM] = getGlobalBool(L, "bedsRequirePremium", "yes");
+	m_confNumber[FIELD_OWNERSHIP] = getGlobalNumber(L, "fieldOwnershipDuration", 5 * 1000);
+	m_confBool[ALLOW_CHANGECOLORS] = getGlobalBool(L, "allowChangeColors", "yes");
 	m_isLoaded = true;
 
 	lua_close(L);
