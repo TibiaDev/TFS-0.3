@@ -118,14 +118,6 @@ bool ChatChannel::addUser(Player* player)
 
 	switch(m_id)
 	{
-		case CHANNEL_GUILD:
-		{
-			if(IOGuild::getInstance()->getMotd(player->getGuildId()).length())
-				Scheduler::getScheduler().addEvent(createSchedulerTask(150, boost::bind(&Game::sendGuildMotd,
-					&g_game, player->getID(), player->getGuildId())));
-			break;
-		}
-
 		case CHANNEL_STAFF:
 		case CHANNEL_COUNSELOR:
 		case CHANNEL_RVR:
@@ -148,6 +140,10 @@ bool ChatChannel::addUser(Player* player)
 	}
 
 	m_users.push_back(player->getID());
+	CreatureEventList joinEvents = player->getCreatureEvents(CREATURE_EVENT_CHANNEL_JOIN);
+	for(CreatureEventList::iterator it = joinEvents.begin(); it != joinEvents.end(); ++it)
+		(*it)->executeOnChannelJoin(player, m_id, m_users);
+
 	return true;
 }
 
@@ -158,6 +154,10 @@ bool ChatChannel::removeUser(Player* player)
 		return false;
 
 	m_users.erase(it);
+	CreatureEventList leaveEvents = player->getCreatureEvents(CREATURE_EVENT_CHANNEL_LEAVE);
+	for(CreatureEventList::iterator it = leaveEvents.begin(); it != leaveEvents.end(); ++it)
+		(*it)->executeOnChannelLeave(player, m_id, m_users);
+
 	return true;
 }
 
