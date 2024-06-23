@@ -200,10 +200,11 @@ void Game::saveGameState(bool savePlayers)
 	ScriptEnviroment::saveGameState();
 	if(savePlayers)
 	{
+		IOLoginData* io = IOLoginData::getInstance();
 		for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 		{
 			(*it).second->loginPosition = (*it).second->getPosition();
-			IOLoginData::getInstance()->savePlayer((*it).second, false);
+			io->savePlayer((*it).second, false);
 		}
 	}
 
@@ -2146,8 +2147,6 @@ bool Game::playerOpenPrivateChannel(uint32_t playerId, std::string& receiver)
 	if(!player || player->isRemoved())
 		return false;
 
-	uint32_t guid;
-	IOLoginData::getInstance()->getGuidByName(guid, receiver);
 	if(IOLoginData::getInstance()->playerExists(receiver))
 		player->sendOpenPrivateChannel(receiver);
 	else
