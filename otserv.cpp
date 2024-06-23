@@ -23,6 +23,7 @@
 #ifndef WIN32
 #include <unistd.h>
 #endif
+#include <boost/config.hpp>
 
 #include "server.h"
 #ifdef __LOGIN_SERVER__
@@ -129,6 +130,15 @@ bool argumentsHandler(StringVec args)
 			"\t\t\t\tthis file.\n"
 			"\t--error-log=$1\t\tAll standard errors will be logged to\n"
 			"\t\t\t\tthis file.\n";
+			return false;
+		}
+
+		if((*it) == "--version")
+		{
+			std::cout << STATUS_SERVER_NAME << ", version " << STATUS_SERVER_VERSION << " (" << STATUS_SERVER_CODENAME << ")\n"
+			"Compiled with " << BOOST_COMPILER << " at " << __DATE__ << ", " << __TIME__ << ".\n"
+			"A server developed by Elf, slawkens, Talaturen, Lithium, KaczooH, Kiper, Kornholijo.\n"
+			"Visit our forum for updates, support and resources: http://otland.net.\n";
 			return false;
 		}
 
@@ -385,7 +395,8 @@ ServiceManager* services)
 	#endif
 
 	std::cout << STATUS_SERVER_NAME << ", version " << STATUS_SERVER_VERSION << " (" << STATUS_SERVER_CODENAME << ")" << std::endl;
-	std::cout << "A server developed by Elf, Talaturen, Lithium, Kiper, Kornholijo, KaczooH, slawkens & Macroman." << std::endl;
+	std::cout << "Compiled with " << BOOST_COMPILER << " at " << __DATE__ << ", " << __TIME__ << "." << std::endl;
+	std::cout << "A server developed by Elf, slawkens, Talaturen, KaczooH, Lithium, Kiper, Kornholijo." << std::endl;
 	std::cout << "Visit our forum for updates, support and resources: http://otland.net." << std::endl << std::endl;
 
 	std::stringstream ss;
@@ -947,7 +958,8 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 						GUI::getInstance()->m_logText = "";
 						GUI::getInstance()->m_lineCount = 0;
 						std::cout << STATUS_SERVER_NAME << ", version " << STATUS_SERVER_VERSION << " (" << STATUS_SERVER_CODENAME << ")" << std::endl;
-						std::cout << "A server developed by Elf, Talaturen, Lithium, Kiper, Kornholijo, KaczooH, slawkens & Macroman." << std::endl;
+						std::cout << "Compiled with " << BOOST_COMPILER << " at " << __DATE__ << ", " << __TIME__ << "." << std::endl;
+						std::cout << "A server developed by Elf, slawkens, Talaturen, Lithium, KaczooH, Kiper, Kornholijo." << std::endl;
 						std::cout << "Visit our forum for updates, support and resources: http://otland.net." << std::endl;
 						std::cout << std::endl;
 					}
