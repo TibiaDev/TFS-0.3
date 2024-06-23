@@ -703,7 +703,7 @@ uint32_t MoveEvent::StepInField(Creature* creature, Item* item, const Position& 
 {
 	if(MagicField* field = item->getMagicField())
 	{
-		field->onStepInField(creature);
+		field->onStepInField(creature, creature->getPlayer() != NULL);
 		return 1;
 	}
 
@@ -863,8 +863,10 @@ uint32_t MoveEvent::DeEquipItem(MoveEvent* moveEvent, Player* player, Item* item
 		g_game.changeSpeed(player, -it.abilities.speed);
 
 	if(it.abilities.conditionSuppressions != 0)
+	{
 		player->setConditionSuppressions(it.abilities.conditionSuppressions, true);
 		player->sendIcons();
+	}
 
 	if(it.abilities.regeneration)
 		player->removeCondition(CONDITION_REGENERATION, (ConditionId_t)slot);

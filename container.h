@@ -37,7 +37,7 @@ class ContainerIterator
 	public:
 		ContainerIterator();
 		ContainerIterator(const ContainerIterator& rhs);
-		virtual ~ContainerIterator();
+		virtual ~ContainerIterator() {}
 	
 		ContainerIterator& operator=(const ContainerIterator& rhs);
 		bool operator==(const ContainerIterator& rhs);
@@ -48,11 +48,11 @@ class ContainerIterator
 		Item* operator->();
 	
 	protected:
-		ContainerIterator(Container* super);
+		ContainerIterator(Container* _base);
 	
-		Container* super;
+		Container* base;
 		std::queue<Container*> over;
-		ItemList::iterator cur;
+		ItemList::iterator current;
 
 		friend class Container;
 };
@@ -70,8 +70,6 @@ class Container : public Item, public Cylinder
 		virtual const Depot* getDepot() const {return NULL;}
 
 		//serialization
-		virtual bool unserialize(xmlNodePtr p);
-		virtual xmlNodePtr serialize();
 		bool unserializeItemNode(FileLoader& f, NODE node, PropStream& propStream);
 
 		uint32_t size() const {return (uint32_t)itemlist.size();}
@@ -88,6 +86,8 @@ class Container : public Item, public Cylinder
 		void addItem(Item* item);
 		Item* getItem(uint32_t index);
 		bool isHoldingItem(const Item* item) const;
+
+		std::string getContentDescription() const;
 		uint32_t getItemHoldingCount() const;
 		virtual double getWeight() const;
 
@@ -129,6 +129,7 @@ class Container : public Item, public Cylinder
 
 		Container* getParentContainer();
 		void updateItemWeight(double diff);
+		std::stringstream& getContentDescription(std::stringstream& s) const;
 
 	protected:
 		uint32_t maxSize;

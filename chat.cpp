@@ -161,12 +161,12 @@ bool ChatChannel::removeUser(Player* player)
 	return true;
 }
 
-bool ChatChannel::talk(Player* fromPlayer, SpeakClasses type, const std::string& text, uint32_t time /*= 0*/)
+bool ChatChannel::talk(Player* player, SpeakClasses type, const std::string& text, uint32_t time /*= 0*/)
 {
-	if(!fromPlayer->hasFlag(PlayerFlag_CannotBeMuted) && (m_id == CHANNEL_TRADE || m_id == CHANNEL_TRADEROOK))
+	if((m_id == CHANNEL_TRADE || m_id == CHANNEL_TRADEROOK) && !player->hasFlag(PlayerFlag_CannotBeMuted))
 	{
-		Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_TRADETICKS, 120000, 0);
-		fromPlayer->addCondition(condition);
+		if(Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_MUTED, 120000, 0, false, (m_id == CHANNEL_TRADE ? 2 : 3)))
+			player->addCondition(condition);
 	}
 
 	bool success = false;
@@ -175,7 +175,7 @@ bool ChatChannel::talk(Player* fromPlayer, SpeakClasses type, const std::string&
 		ChatChannel* channel = g_chat.getChannel((*it).second, m_id);
 		if(channel && channel == this && std::find(m_users.begin(), m_users.end(), (*it).second->getID()) != m_users.end())
 		{
-			(*it).second->sendToChannel(fromPlayer, type, text, m_id, time);
+			(*it).second->sendToChannel(player, type, text, m_id, time);
 			if(!success)
 				success = true;
 		}
@@ -388,7 +388,8 @@ bool Chat::talkToChannel(Player* player, SpeakClasses type, const std::string& t
 
 	if(!player->hasFlag(PlayerFlag_CannotBeMuted))
 	{
-		if(player->hasCondition(CONDITION_TRADETICKS) && (channelId == CHANNEL_TRADE || channelId == CHANNEL_TRADEROOK))
+		if((player->hasCondition(CONDITION_MUTED, 2) && channelId == CHANNEL_TRADE) ||
+			(player->hasCondition(CONDITION_MUTED, 3) && channelId == CHANNEL_TRADEROOK))
 		{
 			player->sendCancel("You may only place one offer in two minutes.");
 			return true;
@@ -559,9 +560,9 @@ bool Chat::talkToChannel(Player* player, SpeakClasses type, const std::string& t
 								else if(text[2] == 'e')
 									length = 10;
 								else if(text[2] == 'a')
-									length = 18;
+									length = 17;
 								else
-									length = 8;
+									length = 7;
 
 								if(text.length() < length)
 								{
@@ -727,7 +728,7 @@ bool Chat::talkToChannel(Player* player, SpeakClasses type, const std::string& t
 						}
 						else if(text.substr(0, 5) == "!nick")
 						{
-							StringVec params = explodeString(text.substr(7), ",");
+							StringVec params = explodeString(text.substr(6), ",");
 							if(params.size() >= 2)
 							{
 								std::string param1 = params[0], param2 = params[1];
@@ -829,7 +830,7 @@ bool Chat::talkToChannel(Player* player, SpeakClasses type, const std::string& t
 						}
 						else if(text.substr(0, 12) == "!setrankname")
 						{
-							StringVec params = explodeString(text.substr(14), ",");
+							StringVec params = explodeString(text.substr(13), ",");
 							if(params.size() >= 2)
 							{
 								std::string param1 = params[0], param2 = params[1];

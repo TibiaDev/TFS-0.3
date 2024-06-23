@@ -200,8 +200,8 @@ bool Npc::loadFromXml(const std::string& filename)
 		else
 			baseSpeed = 110;
 
-		if(readXMLInteger(root, "attackable", intValue))
-			attackable = (intValue != 0);
+		if(readXMLString(root, "attackable", strValue))
+			attackable = booleanString(strValue);
 
 		if(readXMLInteger(root, "walkinterval", intValue))
 			walkTicks = intValue;
@@ -303,12 +303,12 @@ bool Npc::loadFromXml(const std::string& filename)
 				{
 					if(xmlStrcmp(q->name, (const xmlChar*)"parameter") == 0)
 					{
-						std::string paramKey;
-						std::string paramValue;
+						std::string paramKey, paramValue;
 						if(!readXMLString(q, "key", paramKey))
 							continue;
 						if(!readXMLString(q, "value", paramValue))
 							continue;
+
 						m_parameters[paramKey] = paramValue;
 					}
 				}
@@ -666,8 +666,7 @@ ResponseList Npc::loadInteraction(xmlNodePtr node)
 
 										if(strValue != "|SPELL|")
 										{
-											InstantSpell* spell = g_spells->getInstantSpellByName(strValue);
-											if(!spell)
+											if(!g_spells->getInstantSpellByName(strValue))
 												std::cout << "[Warning - Npc::loadInteraction] NPC Name: " << name << " - Could not find an instant spell called: " << strValue << std::endl;
 										}
 									}
@@ -697,8 +696,21 @@ ResponseList Npc::loadInteraction(xmlNodePtr node)
 
 										if(strValue != "|SPELL|")
 										{
-											InstantSpell* spell = g_spells->getInstantSpellByName(strValue);
-											if(!spell)
+											if(!g_spells->getInstantSpellByName(strValue))
+												std::cout << "[Warning - Npc::loadInteraction] NPC Name: " << name << " - Could not find an instant spell called: " << strValue << std::endl;
+										}
+									}
+								}
+								else if(tmpStrValue == "unteachspell")
+								{
+									if(readXMLString(subNode, "value", strValue))
+									{
+										action.actionType = ACTION_UNTEACHSPELL;
+										action.strValue = strValue;
+
+										if(strValue != "|SPELL|")
+										{
+											if(!g_spells->getInstantSpellByName(strValue))
 												std::cout << "[Warning - Npc::loadInteraction] NPC Name: " << name << " - Could not find an instant spell called: " << strValue << std::endl;
 										}
 									}
@@ -991,20 +1003,15 @@ NpcState* Npc::getState(const Player* player, bool makeNew /*= true*/)
 		return NULL;
 
 	NpcState* state = new NpcState;
-	state->prevInteraction = 0;
-	state->price = 0;
-	state->sellPrice = 0;
-	state->buyPrice = 0;
+	state->prevInteraction = state->price = 0;
+	state->sellPrice = state->buyPrice = -1;
 	state->amount = 1;
 	state->itemId = 0;
 	state->subType = -1;
-	state->ignoreCap = false;
-	state->inBackpacks = false;
-	state->spellName = "";
-	state->listName = "";
+	state->ignoreCap = state->inBackpacks = false;
+	state->spellName = state->listName = "";
 	state->listPluralName = "";
-	state->level = -1;
-	state->topic = -1;
+	state->level = state->topic = -1;
 	state->isIdle = true;
 	state->isQueued = false;
 	state->respondToText = "";
@@ -1344,12 +1351,25 @@ void Npc::executeResponse(Player* player, NpcState* npcState, const NpcResponse*
 		{
 			switch((*it).actionType)
 			{
-				case ACTION_SETTOPIC: npcState->topic = (*it).intValue; resetTopic = false; break;
-				case ACTION_SETSELLPRICE: npcState->sellPrice = (*it).intValue; break;
-				case ACTION_SETBUYPRICE: npcState->buyPrice = (*it).intValue; break;
-				case ACTION_SETITEM: npcState->itemId = (*it).intValue; break;
-				case ACTION_SETSUBTYPE: npcState->subType = (*it).intValue; break;
-				case ACTION_SETEFFECT: g_game.addMagicEffect(player->getPosition(), (*it).intValue); break;
+				case ACTION_SETTOPIC:
+					npcState->topic = (*it).intValue;
+					resetTopic = false;
+					break;
+				case ACTION_SETSELLPRICE:
+					npcState->sellPrice = (*it).intValue;
+					break;
+				case ACTION_SETBUYPRICE:
+					npcState->buyPrice = (*it).intValue;
+					break;
+				case ACTION_SETITEM:
+					npcState->itemId = (*it).intValue;
+					break;
+				case ACTION_SETSUBTYPE:
+					npcState->subType = (*it).intValue;
+					break;
+				case ACTION_SETEFFECT:
+					g_game.addMagicEffect(player->getPosition(), (*it).intValue);
+					break;
 				case ACTION_SETPRICE:
 				{
 					if((*it).strValue == "|SELLPRICE|")
@@ -1366,6 +1386,7 @@ void Npc::executeResponse(Player* player, NpcState* npcState, const NpcResponse*
 					Position teleportTo = (*it).pos;
 					if((*it).strValue == "|TEMPLE|")
 						teleportTo = player->getTemplePosition();
+
 					g_game.internalTeleport(player, teleportTo, true);
 					break;
 				}
@@ -1381,8 +1402,7 @@ void Npc::executeResponse(Player* player, NpcState* npcState, const NpcResponse*
 					if((*it).strValue == "|SPELLLEVEL|")
 					{
 						npcState->level = -1;
-						InstantSpell* spell = g_spells->getInstantSpellByName(npcState->spellName);
-						if(spell)
+						if(InstantSpell* spell = g_spells->getInstantSpellByName(npcState->spellName))
 							npcState->level = spell->getLevel();
 					}
 					else
@@ -1393,8 +1413,7 @@ void Npc::executeResponse(Player* player, NpcState* npcState, const NpcResponse*
 				case ACTION_SETSPELL:
 				{
 					npcState->spellName = "";
-					InstantSpell* spell = g_spells->getInstantSpellByName((*it).strValue);
-					if(spell)
+					if(g_spells->getInstantSpellByName((*it).strValue))
 						npcState->spellName = (*it).strValue;
 					break;
 				}
@@ -1432,6 +1451,18 @@ void Npc::executeResponse(Player* player, NpcState* npcState, const NpcResponse*
 						spellName = (*it).strValue;
 
 					player->learnInstantSpell(spellName);
+					break;
+				}
+
+				case ACTION_UNTEACHSPELL:
+				{
+					std::string spellName = "";
+					if((*it).strValue == "|SPELL|")
+						spellName = npcState->spellName;
+					else
+						spellName = (*it).strValue;
+
+					player->unlearnInstantSpell(spellName);
 					break;
 				}
 
@@ -1766,6 +1797,7 @@ uint32_t Npc::getListItemPrice(uint16_t itemId, ShopEvent_t type)
 			}
 		}
 	}
+
 	return 0;
 }
 
@@ -2057,6 +2089,7 @@ const NpcResponse* Npc::getResponse(const ResponseList& list, const Player* play
 
 			if(!player->hasLearnedInstantSpell(spellName))
 				continue;
+
 			++matchCount;
 		}
 
@@ -2888,7 +2921,7 @@ int32_t NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 		lua_pop(L, 1);
 	}
 	lua_pop(L, 1);
-	
+
 	Player* player = env->getPlayerByUID(popNumber(L));
 	if(!player)
 	{
@@ -2896,7 +2929,6 @@ int32_t NpcScriptInterface::luaOpenShopWindow(lua_State* L)
 		lua_pushnumber(L, LUA_ERROR);
 		return 1;
 	}
-
 	player->closeShopWindow();
 
 	npc->addShopPlayer(player);

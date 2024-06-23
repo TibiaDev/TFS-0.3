@@ -41,7 +41,7 @@ enum tileflags_t
 {
 	TILESTATE_NONE = 0,
 	TILESTATE_PROTECTIONZONE = 1,
-	TILESTATE_DEPRICATED_HOUSE = 2,
+	TILESTATE_DEPRECATED_HOUSE = 2,
 	TILESTATE_NOPVPZONE = 4,
 	TILESTATE_NOLOGOUT = 8,
 	TILESTATE_PVPZONE = 16,
@@ -144,8 +144,10 @@ class Tile : public Cylinder
 				case WEST:
 					return hasFlag(TILESTATE_FLOORCHANGE_WEST);
 				default:
-					return false;
+					break;
 			}
+
+			return false;
 		}
 		bool hasHeight(uint32_t n) const;
 		uint32_t getHeight() const;

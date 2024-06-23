@@ -295,12 +295,70 @@ function getPlayerMasterPos(cid)
 	return getTownTemplePosition(getPlayerTown(cid))
 end
 
+function getItemNameById(itemid)
+	return getItemDescriptionsById(itemid).name
+end
+
+function getItemPluralNameById(itemid)
+	return getItemDescriptionsById(itemid).plural
+end
+
+function getItemArticleById(itemid)
+	return getItemDescriptionsById(itemid).article
+end
+
+function getItemName(uid)
+	return getItemDescriptions(uid).name
+end
+
+function getItemPluralName(uid)
+	return getItemDescriptions(uid).plural
+end
+
+function getItemArticle(uid)
+	return getItemDescriptions(uid).article
+end
+
+function getItemText(uid)
+	return getItemDescriptions(uid).text
+end
+
+function getItemWriter(uid)
+	return getItemDescriptions(uid).writer
+end
+
+function getItemDate(uid)
+	return getItemDescriptions(uid).date
+end
+
+function getTilePzInfo(pos)
+	return getTileInfo(pos).protection and TRUE or FALSE
+end
+
+function getTileHouseInfo(pos)
+	return getTileInfo(pos).house and TRUE or FALSE
+end
+
+function getTileZoneInfo(pos)
+	local tmp = getTileInfo(pos)
+	if(tmp.pvp) then
+		return 2
+	end
+
+	if(tmp.nopvp) then
+		return 1
+	end
+
+	return 0
+end
+
 function getOnlinePlayers()
 	local tmp = getPlayersOnline()
 	local players = {}
 	for i, cid in ipairs(tmp) do
 		table.insert(players, getCreatureName(cid))
 	end
+
 	return players
 end
 

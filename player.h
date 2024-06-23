@@ -32,6 +32,7 @@
 #include "protocolgame.h"
 #include "ioguild.h"
 #include "party.h"
+#include "npc.h"
 
 #include <vector>
 #include <ctime>
@@ -388,6 +389,7 @@ class Player : public Creature, public Cylinder
 		void stopWalk();
 		void openShopWindow();
 		void closeShopWindow(Npc* npc = NULL, int32_t onBuy = -1, int32_t onSell = -1);
+		bool canShopItem(uint32_t itemId, ShopEvent_t event);
 
 		void setChaseMode(chaseMode_t mode);
 		void setFightMode(fightMode_t mode) {fightMode = mode;}
@@ -434,9 +436,7 @@ class Player : public Creature, public Cylinder
 		virtual float getAttackFactor() const;
 		virtual float getDefenseFactor() const;
 
-		void addWeaponExhaust(uint32_t ticks);
-		void addCombatExhaust(uint32_t ticks);
-		void addHealExhaust(uint32_t ticks);
+		void addExhaust(uint32_t ticks, uint32_t type);
 		void addInFightTicks(bool pzLock = false);
 		void addDefaultRegeneration(uint32_t addTicks);
 
@@ -910,9 +910,8 @@ class Player : public Creature, public Cylinder
 		virtual void getPathSearchParams(const Creature* creature, FindPathParams& fpp) const;
 
 		friend class Game;
-		friend class Npc;
 		friend class LuaScriptInterface;
-		friend class Commands;
+		friend class Npc;
 		friend class Map;
 		friend class Actions;
 		friend class IOLoginData;

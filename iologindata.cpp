@@ -54,47 +54,48 @@ Account IOLoginData::loadAccount(uint32_t accId, bool preLoad/* = false*/)
 
 	DBQuery query;
 	query << "SELECT `id`, `name`, `password`, `premdays`, `lastday`, `key`, `warnings` FROM `accounts` WHERE `id` = " << accId;
-	if((result = db->storeQuery(query.str())))
+	if(!(result = db->storeQuery(query.str())))
+		return acc;
+
+	acc.number = result->getDataInt("id");
+	acc.name = result->getDataString("name");
+	acc.password = result->getDataString("password");
+	acc.premiumDays = result->getDataInt("premdays");
+	acc.lastDay = result->getDataInt("lastday");
+	acc.recoveryKey = result->getDataString("key");
+	acc.warnings = result->getDataInt("warnings");
+
+	query.str("");
+	db->freeResult(result);
+	if(preLoad)
+		return acc;
+
+#ifndef __LOGIN_SERVER__
+	query << "SELECT `name` FROM `players` WHERE `account_id` = " << accId << " AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID) << " AND `deleted` = 0;";
+#else
+	query << "SELECT `name`, `world_id` FROM `players` WHERE `account_id` = " << accId << " AND `deleted` = 0;";
+#endif
+	if(!(result = db->storeQuery(query.str())))
+		return acc;
+
+	do
 	{
-		acc.number = result->getDataInt("id");
-		acc.name = result->getDataString("name");
-		acc.password = result->getDataString("password");
-		acc.premiumDays = result->getDataInt("premdays");
-		acc.lastDay = result->getDataInt("lastday");
-		acc.recoveryKey = result->getDataString("key");
-		acc.warnings = result->getDataInt("warnings");
-		query.str("");
-		db->freeResult(result);
-		if(preLoad)
-			return acc;
-
+		std::string ss = result->getDataString("name");
 #ifndef __LOGIN_SERVER__
-		query << "SELECT `name` FROM `players` WHERE `account_id` = " << accId << " AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID) << " AND `deleted` = 0;";
+		acc.charList.push_back(ss.c_str());
 #else
-		query << "SELECT `name`, `world_id` FROM `players` WHERE `account_id` = " << accId << " AND `deleted` = 0;";
+		if(GameServer* server = GameServers::getInstance()->getServerById(result->getDataInt("world_id")))
+			acc.charList[ss] = server;
+		else
+			std::cout << "[Warning - IOLoginData::loadAccount] Invalid server for player '" << ss << "'." << std::endl;
 #endif
-		if((result = db->storeQuery(query.str())))
-		{
-			do
-			{
-				std::string ss = result->getDataString("name");
-#ifndef __LOGIN_SERVER__
-				acc.charList.push_back(ss.c_str());
-#else
-				if(GameServer* server = GameServers::getInstance()->getServerById(result->getDataInt("world_id")))
-					acc.charList[ss] = server;
-				else
-					std::cout << "[Warning - IOLoginData::loadAccount] Invalid server for player '" << ss << "'." << std::endl;
-#endif
-			}
-			while(result->next());
-			db->freeResult(result);
-#ifndef __LOGIN_SERVER__
-			std::sort(acc.charList.begin(), acc.charList.end());
-#endif
-		}
 	}
+	while(result->next());
+	db->freeResult(result);
 
+#ifndef __LOGIN_SERVER__
+	acc.charList.sort();
+#endif
 	return acc;
 }
 
@@ -412,7 +413,7 @@ bool IOLoginData::loadPlayer(Player* player, const std::string& name, bool preLo
 		return false;
 	}
 
-	Account acc = loadAccount(accId);
+	Account acc = loadAccount(accId, true);
 	player->accountId = accId;
 	player->account = acc.name;
 
@@ -1120,10 +1121,9 @@ bool IOLoginData::playerExists(uint32_t guid, bool multiworld /*= false*/)
 	DBResult* result;
 
 	DBQuery query;
-	if(multiworld)
-		query << "SELECT `id` FROM `players` WHERE `id` = " << guid << " AND `deleted` = 0;";
-	else
-		query << "SELECT `id` FROM `players` WHERE `id` = " << guid << " AND `deleted` = 0 AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
+	query << "SELECT `id` FROM `players` WHERE `id` = " << guid << " AND `deleted` = 0";
+	if(!multiworld)
+		query << " AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
 
 	if(!(result = db->storeQuery(query.str())))
 		return false;
@@ -1138,10 +1138,9 @@ bool IOLoginData::playerExists(std::string name, bool multiworld /*= false*/)
 	DBResult* result;
 
 	DBQuery query;
-	if(multiworld)
-		query << "SELECT `id` FROM `players` WHERE `name` " << db->getStringComparisonOperator() << " " << db->escapeString(name) << " AND `deleted` = 0;";
-	else
-		query << "SELECT `id` FROM `players` WHERE `name` " << db->getStringComparisonOperator() << " " << db->escapeString(name) << " AND `deleted` = 0 AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
+	query << "SELECT `id` FROM `players` WHERE `name` " << db->getStringComparisonOperator() << " " << db->escapeString(name) << " AND `deleted` = 0";
+	if(!multiworld)
+		query << " AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
 
 	if(!(result = db->storeQuery(query.str())))
 		return false;
@@ -1163,10 +1162,9 @@ bool IOLoginData::getNameByGuid(uint32_t guid, std::string& name, bool multiworl
 	DBResult* result;
 
 	DBQuery query;
-	if(multiworld)
-		query << "SELECT `name` FROM `players` WHERE `id` = " << guid << " AND `deleted` = 0;";
-	else
-		query << "SELECT `name` FROM `players` WHERE `id` = " << guid << " AND `deleted` = 0 AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
+	query << "SELECT `name` FROM `players` WHERE `id` = " << guid << " AND `deleted` = 0";
+	if(!multiworld)
+		query << " AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
 
 	if(!(result = db->storeQuery(query.str())))
 		return false;
@@ -1211,10 +1209,9 @@ bool IOLoginData::getGuidByName(uint32_t &guid, std::string& name, bool multiwor
 	DBResult* result;
 
 	DBQuery query;
-	if(multiworld)
-		query << "SELECT `name`, `id` FROM `players` WHERE `name` " << db->getStringComparisonOperator() << " " << db->escapeString(name) << " AND `deleted` = 0;";
-	else
-		query << "SELECT `name`, `id` FROM `players` WHERE `name` " << db->getStringComparisonOperator() << " " << db->escapeString(name) << " AND `deleted` = 0 AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
+	query << "SELECT `name`, `id` FROM `players` WHERE `name` " << db->getStringComparisonOperator() << " " << db->escapeString(name) << " AND `deleted` = 0";
+	if(!multiworld)
+		query << " AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
 
 	if(!(result = db->storeQuery(query.str())))
 		return false;

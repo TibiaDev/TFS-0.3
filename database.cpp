@@ -17,11 +17,11 @@
 // along with this program; if not, write to the Free Software Foundation,
 // Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //////////////////////////////////////////////////////////////////////
+
 #include "otpch.h"
-
 #include <string>
-#include "database.h"
 
+#include "database.h"
 #ifdef __USE_MYSQL__
 #include "databasemysql.h"
 #endif
@@ -37,6 +37,7 @@
 
 #if defined MULTI_SQL_DRIVERS
 #include "configmanager.h"
+
 extern ConfigManager g_config;
 #endif
 
@@ -68,8 +69,10 @@ Database* _Database::getInstance()
 #else
 		_instance = new Database;
 #endif
+
 		OTSYS_THREAD_LOCKVARINIT(DBQuery::databaseLock);
 	}
+
 	return _instance;
 }
 

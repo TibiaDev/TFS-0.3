@@ -211,7 +211,6 @@ enum PlayerInfo_t
 	PlayerInfoAccess,
 	PlayerInfoLevel,
 	PlayerInfoExperience,
-	PlayerInfoMagLevel,
 	PlayerInfoManaSpent,
 	PlayerInfoVocation,
 	PlayerInfoTown,
@@ -486,10 +485,8 @@ class LuaScriptInterface
 		static int32_t luaDoSetItemSpecialDescription(lua_State* L);
 
 		//get tile info
-		static int32_t luaGetTilePzInfo(lua_State* L);
-		static int32_t luaGetTileHouseInfo(lua_State* L);
-		static int32_t luaGetTileZoneInfo(lua_State* L);
-		static int32_t luaQueryTileAddThing(lua_State* L);
+		static int32_t luaGetTileInfo(lua_State* L);
+		static int32_t luaDoTileQueryAdd(lua_State* L);
 
 		//houses
 		static int32_t luaGetHouseOwner(lua_State* L);
@@ -572,6 +569,7 @@ class LuaScriptInterface
 		static int32_t luaGetPlayerPartner(lua_State* L);
 		static int32_t luaSetPlayerPartner(lua_State* L);
 		static int32_t luaGetPlayerParty(lua_State* L);
+		static int32_t luaDoPlayerJoinParty(lua_State* L);
 		static int32_t luaGetPartyMembers(lua_State* L);
 
 		static int32_t luaGetPlayerStorageValue(lua_State* L);
@@ -675,15 +673,9 @@ class LuaScriptInterface
 		static int32_t luaIsItemMovable(lua_State* L);
 		static int32_t luaIsItemDoor(lua_State* L);
 		static int32_t luaGetItemLevelDoor(lua_State* L);
-		static int32_t luaGetItemDescriptionsById(lua_State* L);
-		static int32_t luaGetItemNameById(lua_State* L);
-		static int32_t luaGetItemPluralNameById(lua_State* L);
-		static int32_t luaGetItemArticleById(lua_State* L);
-		static int32_t luaGetItemWeight(lua_State* L);
-		static int32_t luaGetItemWeightById(lua_State* L);
 		static int32_t luaGetItemIdByName(lua_State* L);
-		static int32_t luaIsSightClear(lua_State* L);
 
+		static int32_t luaIsSightClear(lua_State* L);
 		static int32_t luaDebugPrint(lua_State* L);
 		static int32_t luaGetFluidSourceType(lua_State* L);
 		static int32_t luaGetHighscoreString(lua_State* L);
@@ -715,12 +707,12 @@ class LuaScriptInterface
 		static int32_t luaCleanMap(lua_State* L);
 		static int32_t luaShutdown(lua_State* L);
 
+		static int32_t luaGetItemDescriptionsById(lua_State* L);
+		static int32_t luaGetItemWeightById(lua_State* L);
 		static int32_t luaGetItemDescriptions(lua_State* L);
-		static int32_t luaGetItemName(lua_State* L);
+		static int32_t luaGetItemWeight(lua_State* L);
 		static int32_t luaSetItemName(lua_State* L);
-		static int32_t luaGetItemPluralName(lua_State* L);
 		static int32_t luaSetItemPluralName(lua_State* L);
-		static int32_t luaGetItemArticle(lua_State* L);
 		static int32_t luaSetItemArticle(lua_State* L);
 		static int32_t luaGetItemAttack(lua_State* L);
 		static int32_t luaSetItemAttack(lua_State* L);

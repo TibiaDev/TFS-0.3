@@ -644,26 +644,6 @@ Door::~Door()
 		delete accessList;
 }
 
-bool Door::unserialize(xmlNodePtr nodeItem)
-{
-	bool ret = Item::unserialize(nodeItem);
-
-	int32_t intValue;
-	if(readXMLInteger(nodeItem, "doorId", intValue))
-		setDoorId(intValue);
-
-	return ret;
-}
-
-xmlNodePtr Door::serialize()
-{
-	xmlNodePtr xmlptr = xmlNewNode(NULL,(const xmlChar*)"item");
-	char buffer[20];
-	sprintf(buffer, "%d", getID());
-	xmlSetProp(xmlptr, (const xmlChar*)"id", (const xmlChar*)buffer);
-	return xmlptr;
-}
-
 bool Door::readAttr(AttrTypes_t attr, PropStream& propStream)
 {
 	if(ATTR_HOUSEDOORID == attr)
@@ -677,11 +657,6 @@ bool Door::readAttr(AttrTypes_t attr, PropStream& propStream)
 	}
 	else
 		return Item::readAttr(attr, propStream);
-}
-
-bool Door::serializeAttr(PropWriteStream& propWriteStream)
-{
-	return true;
 }
 
 void Door::setHouse(House* _house)
@@ -944,13 +919,13 @@ bool Houses::payHouses()
 								paidUntil += 24 * 60 * 60;
 								break;
 							case RENTPERIOD_WEEKLY:
-								paidUntil += 24 * 60 * 60 * 7;
+								paidUntil += 7 * 24 * 60 * 60;
 								break;
 							case RENTPERIOD_MONTHLY:
-								paidUntil += 24 * 60 * 60 * 30;
+								paidUntil += 30 * 24 * 60 * 60;
 								break;
 							case RENTPERIOD_YEARLY:
-								paidUntil += 24 * 60 * 60 * 365;
+								paidUntil += 12 * 30 * 24 * 60 * 60;
 								break;
 							default:
 								break;
@@ -1059,20 +1034,20 @@ House* Houses::getHouseByPlayerId(uint32_t playerId)
 	return NULL;
 }
 
-uint32_t Houses::getHousesCount(uint32_t accId) const
+uint32_t Houses::getHousesCount(uint32_t accId)
 {
 	Account account = IOLoginData::getInstance()->loadAccount(accId);
 	uint32_t guid, count = 0;
-#ifdef __LOGIN_SERVER__
-	for(CharactersMap::iterator it = account.charList.begin(); it != account.charList.end(); ++it)
+
+	for(Characters::iterator it = account.charList.begin(); it != account.charList.end(); ++it)
 	{
-		if(IOLoginData::getInstance()->getGuidByName(guid, (std::string&)it->first) && getInstance().getHouseByPlayerId(guid))
+#ifndef __LOGIN_SERVER__
+		if(IOLoginData::getInstance()->getGuidByName(guid, (*it)) && getHouseByPlayerId(guid))
 #else
-	for(StringVec::iterator it = account.charList.begin(); it != account.charList.end(); ++it)
-	{
-		if(IOLoginData::getInstance()->getGuidByName(guid, (*it)) && getInstance().getHouseByPlayerId(guid))
+		if(IOLoginData::getInstance()->getGuidByName(guid, (std::string&)it->first) && getHouseByPlayerId(guid))
 #endif
 			count++;
 	}
+
 	return count;
 }

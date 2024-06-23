@@ -27,11 +27,10 @@
 
 extern Game g_game;
 
-Teleport::Teleport(uint16_t _type) : Item(_type)
+Teleport::Teleport(uint16_t _type):
+Item(_type)
 {
-	destPos.x = 0;
-	destPos.y = 0;
-	destPos.z = 0;
+	destPos = Position();
 }
 
 Teleport::~Teleport()
@@ -39,82 +38,32 @@ Teleport::~Teleport()
 	//
 }
 
-bool Teleport::unserialize(xmlNodePtr nodeItem)
-{
-	bool ret = Item::unserialize(nodeItem);
-
-	char* nodeValue;
-	nodeValue = (char*)xmlGetProp(nodeItem, (const xmlChar *) "destx");
-	if(nodeValue){
-		destPos.x = atoi(nodeValue);
-		xmlFreeOTSERV(nodeValue);
-	}
-
-	nodeValue = (char*)xmlGetProp(nodeItem, (const xmlChar *) "desty");
-	if(nodeValue){
-		destPos.y = atoi(nodeValue);
-		xmlFreeOTSERV(nodeValue);
-	}
-
-	nodeValue = (char*)xmlGetProp(nodeItem, (const xmlChar *) "destz");
-	if(nodeValue){
-		destPos.z = atoi(nodeValue);
-		xmlFreeOTSERV(nodeValue);
-	}
-
-	return ret;
-}
-
-xmlNodePtr Teleport::serialize()
-{
-	xmlNodePtr xmlptr = Item::serialize();
-
-	std::stringstream ss;
-
-	ss.str("");
-	ss << (int32_t) destPos.x;
-	xmlSetProp(xmlptr, (const xmlChar*)"destx", (const xmlChar*)ss.str().c_str());
-
-	ss.str("");
-	ss << (int32_t) destPos.y;
-	xmlSetProp(xmlptr, (const xmlChar*)"desty", (const xmlChar*)ss.str().c_str());
-
-	ss.str("");
-	ss << (int32_t)destPos.z;
-	xmlSetProp(xmlptr, (const xmlChar*)"destz", (const xmlChar*)ss.str().c_str());
-
-	return xmlptr;
-}
-
 bool Teleport::readAttr(AttrTypes_t attr, PropStream& propStream)
 {
-	if(ATTR_TELE_DEST == attr){
-		TeleportDest* tele_dest;
-		if(!propStream.GET_STRUCT(tele_dest)){
+	if(ATTR_TELE_DEST == attr)
+	{
+		TeleportDest* teleDest;
+		if(!propStream.GET_STRUCT(teleDest))
 			return false;
-		}
 
-		setDestPos(Position(tele_dest->_x, tele_dest->_y, tele_dest->_z));
+		setDestPos(Position(teleDest->_x, teleDest->_y, teleDest->_z));
 		return true;
 	}
-	else
-		return Item::readAttr(attr, propStream);
+
+	return Item::readAttr(attr, propStream);
 }
 
 bool Teleport::serializeAttr(PropWriteStream& propWriteStream)
 {
 	bool ret = Item::serializeAttr(propWriteStream);
-
 	propWriteStream.ADD_UCHAR(ATTR_TELE_DEST);
 
-	TeleportDest tele_dest;
+	TeleportDest tmpDest;
+	tmpDest._x = destPos.x;
+	tmpDest._y = destPos.y;
+	tmpDest._z = destPos.z;
 
-	tele_dest._x = destPos.x;
-	tele_dest._y = destPos.y;
-	tele_dest._z = destPos.z;
-
-	propWriteStream.ADD_VALUE(tele_dest);
-
+	propWriteStream.ADD_VALUE(tmpDest);
 	return ret;
 }
 
@@ -153,7 +102,7 @@ void Teleport::__addThing(Creature* actor, int32_t index, Thing* thing)
 		if(Creature* creature = thing->getCreature())
 		{
 			getTile()->moveCreature(creature, destTile, true);
-			g_game.addMagicEffect(destTile->getPosition(), NM_ME_TELEPORT);
+			g_game.addMagicEffect(destTile->getPosition(), NM_ME_TELEPORT, creature->isInGhostMode());
 		}
 		else if(Item* item = thing->getItem())
 			g_game.internalMoveItem(actor, getTile(), destTile, INDEX_WHEREEVER, item, item->getItemCount(), NULL);

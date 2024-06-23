@@ -180,6 +180,7 @@ class ConfigManager
 			STOP_ATTACK_AT_EXIT,
 			DISABLE_OUTFITS_PRIVILEGED,
 			OPTIMIZE_DB_AT_STARTUP,
+			OLD_CONDITION_ACCURACY,
 			LAST_BOOL_CONFIG /* this must be the last one */
 		};
 
@@ -199,8 +200,6 @@ class ConfigManager
 		bool getGlobalBool(lua_State* _L, const std::string& _identifier, const std::string& _default = "no");
 		int32_t getGlobalNumber(lua_State* _L, const std::string& _identifier, const int32_t _default = 0);
 		double getGlobalDouble(lua_State* _L, const std::string& _identifier, const int32_t _default = 0);
-
-		std::string getGlobalStringField(lua_State* _L, const std::string& _identifier, const int32_t _key, const std::string& _default = "");
 
 		bool m_isLoaded;
 		std::string m_confString[LAST_STRING_CONFIG];

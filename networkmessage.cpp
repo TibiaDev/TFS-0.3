@@ -128,14 +128,10 @@ void NetworkMessage::AddItem(const Item* item)
 {
 	const ItemType &it = Item::items[item->getID()];
 	AddU16(it.clientId);
-
 	if(it.stackable || it.isRune())
 		AddByte(item->getSubType());
 	else if(it.isSplash() || it.isFluidContainer())
-	{
-		uint32_t fluidIndex = item->getSubType() % 8;
-		AddByte(fluidMap[fluidIndex]);
-	}
+		AddByte(fluidMap[item->getSubType() % 8]);
 }
 
 void NetworkMessage::AddItemId(const Item *item)
