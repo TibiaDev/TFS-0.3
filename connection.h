@@ -21,12 +21,10 @@
 #ifndef __OTSERV_CONNECTION_H__
 #define __OTSERV_CONNECTION_H__
 
-#include "definitions.h"
-#include <boost/asio.hpp>
-
-#include <boost/utility.hpp>
-
 #include "otsystem.h"
+#include <boost/asio.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/utility.hpp>
 
 #include "networkmessage.h"
 
@@ -42,10 +40,10 @@ class Connection;
 #define PRINT_ASIO_ERROR(desc)
 #endif
 
+typedef boost::shared_ptr<OutputMessage>OutputMessage_ptr;
 struct ConnectionBlock
 {
-	uint32_t lastLogin;
-	uint32_t loginsAmount;
+	uint32_t lastLogin, loginsAmount;
 };
 
 class ConnectionManager
@@ -130,7 +128,7 @@ class Connection : boost::noncopyable
 		void closeConnection();
 		void acceptConnection();
 
-		bool send(OutputMessage* msg);
+		bool send(OutputMessage_ptr msg);
 		int32_t addRef() {return ++m_refCount;}
 		int32_t unRef() {return --m_refCount;}
 
@@ -138,7 +136,7 @@ class Connection : boost::noncopyable
 		void parseHeader(const boost::system::error_code& error);
 		void parsePacket(const boost::system::error_code& error);
 
-		void onWriteOperation(OutputMessage* msg, const boost::system::error_code& error);
+		void onWriteOperation(OutputMessage_ptr msg, const boost::system::error_code& error);
 
 		void handleReadError(const boost::system::error_code& error);
 		void handleWriteError(const boost::system::error_code& error);
@@ -148,7 +146,7 @@ class Connection : boost::noncopyable
 		void deleteConnectionTask();
 		void releaseConnection();
 
-		void internalSend(OutputMessage* msg);
+		void internalSend(OutputMessage_ptr msg);
 
 		NetworkMessage m_msg;
 		boost::asio::ip::tcp::socket m_socket;
@@ -158,7 +156,7 @@ class Connection : boost::noncopyable
 		bool m_readError;
 
 		int32_t m_pendingWrite;
-		std::list <OutputMessage*> m_outputQueue;
+		std::list <OutputMessage_ptr> m_outputQueue;
 		int32_t m_pendingRead;
 		uint32_t m_closeState;
 		uint32_t m_refCount;

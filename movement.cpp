@@ -47,79 +47,47 @@ MoveEvents::~MoveEvents()
 	clear();
 }
 
+inline void MoveEvents::clearMap(MoveListMap& map)
+{
+	for(MoveListMap::iterator it = map.begin(); it != map.end(); ++it)
+	{
+		for(int32_t i = 0; i < MOVE_EVENT_LAST; ++i)
+		{
+			EventList& moveEventList = it->second.moveEvent[i];
+			for(EventList::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
+				delete (*it);
+		}
+	}
+
+	map.clear();
+}
+
 void MoveEvents::clear()
 {
-	MoveListMap::iterator it = m_itemIdMap.begin();
-	while(it != m_itemIdMap.end())
+	clearMap(m_itemIdMap);
+	clearMap(m_actionIdMap);
+	clearMap(m_uniqueIdMap);
+	for(MovePosListMap::iterator it = m_positionMap.begin(); it != m_positionMap.end(); ++it)
 	{
 		for(int32_t i = 0; i < MOVE_EVENT_LAST; ++i)
 		{
-			std::list<MoveEvent*>& moveEventList = it->second.moveEvent[i];
-			for(std::list<MoveEvent*>::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
+			EventList& moveEventList = it->second.moveEvent[i];
+			for(EventList::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
 				delete (*it);
 		}
-		m_itemIdMap.erase(it);
-		it = m_itemIdMap.begin();
 	}
 
-	it = m_actionIdMap.begin();
-	while(it != m_actionIdMap.end())
-	{
-		for(int32_t i = 0; i < MOVE_EVENT_LAST; ++i)
-		{
-			std::list<MoveEvent*>& moveEventList = it->second.moveEvent[i];
-			for(std::list<MoveEvent*>::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
-				delete (*it);
-		}
-		m_actionIdMap.erase(it);
-		it = m_actionIdMap.begin();
-	}
-
-	it = m_uniqueIdMap.begin();
-	while(it != m_uniqueIdMap.end())
-	{
-		for(int32_t i = 0; i < MOVE_EVENT_LAST; ++i)
-		{
-			std::list<MoveEvent*>& moveEventList = it->second.moveEvent[i];
-			for(std::list<MoveEvent*>::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
-				delete (*it);
-		}
-		m_uniqueIdMap.erase(it);
-		it = m_uniqueIdMap.begin();
-	}
-
-	MovePosListMap::iterator posIter = m_positionMap.begin();
-	while(posIter != m_positionMap.end())
-	{
-		for(int i = 0; i < MOVE_EVENT_LAST; ++i)
-		{
-			std::list<MoveEvent*>& moveEventList = posIter->second.moveEvent[i];
-			for(std::list<MoveEvent*>::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
-				delete (*it);
-		}
-		m_positionMap.erase(posIter);
-		posIter = m_positionMap.begin();
-	}
-
+	m_positionMap.clear();
 	m_scriptInterface.reInitState();
-}
-
-LuaScriptInterface& MoveEvents::getScriptInterface()
-{
-	return m_scriptInterface;
-}
-
-std::string MoveEvents::getScriptBaseName()
-{
-	return "movements";
 }
 
 Event* MoveEvents::getEvent(const std::string& nodeName)
 {
-	if(asLowerCaseString(nodeName) == "movevent")
+	std::string tmpNodeName = asLowerCaseString(nodeName);
+	if(tmpNodeName == "movevent" || tmpNodeName == "moveevent" || tmpNodeName == "movement")
 		return new MoveEvent(&m_scriptInterface);
-	else
-		return NULL;
+
+	return NULL;
 }
 
 bool MoveEvents::registerEvent(Event* event, xmlNodePtr p)
@@ -128,14 +96,11 @@ bool MoveEvents::registerEvent(Event* event, xmlNodePtr p)
 	if(!moveEvent)
 		return false;
 
-	bool success = true;
-	int32_t id, endId;
-	std::string strValue;
-
+	std::string strValue, endStrValue;
 	MoveEvent_t eventType = moveEvent->getEventType();
 	if(eventType == MOVE_EVENT_ADD_ITEM || eventType == MOVE_EVENT_REMOVE_ITEM)
 	{
-		if(readXMLInteger(p, "tileitem", id) && id == 1)
+		if(readXMLString(p, "tileitem", strValue) && booleanString(strValue))
 		{
 			switch(eventType)
 			{
@@ -151,73 +116,164 @@ bool MoveEvents::registerEvent(Event* event, xmlNodePtr p)
 		}
 	}
 
-	if(readXMLInteger(p, "itemid", id))
+	StringVec strVector;
+	IntegerVec intVector;
+	IntegerVec endIntVector;
+
+	bool success = true;
+	if(readXMLString(p, "itemid", strValue))
 	{
-		addEvent(moveEvent, id, m_itemIdMap);
-		if(moveEvent->getEventType() == MOVE_EVENT_EQUIP)
+		strVector = explodeString(strValue, ";");
+		for(StringVec::iterator it = strVector.begin(); it != strVector.end(); ++it)
 		{
-			ItemType& it = Item::items.getItemType(id);
-			it.wieldInfo = moveEvent->getWieldInfo();
-			it.minReqLevel = moveEvent->getReqLevel();
-			it.minReqMagicLevel = moveEvent->getReqMagLv();
-			it.vocationString = moveEvent->getVocationString();
+			intVector = vectorAtoi(explodeString((*it), "-"));
+			if(!intVector[0])
+				continue;
+
+			bool equip = moveEvent->getEventType() == MOVE_EVENT_EQUIP;
+			addEvent(moveEvent, intVector[0], m_itemIdMap);
+			if(equip)
+			{
+				ItemType& it = Item::items.getItemType(intVector[0]);
+				it.wieldInfo = moveEvent->getWieldInfo();
+				it.minReqLevel = moveEvent->getReqLevel();
+				it.minReqMagicLevel = moveEvent->getReqMagLv();
+				it.vocationString = moveEvent->getVocationString();
+			}
+
+			if(intVector.size() > 1)
+			{
+				while(intVector[0] < intVector[1])
+				{
+					addEvent(new MoveEvent(moveEvent), ++intVector[0], m_itemIdMap);
+					if(equip)
+					{
+						ItemType& tit = Item::items.getItemType(intVector[0]);
+						tit.wieldInfo = moveEvent->getWieldInfo();
+						tit.minReqLevel = moveEvent->getReqLevel();
+						tit.minReqMagicLevel = moveEvent->getReqMagLv();
+						tit.vocationString = moveEvent->getVocationString();
+					}
+				}
+			}
 		}
 	}
-	else if(readXMLInteger(p, "fromid", id) && readXMLInteger(p, "toid", endId))
+	else if(readXMLString(p, "fromid", strValue) && readXMLString(p, "toid", endStrValue))
 	{
-		addEvent(moveEvent, id, m_itemIdMap);
-		if(moveEvent->getEventType() == MOVE_EVENT_EQUIP)
+		intVector = vectorAtoi(explodeString(strValue, ";"));
+		endIntVector = vectorAtoi(explodeString(endStrValue, ";"));
+		if(intVector[0] && endIntVector[0] && intVector.size() == endIntVector.size())
 		{
-			ItemType& it = Item::items.getItemType(id);
-			it.wieldInfo = moveEvent->getWieldInfo();
-			it.minReqLevel = moveEvent->getReqLevel();
-			it.minReqMagicLevel = moveEvent->getReqMagLv();
-			it.vocationString = moveEvent->getVocationString();
-
-			while(id < endId)
+			size_t size = intVector.size();
+			for(size_t i = 0; i < size; ++i)
 			{
-				id++;
-				addEvent(new MoveEvent(moveEvent), id, m_itemIdMap);
+				bool equip = moveEvent->getEventType() == MOVE_EVENT_EQUIP;
+				addEvent(moveEvent, intVector[i], m_itemIdMap);
+				if(equip)
+				{
+					ItemType& it = Item::items.getItemType(intVector[i]);
+					it.wieldInfo = moveEvent->getWieldInfo();
+					it.minReqLevel = moveEvent->getReqLevel();
+					it.minReqMagicLevel = moveEvent->getReqMagLv();
+					it.vocationString = moveEvent->getVocationString();
+				}
 
-				ItemType& tit = Item::items.getItemType(id);
-				tit.wieldInfo = moveEvent->getWieldInfo();
-				tit.minReqLevel = moveEvent->getReqLevel();
-				tit.minReqMagicLevel = moveEvent->getReqMagLv();
-				tit.vocationString = moveEvent->getVocationString();
+				while(intVector[i] < endIntVector[i])
+				{
+					addEvent(new MoveEvent(moveEvent), ++intVector[i], m_itemIdMap);
+					if(equip)
+					{
+						ItemType& tit = Item::items.getItemType(intVector[i]);
+						tit.wieldInfo = moveEvent->getWieldInfo();
+						tit.minReqLevel = moveEvent->getReqLevel();
+						tit.minReqMagicLevel = moveEvent->getReqMagLv();
+						tit.vocationString = moveEvent->getVocationString();
+					}
+				}
 			}
 		}
 		else
+			std::cout << "[Warning - MoveEvents::registerEvent] Malformed entry (from: \"" << strValue << "\", to: \"" << endStrValue << "\")" << std::endl;
+	}
+	else if(readXMLString(p, "uniqueid", strValue))
+	{
+		strVector = explodeString(strValue, ";");
+		for(StringVec::iterator it = strVector.begin(); it != strVector.end(); ++it)
 		{
-			while(id < endId)
-				addEvent(new MoveEvent(moveEvent), ++id, m_itemIdMap);
+			intVector = vectorAtoi(explodeString((*it), "-"));
+			if(!intVector[0])
+				continue;
+
+			addEvent(moveEvent, intVector[0], m_uniqueIdMap);
+			if(intVector.size() > 1)
+			{
+				while(intVector[0] < intVector[1])
+					addEvent(new MoveEvent(moveEvent), ++intVector[0], m_uniqueIdMap);
+			}
 		}
 	}
-	else if(readXMLInteger(p, "uniqueid", id))
-		addEvent(moveEvent, id, m_uniqueIdMap);
-	else if(readXMLInteger(p, "fromuid", id) && readXMLInteger(p, "touid", endId))
+	else if(readXMLString(p, "fromuid", strValue) && readXMLString(p, "touid", endStrValue))
 	{
-		addEvent(moveEvent, id, m_uniqueIdMap);
-		while(id < endId)
-			addEvent(new MoveEvent(moveEvent), ++id, m_uniqueIdMap);
-	}
-	else if(readXMLInteger(p, "actionid", id))
-		addEvent(moveEvent, id, m_actionIdMap);
-	else if(readXMLInteger(p, "fromaid", id) && readXMLInteger(p, "toaid", endId))
-	{
-		addEvent(moveEvent, id, m_actionIdMap);
-		while(id < endId)
-			addEvent(new MoveEvent(moveEvent), ++id, m_actionIdMap);
-	}
-	else if(readXMLString(p, "pos", strValue))
-	{
-		IntegerVec posList = vectorAtoi(explodeString(strValue, ";"));
-		if(posList.size() >= 3)
+		intVector = vectorAtoi(explodeString(strValue, ";"));
+		endIntVector = vectorAtoi(explodeString(endStrValue, ";"));
+		if(intVector[0] && endIntVector[0] && intVector.size() == endIntVector.size())
 		{
-			Position pos(posList[0], posList[1], posList[2]);
-			addEvent(moveEvent, pos, m_positionMap);
+			size_t size = intVector.size();
+			for(size_t i = 0; i < size; ++i)
+			{
+				addEvent(moveEvent, intVector[i], m_uniqueIdMap);
+				while(intVector[i] < endIntVector[i])
+					addEvent(new MoveEvent(moveEvent), ++intVector[i], m_uniqueIdMap);
+			}
 		}
 		else
-			success = false;
+			std::cout << "[Warning - MoveEvents::registerEvent] Malformed entry (from: \"" << strValue << "\", to: \"" << endStrValue << "\")" << std::endl;
+	}
+	else if(readXMLString(p, "actionid", strValue))
+	{
+		strVector = explodeString(strValue, ";");
+		for(StringVec::iterator it = strVector.begin(); it != strVector.end(); ++it)
+		{
+			intVector = vectorAtoi(explodeString((*it), "-"));
+			if(!intVector[0])
+				continue;
+
+			addEvent(moveEvent, intVector[0], m_actionIdMap);
+			if(intVector.size() > 1)
+			{
+				while(intVector[0] < intVector[1])
+					addEvent(new MoveEvent(moveEvent), ++intVector[0], m_actionIdMap);
+			}
+		}
+	}
+	else if(readXMLString(p, "fromaid", strValue) && readXMLString(p, "toaid", endStrValue))
+	{
+		intVector = vectorAtoi(explodeString(strValue, ";"));
+		endIntVector = vectorAtoi(explodeString(endStrValue, ";"));
+		if(intVector[0] && endIntVector[0] && intVector.size() == endIntVector.size())
+		{
+			size_t size = intVector.size();
+			for(size_t i = 0; i < size; ++i)
+			{
+				addEvent(moveEvent, intVector[i], m_actionIdMap);
+				while(intVector[i] < endIntVector[i])
+					addEvent(new MoveEvent(moveEvent), ++intVector[i], m_actionIdMap);
+			}
+		}
+		else
+			std::cout << "[Warning - MoveEvents::registerEvent] Malformed entry (from: \"" << strValue << "\", to: \"" << endStrValue << "\")" << std::endl;
+	}
+	else if(readXMLString(p, "pos", strValue) || readXMLString(p, "pos", strValue))
+	{
+		strVector = explodeString(strValue, ";");
+		for(StringVec::iterator it = strVector.begin(); it != strVector.end(); ++it)
+		{
+			intVector = vectorAtoi(explodeString((*it), ","));
+			if(intVector.size() > 2)
+				addEvent(moveEvent, Position(intVector[0], intVector[1], intVector[2]), m_positionMap);
+			else
+				success = false;
+		}
 	}
 	else
 		success = false;
@@ -236,8 +292,8 @@ void MoveEvents::addEvent(MoveEvent* moveEvent, int32_t id, MoveListMap& map)
 	}
 	else
 	{
-		std::list<MoveEvent*>& moveEventList = it->second.moveEvent[moveEvent->getEventType()];
-		for(std::list<MoveEvent*>::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
+		EventList& moveEventList = it->second.moveEvent[moveEvent->getEventType()];
+		for(EventList::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
 		{
 			if((*it)->getSlot() == moveEvent->getSlot())
 				std::cout << "[Warning - MoveEvents::addEvent] Duplicate move event found: " << id << std::endl;
@@ -245,6 +301,42 @@ void MoveEvents::addEvent(MoveEvent* moveEvent, int32_t id, MoveListMap& map)
 
 		moveEventList.push_back(moveEvent);
 	}
+}
+
+MoveEvent* MoveEvents::getEvent(Item* item, MoveEvent_t eventType)
+{
+	MoveListMap::iterator it;
+	if(item->getUniqueId() != 0)
+	{
+		it = m_uniqueIdMap.find(item->getUniqueId());
+		if(it != m_uniqueIdMap.end())
+		{
+			EventList& moveEventList = it->second.moveEvent[eventType];
+			if(!moveEventList.empty())
+				return *moveEventList.begin();
+		}
+	}
+
+	if(item->getActionId() != 0)
+	{
+		it = m_actionIdMap.find(item->getActionId());
+		if(it != m_actionIdMap.end())
+		{
+			EventList& moveEventList = it->second.moveEvent[eventType];
+			if(!moveEventList.empty())
+				return *moveEventList.begin();
+		}
+	}
+
+	it = m_itemIdMap.find(item->getID());
+	if(it != m_itemIdMap.end())
+	{
+		EventList& moveEventList = it->second.moveEvent[eventType];
+		if(!moveEventList.empty())
+			return *moveEventList.begin();
+	}
+
+	return NULL;
 }
 
 MoveEvent* MoveEvents::getEvent(Item* item, MoveEvent_t eventType, slots_t slot)
@@ -289,48 +381,12 @@ MoveEvent* MoveEvents::getEvent(Item* item, MoveEvent_t eventType, slots_t slot)
 	MoveListMap::iterator it = m_itemIdMap.find(item->getID());
 	if(it != m_itemIdMap.end())
 	{
-		std::list<MoveEvent*>& moveEventList = it->second.moveEvent[eventType];
-		for(std::list<MoveEvent*>::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
+		EventList& moveEventList = it->second.moveEvent[eventType];
+		for(EventList::iterator it = moveEventList.begin(); it != moveEventList.end(); ++it)
 		{
 			if(((*it)->getSlot() & slotp) != 0)
 				return *it;
 		}
-	}
-
-	return NULL;
-}
-
-MoveEvent* MoveEvents::getEvent(Item* item, MoveEvent_t eventType)
-{
-	MoveListMap::iterator it;
-	if(item->getUniqueId() != 0)
-	{
-		it = m_uniqueIdMap.find(item->getUniqueId());
-		if(it != m_uniqueIdMap.end())
-		{
-			std::list<MoveEvent*>& moveEventList = it->second.moveEvent[eventType];
-			if(!moveEventList.empty())
-				return *moveEventList.begin();
-		}
-	}
-
-	if(item->getActionId() != 0)
-	{
-		it = m_actionIdMap.find(item->getActionId());
-		if(it != m_actionIdMap.end())
-		{
-			std::list<MoveEvent*>& moveEventList = it->second.moveEvent[eventType];
-			if(!moveEventList.empty())
-				return *moveEventList.begin();
-		}
-	}
-
-	it = m_itemIdMap.find(item->getID());
-	if(it != m_itemIdMap.end())
-	{
-		std::list<MoveEvent*>& moveEventList = it->second.moveEvent[eventType];
-		if(!moveEventList.empty())
-			return *moveEventList.begin();
 	}
 
 	return NULL;
@@ -347,9 +403,10 @@ void MoveEvents::addEvent(MoveEvent* moveEvent, Position pos, MovePosListMap& ma
 	}
 	else
 	{
-		std::list<MoveEvent*>& moveEventList = it->second.moveEvent[moveEvent->getEventType()];
+		EventList& moveEventList = it->second.moveEvent[moveEvent->getEventType()];
 		if(!moveEventList.empty())
 			std::cout << "[Warning - MoveEvents::addEvent] Duplicate move event found: " << pos << std::endl;
+
 		moveEventList.push_back(moveEvent);
 	}
 }
@@ -359,7 +416,7 @@ MoveEvent* MoveEvents::getEvent(Tile* tile, MoveEvent_t eventType)
 	MovePosListMap::iterator it = m_positionMap.find(tile->getPosition());
 	if(it != m_positionMap.end())
 	{
-		std::list<MoveEvent*>& moveEventList = it->second.moveEvent[eventType];
+		EventList& moveEventList = it->second.moveEvent[eventType];
 		if(!moveEventList.empty())
 			return *moveEventList.begin();
 	}
@@ -482,46 +539,65 @@ MoveEvent::~MoveEvent()
 	//
 }
 
-std::string MoveEvent::getScriptEventName()
+std::string MoveEvent::getScriptEventName() const
 {
 	switch(m_eventType)
 	{
 		case MOVE_EVENT_STEP_IN:
 			return "onStepIn";
-			break;
 
 		case MOVE_EVENT_STEP_OUT:
 			return "onStepOut";
-			break;
 
 		case MOVE_EVENT_EQUIP:
 			return "onEquip";
-			break;
 
 		case MOVE_EVENT_DEEQUIP:
 			return "onDeEquip";
-			break;
 
 		case MOVE_EVENT_ADD_ITEM:
 			return "onAddItem";
-			break;
 
 		case MOVE_EVENT_REMOVE_ITEM:
 			return "onRemoveItem";
-			break;
 
 		default:
-			std::cout << "[Error - MoveEvent::getScriptEventName] No valid event type." << std::endl;
-			return "";
 			break;
 	}
+
+	std::cout << "[Error - MoveEvent::getScriptEventName] No valid event type." << std::endl;
+	return "";
+}
+
+std::string MoveEvent::getScriptEventParams() const
+{
+	switch(m_eventType)
+	{
+		case MOVE_EVENT_STEP_IN:
+		case MOVE_EVENT_STEP_OUT:
+			return "cid, item, position, fromPosition";
+
+		case MOVE_EVENT_EQUIP:
+		case MOVE_EVENT_DEEQUIP:
+			return "cid, item, slot";
+
+		case MOVE_EVENT_ADD_ITEM:
+		case MOVE_EVENT_REMOVE_ITEM:
+			return "moveItem, tileItem, position, cid";
+
+		default:
+			break;
+	}
+
+	std::cout << "[Error - MoveEvent::getScriptEventParams] No valid event type." << std::endl;
+	return "";
 }
 
 bool MoveEvent::configureEvent(xmlNodePtr p)
 {
 	std::string strValue;
 	int32_t intValue;
-	if(readXMLString(p, "event", strValue))
+	if(readXMLString(p, "type", strValue) || readXMLString(p, "event", strValue))
 	{
 		std::string tmpStrValue = asLowerCaseString(strValue);
 		if(tmpStrValue == "stepin")
@@ -679,7 +755,7 @@ bool MoveEvent::loadFunction(const std::string& functionName)
 		return false;
 	}
 
-	m_scripted = false;
+	m_scripted = EVENT_SCRIPT_FALSE;
 	return true;
 }
 
@@ -908,7 +984,7 @@ uint32_t MoveEvent::DeEquipItem(MoveEvent* moveEvent, Player* player, Item* item
 
 uint32_t MoveEvent::fireStepEvent(Creature* creature, Item* item, const Position& pos)
 {
-	if(m_scripted)
+	if(isScripted())
 		return executeStep(creature, item, pos);
 
 	return stepFunction(creature, item, pos);
@@ -921,31 +997,54 @@ uint32_t MoveEvent::executeStep(Creature* creature, Item* item, const Position& 
 	if(m_scriptInterface->reserveScriptEnv())
 	{
 		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
+		if(m_scripted == EVENT_SCRIPT_BUFFER)
+		{
+			env->setRealPos(pos);
 
-		#ifdef __DEBUG_LUASCRIPTS__
-		std::stringstream desc;
-		desc << creature->getName() << " itemid: " << item->getID() << " - " << pos;
-		env->setEventDesc(desc.str());
-		#endif
+			std::stringstream scriptstream;
+			scriptstream << "cid = " << env->addThing(creature) << std::endl;
+			env->streamThing(scriptstream, "item", item, env->addThing(item));
+			env->streamPosition(scriptstream, "position", pos, 0);
+			env->streamPosition(scriptstream, "fromPosition", creature->getLastPosition());
 
-		env->setScriptId(m_scriptId, m_scriptInterface);
-		env->setRealPos(pos);
+			scriptstream << m_scriptData;
+			int32_t result = LUA_TRUE;
+			if(m_scriptInterface->loadBuffer(scriptstream.str()) != -1)
+			{
+				lua_State* L = m_scriptInterface->getLuaState();
+				result = m_scriptInterface->getField(L, "_result");
+			}
 
-		uint32_t cid = env->addThing(creature);
-		uint32_t itemid = env->addThing(item);
+			m_scriptInterface->releaseScriptEnv();
+			return (result == LUA_TRUE);
+		}
+		else
+		{
+			#ifdef __DEBUG_LUASCRIPTS__
+			std::stringstream desc;
+			desc << creature->getName() << " itemid: " << item->getID() << " - " << pos;
+			env->setEventDesc(desc.str());
+			#endif
 
-		lua_State* L = m_scriptInterface->getLuaState();
+			env->setScriptId(m_scriptId, m_scriptInterface);
+			env->setRealPos(pos);
 
-		m_scriptInterface->pushFunction(m_scriptId);
-		lua_pushnumber(L, cid);
-		LuaScriptInterface::pushThing(L, item, itemid);
-		LuaScriptInterface::pushPosition(L, pos, 0);
-		LuaScriptInterface::pushPosition(L, creature->getLastPosition());
+			uint32_t cid = env->addThing(creature);
+			uint32_t itemid = env->addThing(item);
 
-		int32_t result = m_scriptInterface->callFunction(4);
-		m_scriptInterface->releaseScriptEnv();
+			lua_State* L = m_scriptInterface->getLuaState();
 
-		return (result == LUA_TRUE);
+			m_scriptInterface->pushFunction(m_scriptId);
+			lua_pushnumber(L, cid);
+			LuaScriptInterface::pushThing(L, item, itemid);
+			LuaScriptInterface::pushPosition(L, pos, 0);
+			LuaScriptInterface::pushPosition(L, creature->getLastPosition());
+
+			int32_t result = m_scriptInterface->callFunction(4);
+			m_scriptInterface->releaseScriptEnv();
+
+			return (result == LUA_TRUE);
+		}
 	}
 	else
 	{
@@ -956,7 +1055,7 @@ uint32_t MoveEvent::executeStep(Creature* creature, Item* item, const Position& 
 
 uint32_t MoveEvent::fireEquip(Player* player, Item* item, slots_t slot, bool boolean)
 {
-	if(m_scripted)
+	if(isScripted())
 		return executeEquip(player, item, slot);
 
 	return equipFunction(this, player, item, slot, boolean);
@@ -969,30 +1068,52 @@ uint32_t MoveEvent::executeEquip(Player* player, Item* item, slots_t slot)
 	if(m_scriptInterface->reserveScriptEnv())
 	{
 		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
+		if(m_scripted == EVENT_SCRIPT_BUFFER)
+		{
+			env->setRealPos(player->getPosition());
 
-		#ifdef __DEBUG_LUASCRIPTS__
-		std::stringstream desc;
-		desc << player->getName() << " itemid: " << item->getID() << " slot: " << slot;
-		env->setEventDesc(desc.str());
-		#endif
+			std::stringstream scriptstream;
+			scriptstream << "cid = " << env->addThing(player) << std::endl;
+			env->streamThing(scriptstream, "item", item, env->addThing(item));
+			scriptstream << "slot = " << slot << std::endl;
 
-		env->setScriptId(m_scriptId, m_scriptInterface);
-		env->setRealPos(player->getPosition());
+			scriptstream << m_scriptData;
+			int32_t result = LUA_TRUE;
+			if(m_scriptInterface->loadBuffer(scriptstream.str()) != -1)
+			{
+				lua_State* L = m_scriptInterface->getLuaState();
+				result = m_scriptInterface->getField(L, "_result");
+			}
 
-		uint32_t cid = env->addThing(player);
-		uint32_t itemid = env->addThing(item);
+			m_scriptInterface->releaseScriptEnv();
+			return (result == LUA_TRUE);
+		}
+		else
+		{
+			#ifdef __DEBUG_LUASCRIPTS__
+			std::stringstream desc;
+			desc << player->getName() << " itemid: " << item->getID() << " slot: " << slot;
+			env->setEventDesc(desc.str());
+			#endif
 
-		lua_State* L = m_scriptInterface->getLuaState();
+			env->setScriptId(m_scriptId, m_scriptInterface);
+			env->setRealPos(player->getPosition());
 
-		m_scriptInterface->pushFunction(m_scriptId);
-		lua_pushnumber(L, cid);
-		LuaScriptInterface::pushThing(L, item, itemid);
-		lua_pushnumber(L, slot);
+			uint32_t cid = env->addThing(player);
+			uint32_t itemid = env->addThing(item);
 
-		int32_t result = m_scriptInterface->callFunction(3);
-		m_scriptInterface->releaseScriptEnv();
+			lua_State* L = m_scriptInterface->getLuaState();
 
-		return (result == LUA_TRUE);
+			m_scriptInterface->pushFunction(m_scriptId);
+			lua_pushnumber(L, cid);
+			LuaScriptInterface::pushThing(L, item, itemid);
+			lua_pushnumber(L, slot);
+
+			int32_t result = m_scriptInterface->callFunction(3);
+			m_scriptInterface->releaseScriptEnv();
+
+			return (result == LUA_TRUE);
+		}
 	}
 	else
 	{
@@ -1003,7 +1124,7 @@ uint32_t MoveEvent::executeEquip(Player* player, Item* item, slots_t slot)
 
 uint32_t MoveEvent::fireAddRemItem(Creature* actor, Item* item, Item* tileItem, const Position& pos)
 {
-	if(m_scripted)
+	if(isScripted())
 		return executeAddRemItem(actor, item, tileItem, pos);
 
 	return moveFunction(item, tileItem, pos);
@@ -1011,41 +1132,64 @@ uint32_t MoveEvent::fireAddRemItem(Creature* actor, Item* item, Item* tileItem, 
 
 uint32_t MoveEvent::executeAddRemItem(Creature* actor, Item* item, Item* tileItem, const Position& pos)
 {
-	//onAddItem(moveitem, tileitem, position, cid)
-	//onRemoveItem(moveitem, tileitem, position, cid)
+	//onAddItem(moveItem, tileItem, position, cid)
+	//onRemoveItem(moveItem, tileItem, position, cid)
 	if(m_scriptInterface->reserveScriptEnv())
 	{
 		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
+		if(m_scripted == EVENT_SCRIPT_BUFFER)
+		{
+			env->setRealPos(pos);
 
-		#ifdef __DEBUG_LUASCRIPTS__
-		std::stringstream desc;
-		if(tileItem)
-			desc << "tileid: " << tileItem->getID();
+			std::stringstream scriptstream;
+			env->streamThing(scriptstream, "moveItem", item, env->addThing(item));
+			env->streamThing(scriptstream, "tileItem", tileItem, env->addThing(tileItem));
+			env->streamPosition(scriptstream, "position", pos, 0);
+			scriptstream << "cid = " << env->addThing(actor) << std::endl;
 
-		desc << " itemid: " << item->getID() << " - " << pos;
-		env->setEventDesc(desc.str());
-		#endif
+			scriptstream << m_scriptData;
+			int32_t result = LUA_TRUE;
+			if(m_scriptInterface->loadBuffer(scriptstream.str()) != -1)
+			{
+				lua_State* L = m_scriptInterface->getLuaState();
+				result = m_scriptInterface->getField(L, "_result");
+			}
 
-		env->setScriptId(m_scriptId, m_scriptInterface);
-		env->setRealPos(pos);
+			m_scriptInterface->releaseScriptEnv();
+			return (result == LUA_TRUE);
+		}
+		else
+		{
+			#ifdef __DEBUG_LUASCRIPTS__
+			std::stringstream desc;
+			if(tileItem)
+				desc << "tileid: " << tileItem->getID();
 
-		uint32_t itemidMoved = env->addThing(item);
-		uint32_t itemidTile = env->addThing(tileItem);
+			desc << " itemid: " << item->getID() << " - " << pos;
+			env->setEventDesc(desc.str());
+			#endif
 
-		lua_State* L = m_scriptInterface->getLuaState();
+			env->setScriptId(m_scriptId, m_scriptInterface);
+			env->setRealPos(pos);
 
-		m_scriptInterface->pushFunction(m_scriptId);
-		LuaScriptInterface::pushThing(L, item, itemidMoved);
-		LuaScriptInterface::pushThing(L, tileItem, itemidTile);
-		LuaScriptInterface::pushPosition(L, pos, 0);
+			uint32_t itemidMoved = env->addThing(item);
+			uint32_t itemidTile = env->addThing(tileItem);
 
-		uint32_t cid = env->addThing(actor);
-		lua_pushnumber(L, cid);
+			lua_State* L = m_scriptInterface->getLuaState();
 
-		int32_t result = m_scriptInterface->callFunction(4);
-		m_scriptInterface->releaseScriptEnv();
+			m_scriptInterface->pushFunction(m_scriptId);
+			LuaScriptInterface::pushThing(L, item, itemidMoved);
+			LuaScriptInterface::pushThing(L, tileItem, itemidTile);
+			LuaScriptInterface::pushPosition(L, pos, 0);
 
-		return (result == LUA_TRUE);
+			uint32_t cid = env->addThing(actor);
+			lua_pushnumber(L, cid);
+
+			int32_t result = m_scriptInterface->callFunction(4);
+			m_scriptInterface->releaseScriptEnv();
+
+			return (result == LUA_TRUE);
+		}
 	}
 	else
 	{

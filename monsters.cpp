@@ -224,10 +224,7 @@ bool MonsterType::createLootContainer(Container* parent, const LootBlock& lootbl
 		}
 	}
 
-	if(parent->size() == 0)
-		return false;
-
-	return true;
+	return parent->size() != 0;
 }
 
 Monsters::Monsters()
@@ -279,8 +276,10 @@ bool Monsters::loadFromXml(bool reloading /*= false*/)
 
 			p = p->next;
 		}
+
 		xmlFreeDoc(doc);
 	}
+
 	return loaded;
 }
 
@@ -292,13 +291,17 @@ bool Monsters::reload()
 ConditionDamage* Monsters::getDamageCondition(ConditionType_t conditionType,
 	int32_t maxDamage, int32_t minDamage, int32_t startDamage, uint32_t tickInterval)
 {
-	ConditionDamage* condition = dynamic_cast<ConditionDamage*>(Condition::createCondition(CONDITIONID_COMBAT, conditionType, 0, 0));
-	condition->setParam(CONDITIONPARAM_TICKINTERVAL, tickInterval);
-	condition->setParam(CONDITIONPARAM_MINVALUE, minDamage);
-	condition->setParam(CONDITIONPARAM_MAXVALUE, maxDamage);
-	condition->setParam(CONDITIONPARAM_STARTVALUE, startDamage);
-	condition->setParam(CONDITIONPARAM_DELAYED, 1);
-	return condition;
+	if(ConditionDamage* condition = dynamic_cast<ConditionDamage*>(Condition::createCondition(CONDITIONID_COMBAT, conditionType, 0, 0)))
+	{
+		condition->setParam(CONDITIONPARAM_TICKINTERVAL, tickInterval);
+		condition->setParam(CONDITIONPARAM_MINVALUE, minDamage);
+		condition->setParam(CONDITIONPARAM_MAXVALUE, maxDamage);
+		condition->setParam(CONDITIONPARAM_STARTVALUE, startDamage);
+		condition->setParam(CONDITIONPARAM_DELAYED, 1);
+		return condition;
+	}
+
+	return NULL;
 }
 
 bool Monsters::deserializeSpell(xmlNodePtr node, spellBlock_t& sb, const std::string& description)
@@ -373,7 +376,7 @@ bool Monsters::deserializeSpell(xmlNodePtr node, spellBlock_t& sb, const std::st
 			needTarget = (intValue != 0);
 
 		combatSpell = new CombatSpell(NULL, needTarget, needDirection);
-		if(!combatSpell->loadScript(getFilePath(FILE_TYPE_OTHER, g_spells->getScriptBaseName() + "/scripts/" + scriptName)))
+		if(!combatSpell->loadScript(getFilePath(FILE_TYPE_OTHER, g_spells->getScriptBaseName() + "/scripts/" + scriptName), true))
 		{
 			delete combatSpell;
 			return false;
@@ -761,8 +764,8 @@ bool Monsters::deserializeSpell(xmlNodePtr node, spellBlock_t& sb, const std::st
 	return true;
 }
 
-#define SHOW_XML_WARNING(desc) std::cout << "[Warning - Monsters::loadMonster] " << desc << ". " << file << std::endl;
-#define SHOW_XML_ERROR(desc) std::cout << "[Error - Monsters::loadMonster] " << desc << ". " << file << std::endl;
+#define SHOW_XML_WARNING(desc) std::cout << "[Warning - Monsters::loadMonster] " << desc << ". (" << file << ")" << std::endl;
+#define SHOW_XML_ERROR(desc) std::cout << "[Error - Monsters::loadMonster] " << desc << ". (" << file << ")" << std::endl;
 
 bool Monsters::loadMonster(const std::string& file, const std::string& monster_name, bool reloading /*= false*/)
 {
@@ -1468,9 +1471,7 @@ bool Monsters::loadLootContainer(xmlNodePtr node, LootBlock& lBlock)
 	if(node == NULL)
 		return false;
 
-	xmlNodePtr tmpNode = node->children;
-	xmlNodePtr p;
-
+	xmlNodePtr p, tmpNode = node->children;
 	if(tmpNode == NULL)
 		return false;
 
@@ -1499,10 +1500,10 @@ bool Monsters::loadLootContainer(xmlNodePtr node, LootBlock& lBlock)
 MonsterType* Monsters::getMonsterType(const std::string& name)
 {
 	uint32_t mId = getIdByName(name);
-	if(mId == 0)
-		return NULL;
+	if(mId != 0)
+		return getMonsterType(mId);
 
-	return getMonsterType(mId);
+	return NULL;
 }
 
 MonsterType* Monsters::getMonsterType(uint32_t mid)

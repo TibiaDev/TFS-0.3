@@ -63,6 +63,7 @@ class ConfigManager
 			SQL_FILE,
 			PASSWORD_TYPE,
 			MAP_AUTHOR,
+			RUNFILE,
 			OUT_LOG,
 			ERROR_LOG,
 			LAST_STRING_CONFIG /* this must be the last one */
@@ -127,6 +128,8 @@ class ConfigManager
 			PARTY_RADIUS_Y,
 			PARTY_RADIUS_Z,
 			LOGIN_PROTECTION,
+			RATE_STAMINA,
+			PLAYER_DEEPNESS,
 			LAST_NUMBER_CONFIG /* this must be the last one */
 		};
 
@@ -194,6 +197,7 @@ class ConfigManager
 			HOUSE_STORAGE,
 			TRUNCATE_LOGS,
 			TRACER_BOX,
+			STORE_DIRECTION,
 			LAST_BOOL_CONFIG /* this must be the last one */
 		};
 

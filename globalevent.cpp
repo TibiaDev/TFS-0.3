@@ -39,33 +39,19 @@ GlobalEvents::~GlobalEvents()
 
 void GlobalEvents::clear()
 {
-	GlobalEventList::iterator it = eventsMap.begin();
-	while(it != eventsMap.end())
-	{
+	for(GlobalEventList::iterator it = eventsMap.begin(); it != eventsMap.end(); ++it)
 		delete it->second;
-		eventsMap.erase(it);
-		it = eventsMap.begin();
-	}
 
+	eventsMap.clear();
 	m_scriptInterface.reInitState();
-}
-
-LuaScriptInterface& GlobalEvents::getScriptInterface()
-{
-	return m_scriptInterface;
-}
-
-std::string GlobalEvents::getScriptBaseName()
-{
-	return "globalevents";
 }
 
 Event* GlobalEvents::getEvent(const std::string& nodeName)
 {
 	if(asLowerCaseString(nodeName) == "globalevent")
 		return new GlobalEvent(&m_scriptInterface);
-	else
-		return NULL;
+
+	return NULL;
 }
 
 bool GlobalEvents::registerEvent(Event* event, xmlNodePtr p)
@@ -130,40 +116,54 @@ bool GlobalEvent::configureEvent(xmlNodePtr p)
 	return true;
 }
 
-std::string GlobalEvent::getScriptEventName()
-{
-	return "onThink";
-}
-
 int32_t GlobalEvent::executeThink(uint32_t interval, uint32_t lastExecution)
 {
 	//onThink(interval, lastExecution)
 	if(m_scriptInterface->reserveScriptEnv())
 	{
 		ScriptEnviroment* env = m_scriptInterface->getScriptEnv();
+		if(m_scripted == EVENT_SCRIPT_BUFFER)
+		{
+			std::stringstream scriptstream;
+			scriptstream << "interval = " << interval << std::endl;
+			scriptstream << "lastExecution = " << lastExecution << std::endl;
 
-		#ifdef __DEBUG_LUASCRIPTS__
-		char desc[125];
-		sprintf(desc, "%s - %i (%i)", getName().c_str(), interval, lastExecution);
-		env->setEventDesc(desc);
-		#endif
+			scriptstream << m_scriptData;
+			int32_t result = LUA_TRUE;
+			if(m_scriptInterface->loadBuffer(scriptstream.str()) != -1)
+			{
+				lua_State* L = m_scriptInterface->getLuaState();
+				result = m_scriptInterface->getField(L, "_result");
+			}
 
-		env->setScriptId(m_scriptId, m_scriptInterface);
+			m_scriptInterface->releaseScriptEnv();
+			return (result == LUA_TRUE);
+		}
+		else
+		{
+			#ifdef __DEBUG_LUASCRIPTS__
+			char desc[125];
+			sprintf(desc, "%s - %i (%i)", getName().c_str(), interval, lastExecution);
+			env->setEventDesc(desc);
+			#endif
 
-		lua_State* L = m_scriptInterface->getLuaState();
+			env->setScriptId(m_scriptId, m_scriptInterface);
 
-		m_scriptInterface->pushFunction(m_scriptId);
-		lua_pushnumber(L, interval);
-		lua_pushnumber(L, lastExecution);
+			lua_State* L = m_scriptInterface->getLuaState();
 
-		int32_t result = m_scriptInterface->callFunction(2);
-		m_scriptInterface->releaseScriptEnv();
+			m_scriptInterface->pushFunction(m_scriptId);
+			lua_pushnumber(L, interval);
+			lua_pushnumber(L, lastExecution);
 
-		return (result == LUA_TRUE);
+			int32_t result = m_scriptInterface->callFunction(2);
+			m_scriptInterface->releaseScriptEnv();
+
+			return (result == LUA_TRUE);
+		}
 	}
 	else
 	{
-		std::cout << "[Error] Call stack overflow. GlobalEvent::executeThink" << std::endl;
+		std::cout << "[Error - GlobalEvent::executeThink] Call stack overflow." << std::endl;
 		return 0;
 	}
 }

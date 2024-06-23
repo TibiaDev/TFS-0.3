@@ -126,7 +126,7 @@ class IOLoginData
 			}
 		};
 
-		typedef std::map<int,std::pair<Item*, int32_t> > ItemMap;
+		typedef std::map<int32_t, std::pair<Item*, int32_t> > ItemMap;
 		typedef std::map<uint32_t, std::string> NameCacheMap;
 		typedef std::map<std::string, uint32_t, StringCompareCase> GuidCacheMap;
 		typedef std::map<uint32_t, PlayerGroup*> PlayerGroupMap;

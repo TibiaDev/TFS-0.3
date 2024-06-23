@@ -23,7 +23,6 @@
 
 #include "otsystem.h"
 #include "enums.h"
-
 #include <sstream>
 
 #ifdef MULTI_SQL_DRIVERS
@@ -63,7 +62,7 @@ class PgSQLResult;
 #endif
 
 #ifndef DATABASE_CLASS
-#error "You have to compile with atl east one database driver!"
+#error "You have to compile with at least one database driver!"
 #define DBResult void
 #define DBInsert void*
 #define Database void
@@ -108,6 +107,8 @@ class _Database
 		* @return whether or not the database is connected.
 		*/
 		DATABASE_VIRTUAL bool isConnected() { return m_connected; }
+
+		DATABASE_VIRTUAL void use() { m_use = time(NULL); }
 
 	protected:
 		/**
@@ -187,13 +188,13 @@ class _Database
 		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() { return DATABASE_ENGINE_NONE; }
 
 	protected:
-		_Database() { m_lastUse = time(NULL); }
+		_Database() {}
 		DATABASE_VIRTUAL ~_Database() {}
 
 		DBResult* verifyResult(DBResult* result);
 
 		bool m_connected;
-		time_t m_lastUse;
+		time_t m_use;
 
 	private:
 		static Database* _instance;

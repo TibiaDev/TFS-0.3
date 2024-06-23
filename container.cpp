@@ -41,6 +41,7 @@ Container::~Container()
 		(*cit)->setParent(NULL);
 		(*cit)->releaseThing2();
 	}
+
 	itemlist.clear();
 }
 
@@ -72,8 +73,7 @@ void Container::addItem(Item* item)
 
 bool Container::unserializeItemNode(FileLoader& f, NODE node, PropStream& propStream)
 {
-	bool ret = Item::unserializeItemNode(f, node, propStream);
-	if(ret)
+	if(Item::unserializeItemNode(f, node, propStream))
 	{
 		uint32_t type;
 		NODE nodeItem = f.getChildNode(node, type);
@@ -94,7 +94,7 @@ bool Container::unserializeItemNode(FileLoader& f, NODE node, PropStream& propSt
 
 				addItem(item);
 			}
-			else /*unknown type*/
+			else/*unknown type*/
 				return false;
 
 			nodeItem = f.getNextNode(nodeItem, type);
@@ -181,8 +181,8 @@ bool Container::isHoldingItem(const Item* item) const
 void Container::onAddContainerItem(Item* item)
 {
 	const Position& cylinderMapPos = getPosition();
-
 	SpectatorVec list;
+
 	SpectatorVec::iterator it;
 	g_game.getSpectators(list, cylinderMapPos, false, false, 2, 2, 2, 2);
 
@@ -206,8 +206,8 @@ void Container::onUpdateContainerItem(uint32_t index, Item* oldItem, const ItemT
 	Item* newItem, const ItemType& newType)
 {
 	const Position& cylinderMapPos = getPosition();
-
 	SpectatorVec list;
+
 	SpectatorVec::iterator it;
 	g_game.getSpectators(list, cylinderMapPos, false, false, 2, 2, 2, 2);
 
@@ -230,8 +230,8 @@ void Container::onUpdateContainerItem(uint32_t index, Item* oldItem, const ItemT
 void Container::onRemoveContainerItem(uint32_t index, Item* item)
 {
 	const Position& cylinderMapPos = getPosition();
-
 	SpectatorVec list;
+
 	SpectatorVec::iterator it;
 	g_game.getSpectators(list, cylinderMapPos, false, false, 2, 2, 2, 2);
 
@@ -254,8 +254,7 @@ void Container::onRemoveContainerItem(uint32_t index, Item* item)
 ReturnValue Container::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 	uint32_t flags) const
 {
-	bool childIsOwner = ((flags & FLAG_CHILDISOWNER) == FLAG_CHILDISOWNER);
-	if(childIsOwner)
+	if(((flags & FLAG_CHILDISOWNER) == FLAG_CHILDISOWNER))
 	{
 		//a child container is querying, since we are the top container (not carried by a player)
 		//just return with no error.
@@ -281,18 +280,14 @@ ReturnValue Container::__queryAdd(int32_t index, const Thing* thing, uint32_t co
 		cylinder = cylinder->getParent();
 	}
 
-	bool skipLimit = ((flags & FLAG_NOLIMIT) == FLAG_NOLIMIT);
-	if(index == INDEX_WHEREEVER && !skipLimit)
-	{
-		if(size() >= capacity())
-			return RET_CONTAINERNOTENOUGHROOM;
-	}
+	if(index == INDEX_WHEREEVER && !((flags & FLAG_NOLIMIT) == FLAG_NOLIMIT) && full())
+		return RET_CONTAINERNOTENOUGHROOM;
 
 	const Cylinder* topParent = getTopParent();
 	if(topParent != this)
 		return topParent->__queryAdd(INDEX_WHEREEVER, item, count, flags | FLAG_CHILDISOWNER);
-	else
-		return RET_NOERROR;
+
+	return RET_NOERROR;
 }
 
 ReturnValue Container::__queryMaxCount(int32_t index, const Thing* thing, uint32_t count,
@@ -312,11 +307,9 @@ ReturnValue Container::__queryMaxCount(int32_t index, const Thing* thing, uint32
 	}
 
 	int32_t freeSlots = std::max((int32_t)(capacity() - size()), (int32_t)0);
-
 	if(item->isStackable())
 	{
 		uint32_t n = 0;
-
 		if(index != INDEX_WHEREEVER)
 		{
 			const Thing* destThing = __getThing(index);
@@ -392,7 +385,6 @@ Cylinder* Container::__queryDestination(int32_t& index, const Thing* thing, Item
 			if you drop the item on that grey area
 			the client calculates the slot position as if the bag has 20 slots
 			*/
-
 			index = INDEX_WHEREEVER;
 		}
 
@@ -402,8 +394,7 @@ Cylinder* Container::__queryDestination(int32_t& index, const Thing* thing, Item
 			if(destThing)
 				*destItem = destThing->getItem();
 
-			Cylinder* subCylinder = dynamic_cast<Cylinder*>(*destItem);
-			if(subCylinder)
+			if(Cylinder* subCylinder = dynamic_cast<Cylinder*>(*destItem))
 			{
 				index = INDEX_WHEREEVER;
 				*destItem = NULL;
@@ -411,6 +402,7 @@ Cylinder* Container::__queryDestination(int32_t& index, const Thing* thing, Item
 			}
 		}
 	}
+
 	return this;
 }
 
@@ -454,6 +446,7 @@ void Container::__addThing(Creature* actor, int32_t index, Thing* thing)
 
 	item->setParent(this);
 	itemlist.push_front(item);
+
 	totalWeight += item->getWeight();
 	if(Container* parentContainer = getParentContainer())
 		parentContainer->updateItemWeight(item->getWeight());
@@ -489,7 +482,6 @@ void Container::__updateThing(Thing* thing, uint16_t itemId, uint32_t count)
 	const ItemType& newType = Item::items[itemId];
 
 	const double oldWeight = item->getWeight();
-
 	item->setID(itemId);
 	item->setSubType(count);
 
@@ -536,13 +528,11 @@ void Container::__replaceThing(uint32_t index, Thing* thing)
 
 	totalWeight -= (*cit)->getWeight();
 	totalWeight += item->getWeight();
-
 	if(Container* parentContainer = getParentContainer())
 		parentContainer->updateItemWeight(-(*cit)->getWeight() + item->getWeight());
 
 	itemlist.insert(cit, item);
 	item->setParent(this);
-
 	//send change to client
 	if(getParent())
 	{
@@ -589,13 +579,11 @@ void Container::__removeThing(Thing* thing, uint32_t count)
 
 	if(item->isStackable() && count != item->getItemCount())
 	{
-		int32_t newCount = std::max(0, (int32_t)(item->getItemCount() - count));
-
 		const double oldWeight = -item->getWeight();
-		item->setItemCount(newCount);
+		item->setItemCount(std::max(0, (int32_t)(item->getItemCount() - count)));
+
 		const double diffWeight = oldWeight + item->getWeight();
 		totalWeight += diffWeight;
-
 		//send change to client
 		if(getParent())
 		{
@@ -633,6 +621,7 @@ int32_t Container::__getIndexOfThing(const Thing* thing) const
 		else
 			++index;
 	}
+
 	return -1;
 }
 
@@ -649,24 +638,23 @@ int32_t Container::__getLastIndex() const
 uint32_t Container::__getItemTypeCount(uint16_t itemId, int32_t subType /*= -1*/, bool itemCount /*= true*/) const
 {
 	uint32_t count = 0;
-	Item* item = NULL;
-
 	for(ItemList::const_iterator it = itemlist.begin(); it != itemlist.end(); ++it)
 	{
-		item = (*it);
-		if(item->getID() == itemId && (subType == -1 || subType == item->getSubType()))
+		Item* item = (*it);
+		if(item && item->getID() == itemId && (subType == -1 || subType == item->getSubType()))
 		{
-			if(itemCount)
-				count += item->getItemCount();
-			else
+			if(!itemCount)
 			{
 				if(item->isRune())
 					count += item->getCharges();
 				else
 					count += item->getItemCount();
 			}
+			else
+				count += item->getItemCount();
 		}
 	}
+
 	return count;
 }
 
@@ -683,16 +671,14 @@ Thing* Container::__getThing(uint32_t index) const
 		else
 			++count;
 	}
+
 	return NULL;
 }
 
 void Container::postAddNotification(Creature* actor, Thing* thing, int32_t index, cylinderlink_t link /*= LINK_OWNER*/)
 {
 	Cylinder* topParent = getTopParent();
-
-	if(topParent->getCreature())
-		topParent->postAddNotification(actor, thing, index, LINK_TOPPARENT);
-	else
+	if(!topParent->getCreature())
 	{
 		if(topParent == this)
 		{
@@ -703,15 +689,14 @@ void Container::postAddNotification(Creature* actor, Thing* thing, int32_t index
 		else
 			topParent->postAddNotification(actor, thing, index, LINK_PARENT);
 	}
+	else
+		topParent->postAddNotification(actor, thing, index, LINK_TOPPARENT);
 }
 
 void Container::postRemoveNotification(Creature* actor, Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link /*= LINK_OWNER*/)
 {
 	Cylinder* topParent = getTopParent();
-
-	if(topParent->getCreature())
-		topParent->postRemoveNotification(actor, thing, index, isCompleteRemoval, LINK_TOPPARENT);
-	else
+	if(!topParent->getCreature())
 	{
 		if(topParent == this)
 		{
@@ -722,6 +707,8 @@ void Container::postRemoveNotification(Creature* actor, Thing* thing, int32_t in
 		else
 			topParent->postRemoveNotification(actor, thing, index, isCompleteRemoval, LINK_PARENT);
 	}
+	else
+		topParent->postRemoveNotification(actor, thing, index, isCompleteRemoval, LINK_TOPPARENT);
 }
 
 void Container::__internalAddThing(Thing* thing)
@@ -850,7 +837,7 @@ ContainerIterator& ContainerIterator::operator++()
 	if(Item* item = *current)
 	{
 		Container* container = item->getContainer();
-		if(container && !container->itemlist.empty())
+		if(container && !container->empty())
 			over.push(container);
 	}
 

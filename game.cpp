@@ -190,29 +190,29 @@ void Game::setGameState(GameState_t newState)
 	}
 }
 
-void Game::saveGameState(bool savePlayers)
+void Game::saveGameState(bool maintainState)
 {
 	std::cout << "> Saving server..." << std::endl;
 	uint64_t start = OTSYS_TIME();
-	setGameState(GAME_STATE_MAINTAIN);
+	if(maintainState)
+		setGameState(GAME_STATE_MAINTAIN);
 
-	map->saveMap();
-	ScriptEnviroment::saveGameState();
-	if(savePlayers)
+	IOLoginData* io = IOLoginData::getInstance();
+	for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
 	{
-		IOLoginData* io = IOLoginData::getInstance();
-		for(AutoList<Player>::listiterator it = Player::listPlayer.list.begin(); it != Player::listPlayer.list.end(); ++it)
-		{
-			(*it).second->loginPosition = (*it).second->getPosition();
-			io->savePlayer((*it).second, false);
-		}
+		(*it).second->loginPosition = (*it).second->getPosition();
+		io->savePlayer((*it).second, false);
 	}
 
 	std::string storage = "relational";
 	if(g_config.getBool(ConfigManager::HOUSE_STORAGE))
 		storage = "binary";
 
-	setGameState(GAME_STATE_NORMAL);
+	map->saveMap();
+	ScriptEnviroment::saveGameState();
+	if(maintainState)
+		setGameState(GAME_STATE_NORMAL);
+
 	std::cout << "> SAVE: Complete in " << (OTSYS_TIME() - start) / (1000.) << " seconds using " << storage << " house storage." << std::endl;
 }
 
@@ -693,7 +693,7 @@ ReturnValue Game::getPlayerByNameWildcard(const std::string& s, Player*& player)
 			if(name.substr(0, tmp.length()) == tmp)
 			{
 				if(lastFound)
-					return RET_NAMEISTOOAMBIGIOUS;
+					return RET_NAMEISTOOAMBIGUOUS;
 
 				lastFound = (*it).second;
 			}
@@ -771,38 +771,43 @@ bool Game::placeCreature(Creature* creature, const Position& pos, bool extendedP
 	if(!internalPlaceCreature(creature, pos, extendedPos, forced))
 		return false;
 
+	bool ghost = false;
+	Player* tmpPlayer = NULL;
+	if((tmpPlayer = creature->getPlayer()) && !tmpPlayer->storedConditionList.empty())
+	{
+		for(ConditionList::iterator it = tmpPlayer->storedConditionList.begin(); it != tmpPlayer->storedConditionList.end(); ++it)
+		{
+			if((*it)->getType() == CONDITION_MUTED && ((*it)->getTicks() - ((time(NULL) - tmpPlayer->getLastLogout()) * 1000)) <= 0)
+				continue;
+
+			tmpPlayer->addCondition(*it);
+		}
+
+		tmpPlayer->storedConditionList.clear();
+		ghost = tmpPlayer->isInGhostMode();
+	}
+
 	SpectatorVec list;
 	SpectatorVec::iterator it;
-	getSpectators(list, creature->getPosition(), false, true);
 
-	Player* tmpPlayer = NULL;
+	getSpectators(list, creature->getPosition(), false, true);
 	for(it = list.begin(); it != list.end(); ++it)
 	{
 		if((tmpPlayer = (*it)->getPlayer()))
-			tmpPlayer->sendCreatureAppear(creature, true);
+		{
+			if(!ghost || (*it) == creature || tmpPlayer->canSeeGhost(creature))
+				tmpPlayer->sendCreatureAppear(creature, true);
+		}
 	}
 
 	for(it = list.begin(); it != list.end(); ++it)
-		(*it)->onCreatureAppear(creature, true);
+	{
+		if(!ghost || (*it) == creature || !(*it)->canSeeGhost(creature))
+			(*it)->onCreatureAppear(creature, true);
+	}
 
 	int32_t newStackPos = creature->getParent()->__getIndexOfThing(creature);
 	creature->getParent()->postAddNotification(NULL, creature, newStackPos);
-
-	if(Player* player = creature->getPlayer())
-	{
-		for(uint32_t i = 0; i < 4; ++i)
-		{
-			Condition* condition = player->getCondition(CONDITION_MUTED, CONDITIONID_DEFAULT, i);
-			if(condition && condition->getTicks() > 0)
-			{
-				condition->setTicks(condition->getTicks() - (time(NULL) - player->getLastLogout()) * 1000);
-				if(condition->getTicks() <= 0)
-					player->removeCondition(condition);
-				else
-					player->addCondition(condition->clone());
-			}
-		}
-	}
 
 	addCreatureCheck(creature);
 	creature->onPlacedCreature();
@@ -979,7 +984,9 @@ bool Game::playerMoveCreature(uint32_t playerId, uint32_t movingCreatureId,
 	}
 
 	//check throw distance
-	if((std::abs(movingCreaturePos.x - toPos.x) > movingCreature->getThrowRange()) || (std::abs(movingCreaturePos.y - toPos.y) > movingCreature->getThrowRange()) || (std::abs(movingCreaturePos.z - toPos.z) * 4 > movingCreature->getThrowRange()))
+	if((std::abs(movingCreaturePos.x - toPos.x) > movingCreature->getThrowRange())
+		|| (std::abs(movingCreaturePos.y - toPos.y) > movingCreature->getThrowRange())
+		|| (std::abs(movingCreaturePos.z - toPos.z) * 4 > movingCreature->getThrowRange()))
 	{
 		player->sendCancelMessage(RET_DESTINATIONOUTOFREACH);
 		return false;
@@ -2249,7 +2256,7 @@ bool Game::playerAutoWalk(uint32_t playerId, std::list<Direction>& listDir)
 		return false;
 
 	player->resetIdleTime();
-	if(player->isTeleportingByClick())
+	if(player->hasCondition(CONDITION_GAMEMASTER, GAMEMASTER_TELEPORT))
 	{
 		Position pos = player->getPosition();
 		for(std::list<Direction>::iterator it = listDir.begin(); it != listDir.end(); ++it)
@@ -2524,9 +2531,8 @@ bool Game::playerMoveUpContainer(uint32_t playerId, uint8_t cid)
 	if(!parentContainer)
 		return false;
 
-	bool hasParent = (dynamic_cast<const Container*>(parentContainer->getParent()) != NULL);
 	player->addContainer(cid, parentContainer);
-	player->sendContainer(cid, parentContainer, hasParent);
+	player->sendContainer(cid, parentContainer, (dynamic_cast<const Container*>(parentContainer->getParent()) != NULL));
 	return true;
 }
 
@@ -3163,11 +3169,8 @@ bool Game::playerLookAt(uint32_t playerId, const Position& pos, uint16_t spriteI
 	}
 
 	Position playerPos = player->getPosition();
-
-	int32_t lookDistance = 0;
-	if(thing == player)
-		lookDistance = -1;
-	else
+	int32_t lookDistance = -1;
+	if(thing != player)
 	{
 		lookDistance = std::max(std::abs(playerPos.x - thingPos.x), std::abs(playerPos.y - thingPos.y));
 		if(playerPos.z != thingPos.z)
@@ -3426,10 +3429,10 @@ bool Game::playerSay(uint32_t playerId, uint16_t channelId, SpeakClasses type, c
 bool Game::playerWhisper(Player* player, const std::string& text)
 {
 	SpectatorVec list;
+	SpectatorVec::const_iterator it;
 	getSpectators(list, player->getPosition(), false, false,
 		Map::maxClientViewportX, Map::maxClientViewportX,
 		Map::maxClientViewportY, Map::maxClientViewportY);
-	SpectatorVec::const_iterator it;
 
 	//send to client
 	Player* tmpPlayer = NULL;
@@ -3479,7 +3482,9 @@ bool Game::playerSpeakTo(Player* player, SpeakClasses type, const std::string& r
 		return false;
 	}
 
-	if(toPlayer->isIgnoringPrivate() && !player->hasFlag(PlayerFlag_CannotBeMuted) && !player->canSeeGhost(toPlayer))
+	bool ghost = player->canSeeGhost(toPlayer);
+	if(toPlayer->hasCondition(CONDITION_GAMEMASTER, GAMEMASTER_IGNORE) && !player->hasFlag(
+		PlayerFlag_CannotBeMuted) && !ghost)
 	{
 		char buffer[70];
 		if(toPlayer->isInGhostMode())
@@ -3496,15 +3501,15 @@ bool Game::playerSpeakTo(Player* player, SpeakClasses type, const std::string& r
 
 	toPlayer->sendCreatureSay(player, type, text);
 	toPlayer->onCreatureSay(player, type, text);
-
-	if(toPlayer->isInGhostMode() && !player->canSeeGhost(toPlayer))
-		player->sendTextMessage(MSG_STATUS_SMALL, "A player with this name is not online.");
-	else
+	if(toPlayer->isInGhostMode() && !ghost)
 	{
-		char buffer[80];
-		sprintf(buffer, "Message sent to %s.", toPlayer->getName().c_str());
-		player->sendTextMessage(MSG_STATUS_SMALL, buffer);
+		player->sendTextMessage(MSG_STATUS_SMALL, "A player with this name is not online.");
+		return false;
 	}
+
+	char buffer[80];
+	sprintf(buffer, "Message sent to %s.", toPlayer->getName().c_str());
+	player->sendTextMessage(MSG_STATUS_SMALL, buffer);
 	return true;
 }
 
@@ -3930,8 +3935,8 @@ bool Game::combatBlockHit(CombatType_t combatType, Creature* attacker, Creature*
 
 	int32_t damage = -healthChange;
 	BlockType_t blockType = target->blockHit(attacker, combatType, damage, checkDefense, checkArmor);
-	healthChange = -damage;
 
+	healthChange = -damage;
 	if(blockType == BLOCK_DEFENSE)
 	{
 		addMagicEffect(list, targetPos, NM_ME_POFF);
@@ -4328,10 +4333,8 @@ void Game::addMagicEffect(const SpectatorVec& list, const Position& pos, uint8_t
 void Game::addDistanceEffect(const Position& fromPos, const Position& toPos, uint8_t effect)
 {
 	SpectatorVec list;
-
-	getSpectators(list, fromPos, false, true);
-	getSpectators(list, toPos, true, true);
-
+	getSpectators(list, fromPos, false);
+	getSpectators(list, toPos, true);
 	addDistanceEffect(list, fromPos, toPos, effect);
 }
 
@@ -4971,10 +4974,9 @@ bool Game::violationWindow(uint32_t playerId, std::string targetName, int32_t re
 		return false;
 
 	uint32_t access = player->getViolationAccess();
-	if((ipBanishment && !(violationStatements[access] & (1 << Action_IpBan))) || reason > violationReasons[access]
-		|| !(violationNames[access] & (1 << action) || violationStatements[access] & (1 << action)))		
+	if((ipBanishment && ((violationNames[access] & Action_IpBan) != Action_IpBan || (violationStatements[access] & Action_IpBan) != Action_IpBan)) ||
+		!(violationNames[access] & (1 << action) || violationStatements[access] & (1 << action)) || reason > violationReasons[access])
 	{
-		// should check for IpBan at violationNames too, but since its only for last access on both cases...
 		player->sendCancel("You do not have authorization for this action.");
 		return false;
 	}
@@ -5242,7 +5244,10 @@ bool Game::loadExperienceStages()
 			if(!xmlStrcmp(q->name, (const xmlChar*)"world"))
 			{
 				if(!readXMLInteger(q, "id", intValue) || intValue != g_config.getNumber(ConfigManager::WORLD_ID))
+				{
+					q = q->next;
 					continue;
+				}
 
 				p = q->children;
 				while(p)

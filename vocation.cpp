@@ -118,6 +118,9 @@ bool Vocations::loadFromXml()
 					if(readXMLInteger(p, "fromvoc", intVal) || readXMLInteger(p, "fromvocation", intVal))
 						voc->fromVocation = intVal;
 
+					if(readXMLInteger(p, "lessloss", intVal))
+						voc->lessLoss = intVal;
+
 					configNode = p->children;
 					while(configNode)
 					{
@@ -271,6 +274,7 @@ Vocation::Vocation()
 	gainCap = 5;
 	gainMana = 5;
 	gainHP = 5;
+	lessLoss = 0;
 	attackSpeed = 1500;
 	baseSpeed = 220;
 	manaMultiplier = 4.0;

@@ -21,9 +21,10 @@
 #ifndef __OTSERV_NETWORK_MESSAGE_H__
 #define __OTSERV_NETWORK_MESSAGE_H__
 #include "otsystem.h"
+#include <boost/shared_ptr.hpp>
 
-#include "const.h"
 #include <string>
+#include "const.h"
 
 class Item;
 class Creature;
@@ -39,7 +40,7 @@ class NetworkMessage
 
 		// constructor/destructor
 		NetworkMessage() {Reset();}
-		virtual ~NetworkMessage(){}
+		virtual ~NetworkMessage() {}
 
 	protected:
 		// resets the internal buffer to an empty message
@@ -133,6 +134,9 @@ class NetworkMessage
 		char* getBodyBuffer() {m_ReadPos = 2; return (char*)&m_MsgBuf[header_length];}
 
 		int32_t decodeHeader();
+#ifdef __TRACK_NETWORK__
+		virtual void Track(std::string file, long line, std::string func) {};
+#endif
 
 	protected:
 		inline bool canAdd(int32_t size)
@@ -145,5 +149,7 @@ class NetworkMessage
 
 		uint8_t m_MsgBuf[NETWORKMESSAGE_MAXSIZE];
 };
+
+typedef boost::shared_ptr<NetworkMessage> NetworkMessage_ptr;
 
 #endif // #ifndef __NETWORK_MESSAGE_H__

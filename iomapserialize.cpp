@@ -67,11 +67,11 @@ bool IOMapSerialize::loadHouseInfo(Map* map)
 	while(result->next());
 	db->freeResult(result);
 
+	query.str("");
 	for(HouseMap::iterator it = Houses::getInstance().getHouseBegin(); it != Houses::getInstance().getHouseEnd(); ++it)
 	{
-		query.str("");
 		House* house = it->second;
-		if(house->getHouseOwner() != 0 && house->getHouseId() != 0)
+		if(house && house->getHouseOwner() && house->getHouseId())
 		{
 			query << "SELECT `listid`, `list` FROM `house_lists` WHERE `house_id` = " << house->getHouseId();
 			query << " AND `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
@@ -83,6 +83,8 @@ bool IOMapSerialize::loadHouseInfo(Map* map)
 				db->freeResult(result);
 			}
 		}
+
+		query.str("");
 	}
 
 	return true;
@@ -229,7 +231,7 @@ bool IOMapSerialize::loadMapBinary(Map* map)
 	DBResult* result;
 
 	DBQuery query;
-	query << "SELECT `data` FROM `house_storage` WHERE `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
+	query << "SELECT `data` FROM `house_data` WHERE `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
 	if(!(result = db->storeQuery(query.str())))
 		return false;
  
@@ -278,12 +280,12 @@ bool IOMapSerialize::saveMapBinary(Map* map)
  		return false;
 
 	DBQuery query;
-	query << "DELETE FROM `house_storage` WHERE `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
+	query << "DELETE FROM `house_data` WHERE `world_id` = " << g_config.getNumber(ConfigManager::WORLD_ID);
 	if(!db->executeQuery(query.str()))
  		return false;
 
 	DBInsert stmt(db);
-	stmt.setQuery("INSERT INTO `house_storage` (`house_id`, `world_id`, `data`) VALUES ");
+	stmt.setQuery("INSERT INTO `house_data` (`house_id`, `world_id`, `data`) VALUES ");
  	for(HouseMap::iterator it = Houses::getInstance().getHouseBegin(); it != Houses::getInstance().getHouseEnd(); ++it)
 	{
  		//save house items
@@ -483,7 +485,7 @@ bool IOMapSerialize::saveTile(Database* db, uint32_t tileId, const Tile* tile)
 		{
 			item = (*it);
 
-			uint32_t attributesSize;
+			uint32_t attributesSize = 0;
 			PropWriteStream propWriteStream;
 			item->serializeAttr(propWriteStream);
 			const char* attributes = propWriteStream.getStream(attributesSize);
