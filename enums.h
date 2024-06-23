@@ -162,7 +162,8 @@ enum ConditionParam_t
 	CONDITIONPARAM_SKILL_SHIELDPERCENT = 41,
 	CONDITIONPARAM_SKILL_FISHINGPERCENT = 42,
 	CONDITIONPARAM_PERIODICDAMAGE = 43,
-	CONDITIONPARAM_BUFF = 44
+	CONDITIONPARAM_BUFF = 44,
+	CONDITIONPARAM_SUBID = 45
 };
 
 enum BlockType_t
@@ -261,59 +262,42 @@ struct Outfit_t
 {
 	Outfit_t()
 	{
-		lookHead   = 0;
-		lookBody   = 0;
-		lookLegs   = 0;
-		lookFeet   = 0;
-		lookType   = 0;
-		lookTypeEx = 0;
-		lookAddons = 0;
+		lookHead = lookBody = lookLegs = lookFeet = lookType = lookTypeEx = lookAddons = 0;
 	}
 
-	uint16_t lookType;
-	uint16_t lookTypeEx;
-	uint8_t lookHead;
-	uint8_t lookBody;
-	uint8_t lookLegs;
-	uint8_t lookFeet;
-	uint8_t lookAddons;
+	uint16_t lookType, lookTypeEx;
+	uint8_t lookHead, lookBody, lookLegs, lookFeet, lookAddons;
 };
 
 struct LightInfo
 {
-	uint32_t level;
-	uint32_t color;
+	uint32_t level, color;
+
 	LightInfo()
 	{
-		level = 0;
-		color = 0;
+		level = color = 0;
 	}
-	LightInfo(uint32_t _level, uint32_t _color)
-	{
-		level = _level;
-		color = _color;
-	}
+
+	LightInfo(uint32_t _level, uint32_t _color):
+		level(_level), color(_color) {}
 };
 
 struct ShopInfo
 {
 	uint32_t itemId;
-	uint32_t subType;
-	uint32_t buyPrice;
-	uint32_t sellPrice;
+	int32_t subType, buyPrice, sellPrice;
 	std::string itemName;
 
 	ShopInfo()
 	{
 		itemId = 0;
 		subType = 1;
-		buyPrice = 0;
-		sellPrice = 0;
+		buyPrice = sellPrice = -1;
 		itemName = "";
 	}
 
-	ShopInfo(uint32_t _itemId, int32_t _subType = 0, uint32_t _buyPrice = 0, uint32_t _sellPrice = 0,
-		const std::string& _itemName = "") : itemId(_itemId), subType(_subType), buyPrice(_buyPrice),
+	ShopInfo(uint32_t _itemId, int32_t _subType = 1, int32_t _buyPrice = -1, int32_t _sellPrice = -1,
+		const std::string& _itemName = ""): itemId(_itemId), subType(_subType), buyPrice(_buyPrice),
 		sellPrice(_sellPrice), itemName(_itemName) {}
 };
 

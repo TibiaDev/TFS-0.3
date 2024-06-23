@@ -919,7 +919,6 @@ void Creature::gainHealth(Creature* caster, int32_t healthGain)
 void Creature::drainHealth(Creature* attacker, CombatType_t combatType, int32_t damage)
 {
 	changeHealth(-damage);
-
 	if(attacker)
 		attacker->onAttackedCreatureDrainHealth(this, damage);
 }
@@ -948,8 +947,7 @@ BlockType_t Creature::blockHit(Creature* attacker, CombatType_t combatType, int3
 			hasDefense = true;
 		}
 
-		if(checkDefense && hasDefense && (!hasCondition(CONDITION_DISABLE_DEFENSE) ||
-			(getPlayer() && getPlayer()->hasCustomFlag(PlayerCustomFlag_IgnoreDisable))))
+		if(checkDefense && hasDefense)
 		{
 			int32_t maxDefense = getDefense();
 			int32_t minDefense = maxDefense / 2;
@@ -1364,10 +1362,9 @@ bool Creature::addCondition(Condition* condition)
 	if(condition == NULL)
 		return false;
 
-	Condition* prevCond = getCondition(condition->getType(), condition->getId());
-	if(prevCond)
+	if(Condition* previous = getCondition(condition->getType(), condition->getId(), condition->getSubId()))
 	{
-		prevCond->addCondition(this, condition);
+		previous->addCondition(this, condition);
 		delete condition;
 		return true;
 	}
@@ -1398,18 +1395,18 @@ void Creature::removeCondition(ConditionType_t type)
 {
 	for(ConditionList::iterator it = conditions.begin(); it != conditions.end();)
 	{
-		if((*it)->getType() == type)
+		if((*it)->getType() != type)
 		{
-			Condition* condition = *it;
-			it = conditions.erase(it);
-
-			condition->endCondition(this, CONDITIONEND_ABORT);
-			delete condition;
-
-			onEndCondition(type);
-		}
-		else
 			++it;
+			continue;
+		}
+
+		Condition* condition = *it;
+		it = conditions.erase(it);
+
+		condition->endCondition(this, CONDITIONEND_ABORT);
+		onEndCondition(condition->getType());
+		delete condition;
 	}
 }
 
@@ -1417,28 +1414,18 @@ void Creature::removeCondition(ConditionType_t type, ConditionId_t id)
 {
 	for(ConditionList::iterator it = conditions.begin(); it != conditions.end();)
 	{
-		if((*it)->getType() == type && (*it)->getId() == id)
+		if((*it)->getType() != type || (*it)->getId() != id)
 		{
-			Condition* condition = *it;
-			it = conditions.erase(it);
-
-			condition->endCondition(this, CONDITIONEND_ABORT);
-			delete condition;
-
-			onEndCondition(type);
-		}
-		else
 			++it;
-	}
-}
+			continue;
+		}
 
-void Creature::removeCondition(const Creature* attacker, ConditionType_t type)
-{
-	ConditionList tmpList = conditions;
-	for(ConditionList::iterator it = tmpList.begin(); it != tmpList.end(); ++it)
-	{
-		if((*it)->getType() == type)
-			onCombatRemoveCondition(attacker, *it);
+		Condition* condition = *it;
+		it = conditions.erase(it);
+
+		condition->endCondition(this, CONDITIONEND_ABORT);
+		onEndCondition(condition->getType());
+		delete condition;
 	}
 }
 
@@ -1451,9 +1438,18 @@ void Creature::removeCondition(Condition* condition)
 		it = conditions.erase(it);
 
 		condition->endCondition(this, CONDITIONEND_ABORT);
-		delete condition;
-
 		onEndCondition(condition->getType());
+		delete condition;
+	}
+}
+
+void Creature::removeCondition(const Creature* attacker, ConditionType_t type)
+{
+	ConditionList tmpList = conditions;
+	for(ConditionList::iterator it = tmpList.begin(); it != tmpList.end(); ++it)
+	{
+		if((*it)->getType() == type)
+			onCombatRemoveCondition(attacker, *it);
 	}
 }
 
@@ -1471,30 +1467,19 @@ void Creature::removeConditions(ConditionEnd_t reason, bool onlyPersistent/* = t
 		it = conditions.erase(it);
 
 		condition->endCondition(this, reason);
-		delete condition;
-
 		onEndCondition(condition->getType());
+		delete condition;
 	}
 }
 
-Condition* Creature::getCondition(ConditionType_t type, ConditionId_t id) const
+Condition* Creature::getCondition(ConditionType_t type, ConditionId_t id, uint32_t subId/* = 0*/) const
 {
 	for(ConditionList::const_iterator it = conditions.begin(); it != conditions.end(); ++it)
 	{
-		if((*it)->getType() == type && (*it)->getId() == id)
+		if((*it)->getType() == type && (*it)->getId() == id && (*it)->getSubId() == subId)
 			return *it;
 	}
-	return NULL;
-}
 
-Condition* Creature::getCondition(ConditionType_t type) const
-{
-	//This one just returns the first one found.
-	for(ConditionList::const_iterator it = conditions.begin(); it != conditions.end(); ++it)
-	{
-		if((*it)->getType() == type)
-			return *it;
-	}
 	return NULL;
 }
 
@@ -1502,45 +1487,49 @@ void Creature::executeConditions(uint32_t interval)
 {
 	for(ConditionList::iterator it = conditions.begin(); it != conditions.end();)
 	{
-		if(!(*it)->executeCondition(this, interval))
+		if((*it)->executeCondition(this, interval))
 		{
-			ConditionType_t type = (*it)->getType();
-
-			Condition* condition = *it;
-			it = conditions.erase(it);
-
-			condition->endCondition(this, CONDITIONEND_TICKS);
-			delete condition;
-
-			onEndCondition(type);
-		}
-		else
 			++it;
+			continue;
+		}
+
+		Condition* condition = *it;
+		it = conditions.erase(it);
+
+		condition->endCondition(this, CONDITIONEND_TICKS);
+		onEndCondition(condition->getType());
+		delete condition;
 	}
 }
 
-bool Creature::hasCondition(ConditionType_t type) const
+bool Creature::hasCondition(ConditionType_t type, uint32_t subId/* = 0*/) const
 {
+	if(type == CONDITION_EXHAUST && g_game.getStateDelay() == 0)
+		return true;
+
 	if(isSuppress(type))
 		return false;
 
 	for(ConditionList::const_iterator it = conditions.begin(); it != conditions.end(); ++it)
 	{
-		if((*it)->getType() == type)
-		{
-			if((*it)->getEndTime() == 0)
-				return true;
+		if((*it)->getType() != type || (*it)->getSubId() != subId)
+			continue;
 
-			int64_t seekTime = g_game.getStateTime();
-			if(seekTime == 0)
-				return true;
+		if(g_config.getBool(ConfigManager::OLD_CONDITION_ACCURACY))
+			return true;
 
-			if((*it)->getEndTime() >= seekTime)
-				seekTime = (*it)->getEndTime();
+		if((*it)->getEndTime() == 0)
+			return true;
 
-			if(seekTime >= OTSYS_TIME())
-				return true;
-		}
+		int64_t seekTime = g_game.getStateDelay();
+		if(seekTime == 0)
+			return true;
+
+		if((*it)->getEndTime() > seekTime)
+			seekTime = (*it)->getEndTime();
+
+		if(seekTime >= OTSYS_TIME())
+			return true;
 	}
 
 	return false;

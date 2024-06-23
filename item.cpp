@@ -170,14 +170,13 @@ Item* Item::CreateItem(PropStream& propStream)
 	return Item::CreateItem(_id, 0);
 }
 
-Item::Item(const uint16_t _type, uint16_t _count /*= 0*/) :
+Item::Item(const uint16_t _type, uint16_t _count /*= 0*/):
 ItemAttributes()
 {
 	id = _type;
+	count = 1;
 
 	const ItemType& it = items[id];
-
-	count = 1;
 	if(it.charges != 0)
 		setCharges(it.charges);
 
@@ -192,13 +191,12 @@ ItemAttributes()
 	setDefaultDuration();
 }
 
-Item::Item(const Item &i) :
+Item::Item(const Item &i):
 Thing(), ItemAttributes()
 {
 	//std::cout << "Item copy constructor " << this << std::endl;
 	id = i.id;
 	count = i.count;
-
 	m_attributes = i.m_attributes;
 	if(i.m_firstAttr)
 		m_firstAttr = new Attribute(*i.m_firstAttr);
@@ -206,12 +204,12 @@ Thing(), ItemAttributes()
 
 Item* Item::clone() const
 {
-	Item* _item = Item::CreateItem(id, count);
-	_item->m_attributes = m_attributes;
+	Item* tmp = Item::CreateItem(id, count);
+	tmp->m_attributes = m_attributes;
 	if(m_firstAttr)
-		_item->m_firstAttr = new Attribute(*m_firstAttr);
+		tmp->m_firstAttr = new Attribute(*m_firstAttr);
 
-	return _item;
+	return tmp;
 }
 
 void Item::copyAttributes(Item* item)
@@ -232,9 +230,9 @@ Item::~Item()
 
 void Item::setDefaultSubtype()
 {
-	const ItemType& it = items[id];
-
 	count = 1;
+
+	const ItemType& it = items[id];
 	if(it.charges != 0)
 		setCharges(it.charges);
 }
@@ -289,121 +287,6 @@ void Item::setSubType(uint16_t n)
 		setCharges(n);
 	else
 		count = n;
-}
-
-bool Item::unserialize(xmlNodePtr nodeItem)
-{
-	int32_t intValue;
-	std::string strValue;
-
-	if(!readXMLInteger(nodeItem, "id", intValue))
-		return false;
-
-	id = intValue;
-	if(readXMLInteger(nodeItem, "count", intValue))
-		setSubType(intValue);
-
-	if(readXMLString(nodeItem, "special_description", strValue))
-		setSpecialDescription(strValue);
-
-	if(readXMLString(nodeItem, "text", strValue))
-		setText(strValue);
-
-	if(readXMLInteger(nodeItem, "written_date", intValue))
-		setDate(intValue);
-
-	if(readXMLString(nodeItem, "writer", strValue))
-		setWriter(strValue);
-
-	if(readXMLInteger(nodeItem, "actionId", intValue))
-		setActionId(intValue);
-
-	if(readXMLInteger(nodeItem, "uniqueId", intValue))
-		setUniqueId(intValue);
-
-	if(readXMLInteger(nodeItem, "duration", intValue))
-		setDuration(std::max((int32_t)0, intValue));
-
-	if(readXMLInteger(nodeItem, "decayState", intValue))
-	{
-		ItemDecayState_t decayState = (ItemDecayState_t)intValue;
-		if(decayState != DECAYING_FALSE)
-			setDecaying(DECAYING_PENDING);
-	}
-
-	return true;
-}
-
-xmlNodePtr Item::serialize()
-{
-	xmlNodePtr nodeItem = xmlNewNode(NULL,(const xmlChar*)"item");
-	char buffer[20];
-	sprintf(buffer, "%d", getID());
-	xmlSetProp(nodeItem, (const xmlChar*)"id", (const xmlChar*)buffer);
-
-	if(hasSubType())
-	{
-		sprintf(buffer, "%d", (int32_t)getSubType());
-		xmlSetProp(nodeItem, (const xmlChar*)"count", (const xmlChar*)buffer);
-	}
-
-	if(getSpecialDescription() != "")
-	{
-		char descBuffer[getSpecialDescription().size() + 20];
-		sprintf(descBuffer, "%s", getSpecialDescription().c_str());
-		xmlSetProp(nodeItem, (const xmlChar*)"special_description", (const xmlChar*)descBuffer);
-	}
-
-	if(getText() != "")
-	{
-		char textBuffer[getText().size() + 20];
-		sprintf(textBuffer, "%s", getText().c_str());
-		xmlSetProp(nodeItem, (const xmlChar*)"text", (const xmlChar*)textBuffer);
-	}
-
-	if(getDate() != 0)
-	{
-		sprintf(buffer, "%u", (uint32_t)getDate());
-		xmlSetProp(nodeItem, (const xmlChar*)"written_date", (const xmlChar*)buffer);
-	}
-
-	if(getWriter() != "")
-	{
-		char writerBuffer[getWriter().size() + 20];
-		sprintf(writerBuffer, "%s", getWriter().c_str());
-		xmlSetProp(nodeItem, (const xmlChar*)"writer", (const xmlChar*)writerBuffer);
-	}
-
-	if(!isNotMoveable())
-	{
-		if(getActionId() != 0)
-		{
-			sprintf(buffer, "%d", getActionId());
-			xmlSetProp(nodeItem, (const xmlChar*)"actionId", (const xmlChar*)buffer);
-		}
-
-		if(getUniqueId() != 0)
-		{
-			sprintf(buffer, "%d", getUniqueId());
-			xmlSetProp(nodeItem, (const xmlChar*)"uniqueId", (const xmlChar*)buffer);
-		}
-	}
-
-	uint32_t duration = getDuration();
-	if(hasAttribute(ATTR_ITEM_DURATION) && duration > 0)
-	{
-		sprintf(buffer, "%d", duration);
-		xmlSetProp(nodeItem, (const xmlChar*)"duration", (const xmlChar*)buffer);
-	}
-
-	uint32_t decayState = getDecaying();
-	if(decayState == DECAYING_TRUE || decayState == DECAYING_PENDING)
-	{
-		sprintf(buffer, "%d", decayState);
-		xmlSetProp(nodeItem, (const xmlChar*)"decayState", (const xmlChar*)buffer);
-	}
-
-	return nodeItem;
 }
 
 bool Item::readAttr(AttrTypes_t attr, PropStream& propStream)
@@ -918,6 +801,7 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance, const
 	if(item)
 		subType = item->getSubType();
 
+	bool dot = true;
 	if(it.isRune())
 	{
 		s << "(";
@@ -1024,22 +908,37 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance, const
 		if(it.abilities.stats[STAT_MAGICLEVEL] != 0)
 			s << ", magic level " << std::showpos << (int32_t)it.abilities.stats[STAT_MAGICLEVEL] << std::noshowpos;
 
-		bool begin = true;
-		for(uint32_t i = COMBAT_FIRST; i <= COMBAT_LAST; i++)
+		int32_t show = it.abilities.absorbPercent[COMBAT_FIRST];
+		for(uint32_t i = (COMBAT_FIRST + 1); i <= COMBAT_LAST; i++)
 		{
-			if(it.abilities.absorbPercent[i] != 0)
+			if(it.abilities.absorbPercent[i] != show)
 			{
-				if(begin)
-				{
-					s << ", protection ";
-					begin = false;
-				}
-				else
-					s << ", ";
-
-				s << getCombatName((CombatType_t)i) << " " << std::showpos << it.abilities.absorbPercent[i] << std::noshowpos << "%";
+				show = 0;
+				break;
 			}
 		}
+
+		if(!show)
+		{
+			bool begin = true;
+			for(uint32_t i = COMBAT_FIRST; i <= COMBAT_LAST; i++)
+			{
+				if(it.abilities.absorbPercent[i] != 0)
+				{
+					if(!begin)
+						s << ", ";
+			  		else
+					{
+						begin = false;
+						s << ", protection ";
+					}
+
+					s << getCombatName((CombatType_t)i) << " " << std::showpos << it.abilities.absorbPercent[i] << std::noshowpos << "%";
+				}
+			}
+		}
+		else
+			s << ", protection all " << std::showpos << show << std::noshowpos << "%";
 
 		if(it.abilities.speed > 0)
 			s << ", speed " << std::showpos << (it.abilities.speed / 2) << std::noshowpos;
@@ -1091,6 +990,7 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance, const
 					s << "You read: ";
 
 				s << item->getText();
+				dot = false;
 			}
 			else
 				s << "You are too far away to read it";
@@ -1122,7 +1022,9 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance, const
 			s << " that is brand-new";
 	}
 
-	s << ".";
+	if(dot)
+		s << ".";
+
 	if(it.wieldInfo != 0)
 	{
 		s << std::endl << "It can only be wielded properly by ";

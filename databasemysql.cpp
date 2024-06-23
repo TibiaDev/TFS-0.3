@@ -19,9 +19,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "otpch.h"
-
 #include <iostream>
-
 #if defined __WINDOWS__ || defined WIN32
 #include <winsock2.h>
 #endif
@@ -34,8 +32,9 @@
 #include <mysql/errmsg.h>
 #endif
 
-#include "configmanager.h"
 #include "scheduler.h"
+
+#include "configmanager.h"
 extern ConfigManager g_config;
 
 DatabaseMySQL::DatabaseMySQL()
@@ -84,11 +83,11 @@ bool DatabaseMySQL::getParam(DBParam_t param)
 	{
 		case DBPARAM_MULTIINSERT:
 			return true;
-			break;
 		default:
-			return false;
 			break;
 	}
+
+	return false;
 }
 
 bool DatabaseMySQL::beginTransaction()

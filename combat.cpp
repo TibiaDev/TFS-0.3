@@ -35,7 +35,6 @@ extern ConfigManager g_config;
 
 Combat::Combat()
 {
-	params.condition = NULL;
 	params.valueCallback = NULL;
 	params.tileCallback = NULL;
 	params.targetCallback = NULL;
@@ -50,7 +49,10 @@ Combat::Combat()
 
 Combat::~Combat()
 {
-	delete params.condition;
+	for(std::list<const Condition*>::iterator it = params.conditionList.begin(); it != params.conditionList.end(); ++it)
+		delete (*it);
+
+	params.conditionList.clear();
 	delete params.valueCallback;
 	delete params.tileCallback;
 	delete params.targetCallback;
@@ -515,16 +517,19 @@ bool Combat::CombatManaFunc(Creature* caster, Creature* target, const CombatPara
 bool Combat::CombatConditionFunc(Creature* caster, Creature* target, const CombatParams& params, void* data)
 {
 	bool result = false;
-	if(params.condition)
+	if(!params.conditionList.empty())
 	{
-		if(caster == target || !target->isImmune(params.condition->getType()))
+		for(std::list<const Condition*>::const_iterator it = params.conditionList.begin(); it != params.conditionList.end(); ++it)
 		{
-			Condition* conditionCopy = params.condition->clone();
-			if(caster)
-				conditionCopy->setParam(CONDITIONPARAM_OWNER, caster->getID());
+			if(caster == target || !target->isImmune((*it)->getType()))
+			{
+				Condition* tmp = (*it)->clone();
+				if(caster)
+					tmp->setParam(CONDITIONPARAM_OWNER, caster->getID());
 
-			//TODO: infight condition until all aggressive conditions has ended
-			result = target->addCombatCondition(conditionCopy);
+				//TODO: infight condition until all aggressive conditions has ended
+				result = target->addCombatCondition(tmp);
+			}
 		}
 	}
 	return result;
@@ -754,6 +759,7 @@ void Combat::doCombatHealth(Creature* caster, Creature* target,
 		Combat2Var var;
 		var.minChange = minChange;
 		var.maxChange = maxChange;
+
 		CombatHealthFunc(caster, target, params, (void*)&var);
 		if(params.impactEffect != NM_ME_NONE)
 			g_game.addMagicEffect(target->getPosition(), params.impactEffect);
@@ -1063,7 +1069,7 @@ bool AreaCombat::getList(const Position& centerPos, const Position& targetPos, s
 			{
 				if(tmpPos.x >= 0 && tmpPos.y >= 0 && tmpPos.z >= 0 &&
 					tmpPos.x <= 0xFFFF && tmpPos.y <= 0xFFFF && tmpPos.z < MAP_MAX_LAYERS
-					&& g_game.isSightClear(centerPos, tmpPos, true))
+					&& g_game.isSightClear(targetPos, tmpPos, true))
 				{
 					tile = g_game.getTile(tmpPos);
 					if(!tile)
@@ -1334,7 +1340,7 @@ void AreaCombat::setupExtArea(const std::list<uint32_t>& list, uint32_t rows)
 
 //**********************************************************
 
-void MagicField::onStepInField(Creature* creature)
+void MagicField::onStepInField(Creature* creature, bool purposeful/* = true*/)
 {
 	//remove magic walls/wild growth
 	if(isBlocking())
@@ -1346,7 +1352,7 @@ void MagicField::onStepInField(Creature* creature)
 		{
 			Condition* conditionCopy = it.condition->clone();
 			uint32_t owner = getOwner();
-			if(owner != 0)
+			if(purposeful && owner != 0)
 			{
 				bool harmfulField = true;
 				if(g_game.getWorldType() == WORLD_TYPE_NO_PVP || getTile()->hasFlag(TILESTATE_NOPVPZONE))

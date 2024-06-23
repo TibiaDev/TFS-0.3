@@ -49,6 +49,7 @@ Item* Container::clone() const
 	Container* _item = static_cast<Container*>(Item::clone());
 	for(ItemList::const_iterator it = itemlist.begin(); it != itemlist.end(); ++it)
 		_item->addItem((*it)->clone());
+
 	return _item;
 }
 
@@ -59,6 +60,7 @@ Container* Container::getParentContainer()
 		if(Item* item = thing->getItem())
 			return item->getContainer();
 	}
+
 	return NULL;
 }
 
@@ -66,70 +68,6 @@ void Container::addItem(Item* item)
 {
 	itemlist.push_back(item);
 	item->setParent(this);
-}
-
-bool Container::unserialize(xmlNodePtr nodeItem)
-{
-	bool ret = Item::unserialize(nodeItem);
-	if(ret)
-	{
-		xmlNodePtr nodeContainer = nodeItem->children;
-		if(nodeContainer == NULL)
-			return true; //container is empty
-
-		int32_t intValue;
-
-		while(nodeContainer)
-		{
-			//load container items
-			if(xmlStrcmp(nodeContainer->name, (const xmlChar*)"inside") == 0)
-			{
-				xmlNodePtr nodeContainerItem = nodeContainer->children;
-				while(nodeContainerItem)
-				{
-					if(xmlStrcmp(nodeContainerItem->name, (const xmlChar*)"item") == 0)
-					{
-						int32_t id = 0;
-						if(readXMLInteger(nodeContainerItem, "id", intValue))
-							id = intValue;
-						else
-							return false;
-
-						Item* item = Item::CreateItem(id);
-						if(!item)
-							return false;
-
-						if(!item->unserialize(nodeContainerItem))
-							return false;
-
-						addItem(item);
-					}
-					nodeContainerItem = nodeContainerItem->next;
-				}
-			}
-			nodeContainer = nodeContainer->next;
-		}
-		return true;
-	}
-	return false;
-}
-
-xmlNodePtr Container::serialize()
-{
-	xmlNodePtr nodeItem = Item::serialize();
-	xmlNodePtr newContainerNode;
-	if(size() > 0)
-	{
-		newContainerNode = xmlNewNode(NULL, (const xmlChar*)"inside");
-		for(int32_t i = size() - 1; i >= 0; --i)
-		{
-			Item* item = getItem(i);
-			xmlNodePtr newItemNode = item->serialize();
-			xmlAddChild(newContainerNode, newItemNode);
-		}
-		xmlAddChild(nodeItem, newContainerNode);
-	}
-	return nodeItem;
 }
 
 bool Container::unserializeItemNode(FileLoader& f, NODE node, PropStream& propStream)
@@ -161,8 +99,10 @@ bool Container::unserializeItemNode(FileLoader& f, NODE node, PropStream& propSt
 
 			nodeItem = f.getNextNode(nodeItem, type);
 		}
+
 		return true;
 	}
+
 	return false;
 }
 
@@ -178,6 +118,32 @@ double Container::getWeight() const
 	return Item::getWeight() + totalWeight;
 }
 
+std::string Container::getContentDescription() const
+{
+	std::stringstream s;
+	return getContentDescription(s).str();
+}
+
+std::stringstream& Container::getContentDescription(std::stringstream& s) const
+{
+	bool begin = true;
+	Container* evil = const_cast<Container*>(this);
+	for(ContainerIterator it = evil->begin(); it != evil->end(); ++it)
+	{
+		if(!begin)
+			s << ", ";
+		else
+			begin = false;
+
+		s << (*it)->getNameDescription();
+	}
+
+	if(begin)
+		s << "nothing";
+
+	return s;
+}
+
 Item* Container::getItem(uint32_t index)
 {
 	size_t n = 0;
@@ -188,55 +154,27 @@ Item* Container::getItem(uint32_t index)
 		else
 			++n;
 	}
+
 	return NULL;
 }
 
 uint32_t Container::getItemHoldingCount() const
 {
 	uint32_t counter = 0;
+	for(ContainerIterator it = begin(); it != end(); ++it)
+		++counter;
 
-	std::list<const Container*> listContainer;
-	ItemList::const_iterator cit;
-	listContainer.push_back(this);
-
-	while(listContainer.size() > 0)
-	{
-		const Container* container = listContainer.front();
-		listContainer.pop_front();
-		for(cit = container->getItems(); cit != container->getEnd(); ++cit)
-		{
-			Container* container = (*cit)->getContainer();
-			if(container)
-				listContainer.push_back(container);
-
-			++counter;
-		}
-	}
 	return counter;
 }
 
 bool Container::isHoldingItem(const Item* item) const
 {
-	std::list<const Container*> listContainer;
-	ItemList::const_iterator cit;
-	const Container* tmpContainer = NULL;
-
-	listContainer.push_back(this);
-
-	while(listContainer.size() > 0)
+	for(ContainerIterator it = begin(); it != end(); ++it)
 	{
-		const Container* container = listContainer.front();
-		listContainer.pop_front();
-
-		for(cit = container->getItems(); cit != container->getEnd(); ++cit)
-		{
-			if(*cit == item)
-				return true;
-
-			if((tmpContainer = (*cit)->getContainer()))
-				listContainer.push_back(tmpContainer);
-		}
+		if((*it) == item)
+			return true;
 	}
+
 	return false;
 }
 
@@ -820,4 +758,118 @@ void Container::__startDecaying()
 {
 	for(ItemList::const_iterator it = itemlist.begin(); it != itemlist.end(); ++it)
 		(*it)->__startDecaying();
+}
+
+ContainerIterator Container::begin()
+{
+	ContainerIterator cit(this);
+	if(!itemlist.empty())
+	{
+		cit.over.push(this);
+		cit.current = itemlist.begin();
+	}
+
+	return cit;
+}
+
+ContainerIterator Container::end()
+{
+	ContainerIterator cit(this);
+	return cit;
+}
+
+ContainerIterator Container::begin() const
+{
+	Container* evil = const_cast<Container*>(this);
+	return evil->begin();
+}
+
+ContainerIterator Container::end() const
+{
+	Container* evil = const_cast<Container*>(this);
+	return evil->end();
+}
+
+ContainerIterator::ContainerIterator():
+base(NULL) {}
+
+ContainerIterator::ContainerIterator(Container* _base):
+base(_base) {}
+
+ContainerIterator::ContainerIterator(const ContainerIterator& rhs):
+base(rhs.base), over(rhs.over), current(rhs.current) {}
+
+bool ContainerIterator::operator==(const ContainerIterator& rhs)
+{
+	return !(*this != rhs);
+}
+
+bool ContainerIterator::operator!=(const ContainerIterator& rhs)
+{
+	assert(base);
+	if(base != rhs.base)
+		return true;
+		
+	if(over.empty() && rhs.over.empty())
+		return false;
+
+	if(over.empty())
+		return true;
+
+	if(rhs.over.empty())
+		return true;
+
+	if(over.front() != rhs.over.front())
+		return true;
+	
+	return current != rhs.current;
+}
+
+ContainerIterator& ContainerIterator::operator=(const ContainerIterator& rhs) 
+{
+	this->base = rhs.base;
+	this->current = rhs.current;
+	this->over = rhs.over;
+	return *this;
+}
+
+Item* ContainerIterator::operator*() 
+{
+	assert(base);
+	return *current;
+}
+
+Item* ContainerIterator::operator->() 
+{
+	return *(*this);
+}
+
+ContainerIterator& ContainerIterator::operator++() 
+{
+	assert(base);
+	if(Item* item = *current)
+	{
+		Container* container = item->getContainer();
+		if(container && !container->itemlist.empty())
+			over.push(container);
+	}
+
+	++current;
+	if(current == over.front()->itemlist.end())
+	{
+		over.pop();
+		if(over.empty())
+			return *this;
+
+		current = over.front()->itemlist.begin();
+	}
+
+	return *this;
+}
+
+ContainerIterator ContainerIterator::operator++(int32_t)
+{
+	ContainerIterator tmp(*this);
+	++*this;
+	return tmp;
 }

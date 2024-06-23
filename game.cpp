@@ -71,7 +71,7 @@ Game::Game()
 	map = NULL;
 	lastPlayersRecord = lastStageLevel = 0;
 	useLastStageLevel = false;
-	stateTime = OTSYS_TIME();
+	stateDelay = OTSYS_TIME();
 	for(int8_t i = 0; i < 3; i++)
 		globalSaveMessage[i] = false;
 
@@ -121,7 +121,6 @@ void Game::setGameState(GameState_t newState)
 	if(gameState != newState)
 	{
 		gameState = newState;
-
 		switch(newState)
 		{
 			case GAME_STATE_INIT:
@@ -131,9 +130,8 @@ void Game::setGameState(GameState_t newState)
 				Raids::getInstance()->startup();
 				Quests::getInstance()->loadFromXml();
 
+				IOBan::getInstance()->clearTemporials();
 				loadGameState();
-				IOLoginData::getInstance()->resetOnlineStatus();
-				checkHighscores();
 				if(g_config.getBool(ConfigManager::REMOVE_PREMIUM_ON_INIT))
 					IOLoginData::getInstance()->updatePremiumDays();
 				break;
@@ -173,18 +171,17 @@ void Game::setGameState(GameState_t newState)
 						++it;
 				}
 
-				IOBan::getInstance()->clearTemporials();
 				Houses::getInstance().payHouses();
 				saveGameState(false);
 				break;
 			}
 
 			case GAME_STATE_NORMAL:
-				stateTime = OTSYS_TIME() + STATE_TIME;
+				stateDelay = OTSYS_TIME() + STATE_DELAY;
 				break;
 
 			case GAME_STATE_MAINTAIN:
-				stateTime = 0;
+				stateDelay = 0;
 				break;
 
 			case GAME_STATE_STARTUP:
@@ -208,28 +205,28 @@ void Game::saveGameState(bool savePlayers)
 	}
 
 	map->saveMap();
-	if(g_config.getBool(ConfigManager::SAVE_GLOBAL_STORAGE))
-		ScriptEnviroment::saveGameState();
+	ScriptEnviroment::saveGameState();
 }
 
 void Game::loadGameState()
 {
-	loadMotd();
-	loadPlayersRecord();
+	maxPlayers = g_config.getNumber(ConfigManager::MAX_PLAYERS);
+	inFightTicks = g_config.getNumber(ConfigManager::PZ_LOCKED);
+	Player::maxMessageBuffer = g_config.getNumber(ConfigManager::MAX_MESSAGEBUFFER);
+	Monster::despawnRange = g_config.getNumber(ConfigManager::DEFAULT_DESPAWNRANGE);
+	Monster::despawnRadius = g_config.getNumber(ConfigManager::DEFAULT_DESPAWNRADIUS);
 
+	IOLoginData::getInstance()->resetOnlineStatus();
+	loadPlayersRecord();
 	ScriptEnviroment::loadGameState();
+	checkHighscores();
+	loadMotd();
 }
 
 int32_t Game::loadMap(std::string filename)
 {
 	if(!map)
 		map = new Map;
-
-	maxPlayers = g_config.getNumber(ConfigManager::MAX_PLAYERS);
-	inFightTicks = g_config.getNumber(ConfigManager::PZ_LOCKED);
-	Player::maxMessageBuffer = g_config.getNumber(ConfigManager::MAX_MESSAGEBUFFER);
-	Monster::despawnRange = g_config.getNumber(ConfigManager::DEFAULT_DESPAWNRANGE);
-	Monster::despawnRadius = g_config.getNumber(ConfigManager::DEFAULT_DESPAWNRADIUS);
 
 	return map->loadMap(getFilePath(FILE_TYPE_OTHER, std::string("world/" + filename + ".otbm")));
 }
@@ -425,19 +422,15 @@ Thing* Game::internalGetThing(Player* player, const Position& pos, int32_t index
 				return NULL;
 
 			int32_t subType = -1;
-			if(it.isFluidContainer())
-			{
-				int32_t maxFluidType = sizeof(reverseFluidMap) / sizeof(uint32_t);
-				if(index < maxFluidType)
-					subType = reverseFluidMap[index];
-			}
+			if(it.isFluidContainer() && index < int32_t(sizeof(reverseFluidMap) / sizeof(int32_t)))
+				subType = reverseFluidMap[index];
 
 			return findItemOfType(player, it.id, true, subType);
 		}
 		//inventory
 		else
 		{
-			slots_t slot = (slots_t)static_cast<unsigned char>(pos.y);
+			slots_t slot = (slots_t)static_cast<uint8_t>(pos.y);
 			return player->getInventoryItem(slot);
 		}
 	}
@@ -648,37 +641,19 @@ bool Game::placeCreature(Creature* creature, const Position& pos, bool extendedP
 	int32_t newStackPos = creature->getParent()->__getIndexOfThing(creature);
 	creature->getParent()->postAddNotification(NULL, creature, newStackPos);
 
-	Player* player = creature->getPlayer();
-	if(player)
+	if(Player* player = creature->getPlayer())
 	{
-		Condition* conditionMuted = player->getCondition(CONDITION_MUTED, CONDITIONID_DEFAULT);
-		if(conditionMuted && conditionMuted->getTicks() > 0)
+		for(uint32_t i = 0; i < 4; ++i)
 		{
-			conditionMuted->setTicks(conditionMuted->getTicks() - (time(NULL) - player->getLastLogout()) * 1000);
-			if(conditionMuted->getTicks() <= 0)
-				player->removeCondition(conditionMuted);
-			else
-				player->addCondition(conditionMuted->clone());
-		}
-
-		Condition* conditionTrade = player->getCondition(CONDITION_TRADETICKS, CONDITIONID_DEFAULT);
-		if(conditionTrade && conditionTrade->getTicks() > 0)
-		{
-			conditionTrade->setTicks(conditionTrade->getTicks() - (time(NULL) - player->getLastLogout()) * 1000);
-			if(conditionTrade->getTicks() <= 0)
-				player->removeCondition(conditionTrade);
-			else
-				player->addCondition(conditionTrade->clone());
-		}
-
-		Condition* conditionYell = player->getCondition(CONDITION_YELLTICKS, CONDITIONID_DEFAULT);
-		if(conditionYell && conditionYell->getTicks() > 0)
-		{
-			conditionYell->setTicks(conditionYell->getTicks() - (time(NULL) - player->getLastLogout()) * 1000);
-			if(conditionYell->getTicks() <= 0)
-				player->removeCondition(conditionYell);
-			else
-				player->addCondition(conditionYell->clone());
+			Condition* condition = player->getCondition(CONDITION_MUTED, CONDITIONID_DEFAULT, i);
+			if(condition && condition->getTicks() > 0)
+			{
+				condition->setTicks(condition->getTicks() - (time(NULL) - player->getLastLogout()) * 1000);
+				if(condition->getTicks() <= 0)
+					player->removeCondition(condition);
+				else
+					player->addCondition(condition->clone());
+			}
 		}
 	}
 
@@ -2215,7 +2190,7 @@ bool Game::playerUseItemEx(uint32_t playerId, const Position& fromPos, uint8_t f
 			}
 
 			std::list<Direction> listDir;
-			if(getPathToEx(player, walkToPos, listDir, 0, 1, true, true))
+			if(getPathToEx(player, walkToPos, listDir, 0, 1, true, true, 10))
 			{
 				Dispatcher::getDispatcher().addTask(createTask(boost::bind(&Game::playerAutoWalk,
 					this, player->getID(), listDir)));
@@ -2952,26 +2927,19 @@ bool Game::playerPurchaseItem(uint32_t playerId, uint16_t spriteId, uint8_t coun
 	if(player == NULL || player->isRemoved())
 		return false;
 
-	int32_t onBuy;
-	int32_t onSell;
+	int32_t onBuy, onSell;
 
 	Npc* merchant = player->getShopOwner(onBuy, onSell);
 	if(merchant == NULL)
 		return false;
 
 	const ItemType& it = Item::items.getItemIdByClientId(spriteId);
-	if(it.id == 0)
+	if(it.id == 0 || !player->canShopItem(it.id, SHOPEVENT_BUY))
 		return false;
 
-	uint8_t subType = 0;
-	if(it.isFluidContainer())
-	{
-		int32_t maxFluidType = sizeof(reverseFluidMap) / sizeof(uint32_t);
-		if(count < maxFluidType)
-			subType = (uint8_t)reverseFluidMap[count];
-	}
-	else
-		subType = count;
+	uint8_t subType = count;
+	if(it.isFluidContainer() && count < uint8_t(sizeof(reverseFluidMap) / sizeof(int32_t)))
+		subType = reverseFluidMap[count];
 
 	merchant->onPlayerTrade(player, SHOPEVENT_BUY, onBuy, it.id, subType, amount, ignoreCap, inBackpacks);
 	return true;
@@ -2983,26 +2951,19 @@ bool Game::playerSellItem(uint32_t playerId, uint16_t spriteId, uint8_t count, u
 	if(player == NULL || player->isRemoved())
 		return false;
 
-	int32_t onBuy;
-	int32_t onSell;
+	int32_t onBuy, onSell;
 
 	Npc* merchant = player->getShopOwner(onBuy, onSell);
 	if(merchant == NULL)
 		return false;
 
 	const ItemType& it = Item::items.getItemIdByClientId(spriteId);
-	if(it.id == 0)
+	if(it.id == 0 || !player->canShopItem(it.id, SHOPEVENT_SELL))
 		return false;
 
-	uint8_t subType = 0;
-	if(it.isFluidContainer())
-	{
-		int32_t maxFluidType = sizeof(reverseFluidMap) / sizeof(uint32_t);
-		if(count < maxFluidType)
-			subType = (uint8_t)reverseFluidMap[count];
-	}
-	else
-		subType = count;
+	uint8_t subType = count;
+	if(it.isFluidContainer() && count < uint8_t(sizeof(reverseFluidMap) / sizeof(int32_t)))
+		subType = reverseFluidMap[count];
 
 	merchant->onPlayerTrade(player, SHOPEVENT_SELL, onSell, it.id, subType, amount);
 	return true;
@@ -3028,15 +2989,9 @@ bool Game::playerLookInShop(uint32_t playerId, uint16_t spriteId, uint8_t count)
 	if(it.id == 0)
 		return false;
 
-	int32_t subType = 0;
-	if(it.isFluidContainer())
-	{
-		int32_t maxFluidType = sizeof(reverseFluidMap) / sizeof(uint32_t);
-		if(count < maxFluidType)
-			subType = reverseFluidMap[count];
-	}
-	else
-		subType = count;
+	int32_t subType = count;
+	if(it.isFluidContainer() && count < uint8_t(sizeof(reverseFluidMap) / sizeof(int32_t)))
+		subType = reverseFluidMap[count];
 
 	std::stringstream ss;
 	ss << "You see " << Item::getDescription(it, 1, NULL, subType);
@@ -3357,11 +3312,11 @@ bool Game::playerYell(Player* player, const std::string& text)
 {
 	if(player->getLevel() > 1)
 	{
-		if(!player->hasCondition(CONDITION_YELLTICKS))
+		if(!player->hasCondition(CONDITION_MUTED, 1))
 		{
 			if(!player->hasFlag(PlayerFlag_CannotBeMuted))
 			{
-				if(Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_YELLTICKS, 30000, 0))
+				if(Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_MUTED, 30000, 0, false, 1))
 					player->addCondition(condition);
 			}
 
@@ -3563,7 +3518,6 @@ bool Game::internalCreatureTurn(Creature* creature, Direction dir)
 	if(creature->getDirection() != dir)
 	{
 		creature->setDirection(dir);
-
 		int32_t stackpos = creature->getParent()->__getIndexOfThing(creature);
 
 		const SpectatorVec& list = getSpectators(creature->getPosition());
@@ -3589,6 +3543,7 @@ bool Game::internalCreatureTurn(Creature* creature, Direction dir)
 						}
 					}
 				}
+
 				tmpPlayer->sendCreatureTurn(creature, stackpos - i);
 			}
 		}
@@ -3599,6 +3554,7 @@ bool Game::internalCreatureTurn(Creature* creature, Direction dir)
 
 		return true;
 	}
+
 	return false;
 }
 
@@ -3961,8 +3917,9 @@ bool Game::combatChangeHealth(CombatType_t combatType, Creature* attacker, Creat
 
 				target->drainHealth(attacker, combatType, damage);
 				addCreatureHealth(list, target);
+
 				TextColor_t textColor = TEXTCOLOR_NONE;
-				uint8_t hitEffect = 0;
+				MagicEffectClasses hitEffect = NM_ME_NONE;
 				switch(combatType)
 				{
 					case COMBAT_PHYSICALDAMAGE:
@@ -4412,23 +4369,19 @@ bool Game::closeRuleViolation(Player* player)
 
 void Game::shutdown()
 {
-	std::cout << "Preparing shutdown";
-	IOBan::getInstance()->clearTemporials();
-	std::cout << ".";
+	std::cout << "Preparing";
+	Spawns::getInstance()->clear();
+	std::cout << " shutdown";
 	Scheduler::getScheduler().shutdown();
 	std::cout << ".";
 	Dispatcher::getDispatcher().shutdown();
-	std::cout << "." << std::endl;
-
-	std::cout << "Exiting";
-	Spawns::getInstance()->clear();
 	std::cout << ".";
 	if(g_server)
 		g_server->stop();
 
-	std::cout << ".";
-	cleanup();
 	std::cout << "." << std::endl;
+	cleanup();
+	std::cout << "Exiting" << std::endl;
 	exit(1);
 }
 
@@ -4606,9 +4559,15 @@ void Game::globalSave()
 		if(g_config.getBool(ConfigManager::CLEAN_MAP_AT_GLOBALSAVE))
 			map->clean();
 
-		//remove premium days from accounts
+		//clear temporial and expired bans
+		IOBan::getInstance()->clearTemporials();
+
+		//remove premium days globally if configured to
 		if(g_config.getBool(ConfigManager::REMOVE_PREMIUM_ON_INIT))
 			IOLoginData::getInstance()->updatePremiumDays();
+
+		//pay all houses
+		Houses::getInstance().payHouses();
 
 		//reload highscores
 		reloadHighscores();
@@ -5280,6 +5239,7 @@ bool Game::playerJoinParty(uint32_t playerId, uint32_t leaderId)
 		player->sendTextMessage(MSG_INFO_DESCR, "You are already in a party.");
 		return false;
 	}
+
 	return leader->getParty()->joinParty(player);
 }
 
