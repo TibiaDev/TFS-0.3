@@ -30,25 +30,21 @@ class SchedulerTask : public Task
 	public:
 		virtual ~SchedulerTask() {}
 
-		void setEventId(uint32_t eventid) {m_eventid = eventid;}
-		uint32_t getEventId() const {return m_eventid;}
+		void setEventId(uint32_t eventId) {m_eventId = eventId;}
+		uint32_t getEventId() const {return m_eventId;}
 
-		uint64_t getCycle() const {return m_cycle;}
+		int64_t getCycle() const {return m_expiration;}
 		bool operator<(const SchedulerTask& other) const {return getCycle() > other.getCycle();}
 
 	protected:
-		SchedulerTask(uint32_t delay, boost::function<void (void)> f) : Task(f)
-		{
-			m_cycle = OTSYS_TIME() + delay;
-			m_eventid = 0;
-		}
+		uint32_t m_eventId;
 
-		uint64_t m_cycle;
-		uint32_t m_eventid;
-		friend SchedulerTask* createSchedulerTask(uint32_t, boost::function<void (void)>);
+		SchedulerTask(uint32_t delay, const boost::function<void (void)>& f):
+			Task(delay, f), m_eventId(0) {}
+		friend SchedulerTask* createSchedulerTask(uint32_t, const boost::function<void (void)>&);
 };
 
-inline SchedulerTask* createSchedulerTask(uint32_t delay, boost::function<void (void)> f)
+inline SchedulerTask* createSchedulerTask(uint32_t delay, const boost::function<void (void)>& f)
 {
 	assert(delay != 0);
 	if(delay < SCHEDULER_MINTICKS)

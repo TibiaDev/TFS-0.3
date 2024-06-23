@@ -18,12 +18,14 @@
 #include <iostream>
 #include <libxml/xmlmemory.h>
 
+#include "configmanager.h"
 #include "items.h"
 #include "weapons.h"
 
 #include "condition.h"
 #include "spells.h"
 extern Spells* g_spells;
+extern ConfigManager g_config;
 
 uint32_t Items::dwMajorVersion = 0;
 uint32_t Items::dwMinorVersion = 0;
@@ -39,32 +41,22 @@ ItemType::ItemType()
 	moveable = true;
 	alwaysOnTop = false;
 	alwaysOnTopOrder = 0;
-	pickupable = false;
-	rotable = false;
+	pickupable = rotable = false;
 	rotateTo = 0;
-	hasHeight = false;
-	forceSerialize = false;
+	hasHeight = forceSerialize = false;
 
 	floorChangeDown = true;
-	floorChangeNorth = false;
-	floorChangeSouth = false;
-	floorChangeEast = false;
-	floorChangeWest = false;
+	floorChangeNorth = floorChangeSouth = floorChangeEast = floorChangeWest = false;
 
-	blockSolid = false;
-	blockProjectile = false;
-	blockPathFind = false;
-	allowPickupable = false;
+	blockSolid = blockProjectile = blockPathFind = allowPickupable = false;
 
 	wieldInfo = 0;
 	minReqLevel = 0;
 	minReqMagicLevel = 0;
 
-	runeMagLevel = 0;
-	runeLevel = 0;
+	runeMagLevel = runeLevel = 0;
 
-	speed = 0;
-	id = 0;
+	speed = id = 0;
 	clientId = 100;
 	maxItems = 8; //maximum size if this is a container
 	weight = 0; //weight of the item, e.g. throwing distance depends on it
@@ -76,10 +68,8 @@ ItemType::ItemType()
 	ammoAction = AMMOACTION_NONE;
 	shootType = (ShootType_t)0;
 	magicEffect = NM_ME_NONE;
-	attack = 0;
-	extraAttack = 0;
-	defense = 0;
-	extraDefense = 0;
+	attack = extraAttack = 0;
+	defense = extraDefense = 0;
 	attackSpeed = 0;
 	armor = 0;
 	decayTo = -1;
@@ -90,26 +80,17 @@ ItemType::ItemType()
 	clientCharges = false;
 	allowDistRead = false;
 
-	isVertical = false;
-	isHorizontal = false;
-	isHangable = false;
-
-	lightLevel = 0;
-	lightColor = 0;
+	isVertical = isHorizontal = isHangable = false;
+	lightLevel = lightColor = 0;
 
 	maxTextLen = 0;
-	canReadText = false;
-	canWriteText = false;
+	canReadText = canWriteText = false;
 	writeOnceItemId = 0;
 
-	transformEquipTo = 0;
-	transformDeEquipTo = 0;
-	showDuration = false;
-	showCharges = false;
+	transformEquipTo = transformDeEquipTo = 0;
+	showDuration = showCharges = showAttributes = false;
 	charges	= 0;
-	hitChance = -1;
-	maxHitChance = -1;
-	breakChance = -1;
+	hitChance = maxHitChance = breakChance = -1;
 	shootRange = 1;
 
 	condition = NULL;
@@ -203,7 +184,7 @@ int32_t Items::loadFromOtb(std::string file)
 		std::cout << "[Error - Items::loadFromOtb] New version detected, an older version of items.otb is required." << std::endl;
 		return ERROR_INVALID_FORMAT;
 	}
-	else if(Items::dwMinorVersion != CLIENT_VERSION_840)
+	else if(Items::dwMinorVersion != CLIENT_VERSION_842)
 	{
 		std::cout << "[Error - Items::loadFromOtb] Another (client) version of items.otb is required." << std::endl;
 		return ERROR_INVALID_FORMAT;
@@ -559,7 +540,12 @@ void Items::parseItemNode(xmlNodePtr itemNode, uint32_t id)
 				if(readXMLString(itemAttributesNode, "value", strValue))
 				{
 					tmpStrValue = asLowerCaseString(strValue);
-					if(tmpStrValue == "key")
+					if(tmpStrValue == "container")
+					{
+						it.type = ITEM_TYPE_CONTAINER;
+						it.group = ITEM_GROUP_CONTAINER;
+					}
+					else if(tmpStrValue == "key")
 						it.type = ITEM_TYPE_KEY;
 					else if(tmpStrValue == "magicfield")
 						it.type = ITEM_TYPE_MAGICFIELD;
@@ -725,6 +711,11 @@ void Items::parseItemNode(xmlNodePtr itemNode, uint32_t id)
 					it.canWriteText = (intValue != 0);
 					it.canReadText = (intValue != 0);
 				}
+			}
+			else if(tmpStrValue == "readable")
+			{
+				if(readXMLInteger(itemAttributesNode, "value", intValue))
+					it.canReadText = (intValue != 0);
 			}
 			else if(tmpStrValue == "maxtextlen" || tmpStrValue == "maxtextlength")
 			{
@@ -912,6 +903,11 @@ void Items::parseItemNode(xmlNodePtr itemNode, uint32_t id)
 			{
 				if(readXMLInteger(itemAttributesNode, "value", intValue))
 					it.showCharges = (intValue != 0);
+			}
+			else if(tmpStrValue == "showattributes")
+			{
+				if(readXMLInteger(itemAttributesNode, "value", intValue))
+					it.showAttributes = (intValue != 0);
 			}
 			else if(tmpStrValue == "breakchance")
 			{
@@ -1545,6 +1541,18 @@ void Items::parseRandomizationBlock(int32_t id, int32_t fromId, int32_t toId, in
 	randomizationMap[id] = rand;
 }
 
+uint16_t Items::getRandomizedItem(uint16_t id)
+{
+	if(!g_config.getBool(ConfigManager::RANDOMIZE_TILES))
+		return id;
+
+	RandomizationBlock randomize = getRandomization(id);
+	if(randomize.chance > 0 && random_range(0, 100) <= randomize.chance)
+		id = random_range(randomize.fromRange, randomize.toRange);
+
+	return id;
+}
+
 ItemType& Items::getItemType(int32_t id)
 {
 	ItemType* iType = items.getElement(id);
@@ -1552,7 +1560,7 @@ ItemType& Items::getItemType(int32_t id)
 		return *iType;
 
 	#ifdef __DEBUG__
-	std::cout << "> WARNING: Unknown itemtype with id " << id << ", using defaults." << std::endl;
+	std::cout << "[Warning - Items::getItemType] Unknown itemtype with id " << id << ", using defaults." << std::endl;
 	#endif
 	static ItemType dummyItemType; // use this for invalid ids
 	return dummyItemType;
@@ -1560,8 +1568,7 @@ ItemType& Items::getItemType(int32_t id)
 
 const ItemType& Items::getItemType(int32_t id) const
 {
-	ItemType* iType = items.getElement(id);
-	if(iType)
+	if(ItemType* iType = items.getElement(id))
 		return *iType;
 
 	static ItemType dummyItemType; // use this for invalid ids

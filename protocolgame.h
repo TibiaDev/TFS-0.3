@@ -66,8 +66,8 @@ class ProtocolGame : public Protocol
 		static const char* protocolName() {return "game protocol";}
 
 		bool login(const std::string& name, uint32_t accnumber, const std::string& password,
-			OperatingSystem_t operatingSystem, bool gamemasterLogin);
-		bool logout(bool displayEffect, bool forced);
+			OperatingSystem_t operatingSystem, uint32_t version, bool gamemasterLogin);
+		bool logout(bool displayEffect, bool forced, bool executeLogout = true);
 
 		void setPlayer(Player* p);
 
@@ -226,14 +226,14 @@ class ProtocolGame : public Protocol
 		void sendCreatureSquare(const Creature* creature, SquareColor_t color);
 
 		//tiles
-		void sendAddTileItem(const Tile* tile, const Position& pos, const Item* item);
+		void sendAddTileItem(const Tile* tile, const Position& pos, uint32_t stackpos, const Item* item);
 		void sendUpdateTileItem(const Tile* tile, const Position& pos, uint32_t stackpos, const Item* item);
 		void sendRemoveTileItem(const Tile* tile, const Position& pos, uint32_t stackpos);
 		void sendUpdateTile(const Tile* tile, const Position& pos);
 
-		void sendAddCreature(const Creature* creature, bool isLogin);
+		void sendAddCreature(const Creature* creature, const Position& pos, uint32_t stackpos, bool isLogin);
 		void sendRemoveCreature(const Creature* creature, const Position& pos, uint32_t stackpos, bool isLogout);
-		void sendMoveCreature(const Creature* creature, const Tile* newTile, const Position& newPos,
+		void sendMoveCreature(const Creature* creature, const Tile* newTile, const Position& newPos, uint32_t newStackPos,
 			const Tile* oldTile, const Position& oldPos, uint32_t oldStackpos, bool teleport);
 
 		//containers
@@ -279,8 +279,8 @@ class ProtocolGame : public Protocol
 		void AddCreatureLight(NetworkMessage_ptr msg, const Creature* creature);
 
 		//tiles
-		void AddTileItem(NetworkMessage_ptr msg, const Position& pos, const Item* item);
-		void AddTileCreature(NetworkMessage_ptr msg, const Position& pos, const Creature* creature);
+		void AddTileItem(NetworkMessage_ptr msg, const Position& pos, uint32_t stackpos, const Item* item);
+		void AddTileCreature(NetworkMessage_ptr msg, const Position& pos, uint32_t stackpos, const Creature* creature);
 		void UpdateTileItem(NetworkMessage_ptr msg, const Position& pos, uint32_t stackpos, const Item* item);
 		void RemoveTileItem(NetworkMessage_ptr msg, const Position& pos, uint32_t stackpos);
 
@@ -305,37 +305,10 @@ class ProtocolGame : public Protocol
 		//shop
 		void AddShopItem(NetworkMessage_ptr msg, const ShopInfo item);
 
-		template<class T1, class f1, class r>
-		void addGameTask(r (Game::*f)(f1), T1 p1);
-
-		template<class T1, class T2, class f1, class f2, class r>
-		void addGameTask(r (Game::*f)(f1, f2), T1 p1, T2 p2);
-
-		template<class T1, class T2, class T3, class f1, class f2, class f3,
-		class r>
-		void addGameTask(r (Game::*f)(f1, f2, f3), T1 p1, T2 p2, T3 p3);
-
-		template<class T1, class T2, class T3, class T4, class f1, class f2,
-		class f3, class f4, class r>
-		void addGameTask(r (Game::*f)(f1, f2, f3, f4), T1 p1, T2 p2, T3 p3, T4 p4);
-
-		template<class T1, class T2, class T3, class T4, class T5, class f1,
-		class f2, class f3, class f4, class f5, class r>
-		void addGameTask(r (Game::*f)(f1, f2, f3, f4, f5), T1 p1, T2 p2, T3 p3, T4 p4, T5 p5);
-
-		template<class T1, class T2, class T3, class T4, class T5, class T6,
-		class f1, class f2, class f3, class f4, class f5, class f6, class r>
-		void addGameTask(r (Game::*f)(f1, f2, f3, f4, f5, f6), T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6);
-
-		template<class T1, class T2, class T3, class T4, class T5, class T6,
-		class T7, class f1, class f2, class f3, class f4, class f5, class f6,
-		class f7, class r>
-		void addGameTask(r (Game::*f)(f1, f2, f3, f4, f5, f6, f7), T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7);
-
-		template<class T1, class T2, class T3, class T4, class T5, class T6,
-		class T7, class T8, class f1, class f2, class f3, class f4, class f5,
-		class f6, class f7, class f8, class r>
-		void addGameTask(r (Game::*f)(f1, f2, f3, f4, f5, f6, f7, f8), T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8);
+		#define addGameTask(f, ...) addGameTaskInternal(false, 0, boost::bind(f, &g_game, __VA_ARGS__))
+		#define addGameTaskTimed(delay, f, ...) addGameTaskInternal(true, delay, boost::bind(f, &g_game, __VA_ARGS__))
+		template<class FunctionType>
+		void addGameTaskInternal(bool droppable, uint32_t delay, const FunctionType&);
 
 		friend class Player;
 		Player* player;

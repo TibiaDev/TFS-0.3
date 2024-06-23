@@ -87,8 +87,7 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 		return false;
 
 	StringVec strVector;
-	IntegerVec intVector;
-	IntegerVec endIntVector;
+	IntegerVec intVector, endIntVector;
 
 	std::string strValue, endStrValue;
 	int32_t tmp = 0;
@@ -96,37 +95,30 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 	bool success = true;
 	if(readXMLString(p, "itemid", strValue))
 	{
-		strVector = explodeString(strValue, ";");
-		for(StringVec::iterator it = strVector.begin(); it != strVector.end(); ++it)
+		if(!parseIntegerVec(strValue, intVector))
 		{
-			intVector = vectorAtoi(explodeString((*it), "-"));
-			if(!intVector[0])
-				continue;
+			std::cout << "[Warning - Actions::registerEvent] Invalid itemid - '" << strValue << "'" << std::endl;
+			return false;
+		}
 
-			if(useItemMap.find(intVector[0]) != useItemMap.end())
+		if(useItemMap.find(intVector[0]) != useItemMap.end())
+		{
+			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item id: " << intVector[0] << std::endl;
+			success = false;
+		}
+		else
+			useItemMap[intVector[0]] = action;
+
+		size_t size = intVector.size();
+		for(size_t i = 1; i < size; ++i)
+		{
+			if(useItemMap.find(intVector[i]) != useItemMap.end())
 			{
-				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item id: " << intVector[0];
-				std::cout << ", in: " << (*it) << "." << std::endl;
+				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item id: " << intVector[i] << std::endl;
 				success = false;
 			}
 			else
-				useItemMap[intVector[0]] = action;
-
-			if(intVector.size() > 1)
-			{
-				while(intVector[0] < intVector[1])
-				{
-					intVector[0]++;
-					if(useItemMap.find(intVector[0]) != useItemMap.end())
-					{
-						std::cout << "[Warning - Actions::registerEvent] Duplicate registered item id: " << intVector[0];
-						std::cout << ", in: " << (*it) << "." << std::endl;
-						continue;
-					}
-
-					useItemMap[intVector[0]] = new Action(action);
-				}
-			}
+				useItemMap[intVector[i]] = new Action(action);
 		}
 	}
 	else if(readXMLString(p, "fromid", strValue) && readXMLString(p, "toid", endStrValue))
@@ -141,7 +133,8 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 				tmp = intVector[i];
 				if(useItemMap.find(intVector[i]) != useItemMap.end())
 				{
-					std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with id: " << tmp << ", in fromid: " << tmp << " and toid: " << endIntVector[i] << std::endl;
+					std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with id: " << tmp <<
+						", in fromid: " << tmp << " and toid: " << endIntVector[i] << std::endl;
 					success = false;
 				}
 				else
@@ -152,7 +145,8 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 					intVector[i]++;
 					if(useItemMap.find(intVector[i]) != useItemMap.end())
 					{
-						std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with id: " << intVector[i] << ", in fromid: " << tmp << " and toid: " << endIntVector[i] << std::endl;
+						std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with id: " << intVector[i] <<
+							", in fromid: " << tmp << " and toid: " << endIntVector[i] << std::endl;
 						continue;
 					}
 
@@ -161,41 +155,35 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 			}
 		}
 		else
-			std::cout << "[Warning - Actions::registerEvent] Malformed entry (from: \"" << strValue << "\", to: \"" << endStrValue << "\")" << std::endl;
+			std::cout << "[Warning - Actions::registerEvent] Malformed entry (from: \"" << strValue <<
+				"\", to: \"" << endStrValue << "\")" << std::endl;
 	}
 	else if(readXMLString(p, "uniqueid", strValue))
 	{
-		strVector = explodeString(strValue, ";");
-		for(StringVec::iterator it = strVector.begin(); it != strVector.end(); ++it)
+		if(!parseIntegerVec(strValue, intVector))
 		{
-			intVector = vectorAtoi(explodeString((*it), "-"));
-			if(!intVector[0])
-				continue;
+			std::cout << "[Warning - Actions::registerEvent] Invalid uniqueid - '" << strValue << "'" << std::endl;
+			return false;
+		}
 
-			if(uniqueItemMap.find(intVector[0]) != uniqueItemMap.end())
+		if(uniqueItemMap.find(intVector[0]) != uniqueItemMap.end())
+		{
+			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item uniqueid: " << intVector[0] << std::endl;
+			success = false;
+		}
+		else
+			uniqueItemMap[intVector[0]] = action;
+
+		size_t size = intVector.size();
+		for(size_t i = 1; i < size; ++i)
+		{
+			if(uniqueItemMap.find(intVector[i]) != uniqueItemMap.end())
 			{
-				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item uid: " << intVector[0];
-				std::cout << ", in: " << (*it) << "." << std::endl;
+				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item uniqueid: " << intVector[i] << std::endl;
 				success = false;
 			}
 			else
-				uniqueItemMap[intVector[0]] = action;
-
-			if(intVector.size() > 1)
-			{
-				while(intVector[0] < intVector[1])
-				{
-					intVector[0]++;
-					if(uniqueItemMap.find(intVector[0]) != uniqueItemMap.end())
-					{
-						std::cout << "[Warning - Actions::registerEvent] Duplicate registered item uid: " << intVector[0];
-						std::cout << ", in: " << (*it) << "." << std::endl;
-						continue;
-					}
-
-					uniqueItemMap[intVector[0]] = new Action(action);
-				}
-			}
+				uniqueItemMap[intVector[i]] = new Action(action);
 		}
 	}
 	else if(readXMLString(p, "fromuid", strValue) && readXMLString(p, "touid", endStrValue))
@@ -210,7 +198,8 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 				tmp = intVector[i];
 				if(uniqueItemMap.find(intVector[i]) != uniqueItemMap.end())
 				{
-					std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with uid: " << tmp << ", in fromuid: " << tmp << " and touid: " << endIntVector[i] << std::endl;
+					std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with uid: " << tmp <<
+						", in fromuid: " << tmp << " and touid: " << endIntVector[i] << std::endl;
 					success = false;
 				}
 				else
@@ -221,7 +210,8 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 					intVector[i]++;
 					if(uniqueItemMap.find(intVector[i]) != uniqueItemMap.end())
 					{
-						std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with uid: " << intVector[i] << ", in fromuid: " << tmp << " and touid: " << endIntVector[i] << std::endl;
+						std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with uid: " << intVector[i] <<
+							", in fromuid: " << tmp << " and touid: " << endIntVector[i] << std::endl;
 						continue;
 					}
 
@@ -230,41 +220,35 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 			}
 		}
 		else
-			std::cout << "[Warning - Actions::registerEvent] Malformed entry (from: \"" << strValue << "\", to: \"" << endStrValue << "\")" << std::endl;
+			std::cout << "[Warning - Actions::registerEvent] Malformed entry (from: \"" << strValue <<
+				"\", to: \"" << endStrValue << "\")" << std::endl;
 	}
 	else if(readXMLString(p, "actionid", strValue))
 	{
-		strVector = explodeString(strValue, ";");
-		for(StringVec::iterator it = strVector.begin(); it != strVector.end(); ++it)
+		if(!parseIntegerVec(strValue, intVector))
 		{
-			intVector = vectorAtoi(explodeString((*it), "-"));
-			if(!intVector[0])
-				continue;
+			std::cout << "[Warning - Actions::registerEvent] Invalid itemid - '" << strValue << "'" << std::endl;
+			return false;
+		}
 
-			if(actionItemMap.find(intVector[0]) != actionItemMap.end())
+		if(actionItemMap.find(intVector[0]) != actionItemMap.end())
+		{
+			std::cout << "[Warning - Actions::registerEvent] Duplicate registered item actionid: " << intVector[0] << std::endl;
+			success = false;
+		}
+		else
+			actionItemMap[intVector[0]] = action;
+
+		size_t size = intVector.size();
+		for(size_t i = 1; i < size; ++i)
+		{
+			if(actionItemMap.find(intVector[i]) != actionItemMap.end())
 			{
-				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item aid: " << intVector[0];
-				std::cout << ", in: " << (*it) << "." << std::endl;
+				std::cout << "[Warning - Actions::registerEvent] Duplicate registered item actionid: " << intVector[i] << std::endl;
 				success = false;
 			}
 			else
-				actionItemMap[intVector[0]] = action;
-
-			if(intVector.size() > 1)
-			{
-				while(intVector[0] < intVector[1])
-				{
-					intVector[0]++;
-					if(actionItemMap.find(intVector[0]) != actionItemMap.end())
-					{
-						std::cout << "[Warning - Actions::registerEvent] Duplicate registered item aid: " << intVector[0];
-						std::cout << ", in: " << (*it) << "." << std::endl;
-						continue;
-					}
-
-					actionItemMap[intVector[0]] = new Action(action);
-				}
-			}
+				actionItemMap[intVector[i]] = new Action(action);
 		}
 	}
 	else if(readXMLString(p, "fromaid", strValue) && readXMLString(p, "toaid", endStrValue))
@@ -279,7 +263,8 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 				tmp = intVector[i];
 				if(actionItemMap.find(intVector[i]) != actionItemMap.end())
 				{
-					std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with aid: " << tmp << ", in fromaid: " << tmp << " and toaid: " << endIntVector[i] << std::endl;
+					std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with aid: " << tmp <<
+						", in fromaid: " << tmp << " and toaid: " << endIntVector[i] << std::endl;
 					success = false;
 				}
 				else
@@ -290,7 +275,8 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 					intVector[i]++;
 					if(actionItemMap.find(intVector[i]) != actionItemMap.end())
 					{
-						std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with aid: " << intVector[i] << ", in fromaid: " << tmp << " and toaid: " << endIntVector[i] << std::endl;
+						std::cout << "[Warning - Actions::registerEvent] Duplicate registered item with aid: " << intVector[i] <<
+							", in fromaid: " << tmp << " and toaid: " << endIntVector[i] << std::endl;
 						continue;
 					}
 
@@ -299,7 +285,8 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 			}
 		}
 		else
-			std::cout << "[Warning - Actions::registerEvent] Malformed entry (from: \"" << strValue << "\", to: \"" << endStrValue << "\")" << std::endl;
+			std::cout << "[Warning - Actions::registerEvent] Malformed entry (from: \"" << strValue <<
+				"\", to: \"" << endStrValue << "\")" << std::endl;
 	}
 	else
 		success = false;
@@ -310,15 +297,17 @@ bool Actions::registerEvent(Event* event, xmlNodePtr p)
 ReturnValue Actions::canUse(const Player* player, const Position& pos)
 {
 	const Position& playerPos = player->getPosition();
-	if(pos.x != 0xFFFF)
-	{
-		if(playerPos.z > pos.z)
-			return RET_FIRSTGOUPSTAIRS;
-		else if(playerPos.z < pos.z)
-			return RET_FIRSTGODOWNSTAIRS;
-		else if(!Position::areInRange<1,1,0>(playerPos, pos))
-			return RET_TOOFARAWAY;
-	}
+	if(pos.x == 0xFFFF)
+		return RET_NOERROR;
+
+	if(playerPos.z > pos.z)
+		return RET_FIRSTGOUPSTAIRS;
+
+	if(playerPos.z < pos.z)
+		return RET_FIRSTGODOWNSTAIRS;
+
+	if(!Position::areInRange<1,1,0>(playerPos, pos))
+		return RET_TOOFARAWAY;
 
 	return RET_NOERROR;
 }
@@ -378,7 +367,7 @@ ReturnValue Actions::canUseFar(const Creature* creature, const Position& toPos, 
 	return RET_NOERROR;
 }
 
-Action* Actions::getAction(const Item* item, ActionType_t type /* = ACTION_ANY */) const
+Action* Actions::getAction(const Item* item, ActionType_t type/* = ACTION_ANY*/) const
 {
 	if(item->getUniqueId() != 0 && (type == ACTION_ANY || type == ACTION_UNIQUEID))
 	{
@@ -641,7 +630,7 @@ ReturnValue Actions::internalUseItemEx(Player* player, const PositionEx& fromPos
 }
 
 bool Actions::useItemEx(Player* player, const Position& fromPos, const Position& toPos,
-	uint8_t toStackPos, Item* item, bool isHotkey, uint32_t creatureId /* = 0*/)
+	uint8_t toStackPos, Item* item, bool isHotkey, uint32_t creatureId/* = 0*/)
 {
 	if(!player->canDoAction())
 		return false;
@@ -681,7 +670,8 @@ Event(_interface)
 	checkLineOfSight = true;
 }
 
-Action::Action(const Action* copy) : Event(copy)
+Action::Action(const Action* copy):
+Event(copy)
 {
 	allowFarUse = copy->allowFarUse;
 	checkLineOfSight = copy->checkLineOfSight;

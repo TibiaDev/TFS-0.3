@@ -304,8 +304,8 @@ void serverMain(void* param)
 		GUI::getInstance()->m_connections = true;
 		#endif
 	}
-
 	#if not defined(WIN32) || defined(__CONSOLE__)
+
 	std::string outPath = g_config.getString(ConfigManager::OUT_LOG), errPath = g_config.getString(ConfigManager::ERROR_LOG);
 	if(outPath.length() < 3)
 		outPath = "";
@@ -469,15 +469,18 @@ ServiceManager* services)
 					std::cout << ", build: " << VERSION_BUILD << ", timestamp: " << VERSION_TIMESTAMP << "." << std::endl;
 					std::cout << "> Latest version information - version: " << version << ", patch: " << patch;
 					std::cout << ", build: " << build << ", timestamp: " << timestamp << "." << std::endl;
-					#ifndef __CONSOLE__
-					if(MessageBox(GUI::getInstance()->m_mainWindow, "Continue?", "Outdated software", MB_YESNO) == IDNO)
-					#else
-					std::cout << "Continue? (y/N)" << std::endl;
-
-					char buffer = getchar();
-					if(buffer == 10 || (buffer != 121 && buffer != 89))
-					#endif
-						startupErrorMessage("Aborted.");
+					if(g_config.getBool(ConfigManager::CONFIM_OUTDATED_VERSION))
+					{
+						#ifndef __CONSOLE__
+						if(MessageBox(GUI::getInstance()->m_mainWindow, "Continue?", "Outdated software", MB_YESNO) == IDNO)
+						#else
+						std::cout << "Continue? (y/N)" << std::endl;
+	
+						char buffer = getchar();
+						if(buffer == 10 || (buffer != 121 && buffer != 89))
+						#endif
+							startupErrorMessage("Aborted.");
+					}
 				}
 				else
 					std::cout << "up to date!" << std::endl;
@@ -493,7 +496,7 @@ ServiceManager* services)
 	else
 		std::cout << "failed - could not parse remote file (are you connected to the internet?)" << std::endl;
 
-	std::cout << ">> Loading config (" << g_config.getString(ConfigManager::CONFIG_FILE) << ")" << std::endl;
+	std::cout << std::endl << ">> Loading config (" << g_config.getString(ConfigManager::CONFIG_FILE) << ")" << std::endl;
 	#ifndef __CONSOLE__
 	SendMessage(GUI::getInstance()->m_statusBar, WM_SETTEXT, 0, (LPARAM)">> Loading config");
 	#endif
@@ -508,7 +511,7 @@ ServiceManager* services)
 		for(IntegerVec::iterator it = cores.begin(); it != cores.end(); ++it)
 			mask += 1 << (*it);
 
-		SetProcessAffinityMask(GetCurrentProcess(), mask); //someone test it, please
+		SetProcessAffinityMask(GetCurrentProcess(), mask);
 	}
 
 	CreateMutex(NULL, true, "forgottenserver_" + g_config.getNumber(ConfigManager::WORLD_ID));
@@ -1057,6 +1060,17 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 					{
 						if(g_game.reloadInfo(RELOAD_ACTIONS))
 							std::cout << "Reloaded actions." << std::endl;
+					}
+
+					break;
+				}
+
+				case ID_MENU_RELOAD_CHAT:
+				{
+					if(g_game.getGameState() != GAME_STATE_STARTUP)
+					{
+						if(g_game.reloadInfo(RELOAD_CHAT))
+							std::cout << "Reloaded chat channels." << std::endl;
 					}
 
 					break;

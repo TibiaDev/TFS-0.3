@@ -49,7 +49,7 @@ isInternalRemoved(false)
 	master = NULL;
 	lootDrop = LOOT_DROP_FULL;
 	skillLoss = true;
-	cannotMove = false;
+	hideName = hideHealth = cannotMove = false;
 	skull = SKULL_NONE;
 	partyShield = SHIELD_NONE;
 
@@ -60,7 +60,6 @@ isInternalRemoved(false)
 
 	lastStep = 0;
 	lastStepCost = 1;
-	extraStepDuration = 0;
 	baseSpeed = 220;
 	varSpeed = 0;
 
@@ -84,7 +83,7 @@ isInternalRemoved(false)
 	blockCount = 0;
 	blockTicks = 0;
 	walkUpdateTicks = 0;
-	checkCreatureVectorIndex = 0;
+	checkCreatureVectorIndex = -1;
 
 	scriptEventsBitField = 0;
 	onIdleStatus();
@@ -109,7 +108,6 @@ Creature::~Creature()
 	conditions.clear();
 	attackedCreature = NULL;
 	eventsList.clear();
-	//std::cout << "Creature destructor " << this->getID() << std::endl;
 }
 
 bool Creature::canSee(const Position& myPos, const Position& pos, uint32_t viewRangeX, uint32_t viewRangeY)
@@ -158,16 +156,19 @@ int64_t Creature::getSleepTicks() const
 		return 0;
 
 	int64_t ct = OTSYS_TIME(), stepDuration = getStepDuration();
-	return stepDuration - (ct - lastStep) + extraStepDuration;
+	return stepDuration - (ct - lastStep);
 }
 
-int32_t Creature::getWalkDelay(Direction dir) const
+int32_t Creature::getWalkDelay(Direction dir, uint32_t resolution) const
 {
+	if(!lastStep)
+		return 0;
+
 	float mul = 1.0f;
 	if(dir == NORTHWEST || dir == NORTHEAST || dir == SOUTHWEST || dir == SOUTHEAST)
-		mul = 1.5f;
+		mul = 3.0f;
 
-	return int32_t(getSleepTicks() * mul);
+	return ((int64_t)std::ceil(((double)getStepDuration(false) * mul) / resolution) * resolution) - (OTSYS_TIME() - lastStep);
 }
 
 void Creature::onThink(uint32_t interval)
@@ -381,10 +382,7 @@ void Creature::updateTileCache(const Tile* tile, const Position& pos)
 {
 	const Position& myPos = getPosition();
 	if(pos.z == myPos.z)
-	{
-		int32_t dx = pos.x - myPos.x, dy = pos.y - myPos.y;
-		updateTileCache(tile, dx, dy);
-	}
+		updateTileCache(tile, pos.x - myPos.x, pos.y - myPos.y);
 }
 
 int32_t Creature::getWalkCache(const Position& pos) const
@@ -430,11 +428,8 @@ int32_t Creature::getWalkCache(const Position& pos) const
 
 void Creature::onAddTileItem(const Tile* tile, const Position& pos, const Item* item)
 {
-	if(isMapLoaded)
-	{
-		if(pos.z == getPosition().z)
-			updateTileCache(tile, pos);
-	}
+	if(isMapLoaded && pos.z == getPosition().z)
+		updateTileCache(tile, pos);
 }
 
 void Creature::onUpdateTileItem(const Tile* tile, const Position& pos, uint32_t stackpos,
@@ -448,13 +443,9 @@ void Creature::onUpdateTileItem(const Tile* tile, const Position& pos, uint32_t 
 void Creature::onRemoveTileItem(const Tile* tile, const Position& pos, uint32_t stackpos,
 	const ItemType& iType, const Item* item)
 {
-	if(isMapLoaded && (iType.blockSolid || iType.blockPathFind) && pos.z == getPosition().z)
+	if(isMapLoaded && (iType.blockSolid || iType.blockPathFind ||
+		iType.isGroundTile()) && pos.z == getPosition().z)
 		updateTileCache(tile, pos);
-}
-
-void Creature::onUpdateTile(const Tile* tile, const Position& pos)
-{
-	//
 }
 
 void Creature::onCreatureAppear(const Creature* creature, bool isLogin)
@@ -520,11 +511,12 @@ void Creature::onCreatureMove(const Creature* creature, const Tile* newTile, con
 	{
 		lastStep = OTSYS_TIME();
 		lastStepCost = 1;
-		extraStepDuration = 0;
 		if(!teleport)
 		{
-			if(oldPos.z != newPos.z || (std::abs(newPos.x - oldPos.x) >=1 && std::abs(newPos.y - oldPos.y) >= 1))
+			if(oldPos.z != newPos.z)
 				lastStepCost = 2;
+			else if(std::abs(newPos.x - oldPos.x) >= 1 && std::abs(newPos.y - oldPos.y) >= 1)
+				lastStepCost = 3;
 		}
 		else
 			stopEventWalk();
@@ -675,11 +667,6 @@ void Creature::onCreatureMove(const Creature* creature, const Tile* newTile, con
 		else
 			onCreatureDisappear(attackedCreature, false);
 	}
-}
-
-void Creature::onCreatureChangeVisible(const Creature* creature, bool visible)
-{
-	//
 }
 
 bool Creature::onDeath()
@@ -862,7 +849,7 @@ void Creature::drainMana(Creature* attacker, int32_t manaLoss)
 }
 
 BlockType_t Creature::blockHit(Creature* attacker, CombatType_t combatType, int32_t& damage,
-	bool checkDefense /* = false */, bool checkArmor /* = false */)
+	bool checkDefense/* = false*/, bool checkArmor/* = false*/)
 {
 	BlockType_t blockType = BLOCK_NONE;
 	if(isImmune(combatType))
@@ -1091,23 +1078,23 @@ void Creature::addDamagePoints(Creature* attacker, int32_t damagePoints)
 
 void Creature::addHealPoints(Creature* caster, int32_t healthPoints)
 {
-	if(healthPoints > 0)
-	{
-		uint32_t casterId = (caster ? caster->getID() : 0);
-		CountMap::iterator it = healMap.find(casterId);
-		if(it == healMap.end())
-		{
-			CountBlock_t cb;
-			cb.ticks = cb.start = OTSYS_TIME();
+	if(healthPoints <= 0)
+		return;
 
-			cb.total = healthPoints;
-			healMap[casterId] = cb;
-		}
-		else
-		{
-			it->second.ticks = OTSYS_TIME();
-			it->second.total += healthPoints;
-		}
+	uint32_t casterId = (caster ? caster->getID() : 0);
+	CountMap::iterator it = healMap.find(casterId);
+	if(it == healMap.end())
+	{
+		CountBlock_t cb;
+		cb.ticks = cb.start = OTSYS_TIME();
+
+		cb.total = healthPoints;
+		healMap[casterId] = cb;
+	}
+	else
+	{
+		it->second.ticks = OTSYS_TIME();
+		it->second.total += healthPoints;
 	}
 }
 
@@ -1119,17 +1106,7 @@ void Creature::onAddCondition(ConditionType_t type)
 		removeCondition(CONDITION_PARALYZE);
 }
 
-void Creature::onAddCombatCondition(ConditionType_t type)
-{
-	//
-}
-
-void Creature::onEndCondition(ConditionType_t type)
-{
-	//
-}
-
-void Creature::onTickCondition(ConditionType_t type, bool& _remove)
+void Creature::onTickCondition(ConditionType_t type, int32_t interval, bool& _remove)
 {
 	if(const MagicField* field = getTile()->getFieldItem())
 	{
@@ -1156,16 +1133,6 @@ void Creature::onTickCondition(ConditionType_t type, bool& _remove)
 void Creature::onCombatRemoveCondition(const Creature* attacker, Condition* condition)
 {
 	removeCondition(condition);
-}
-
-void Creature::onAttackedCreature(Creature* target)
-{
-	//
-}
-
-void Creature::onAttacked()
-{
-	//
 }
 
 void Creature::onIdleStatus()
@@ -1211,38 +1178,28 @@ bool Creature::onKilledCreature(Creature* target)
 
 void Creature::onGainExperience(uint64_t gainExp)
 {
-	if(gainExp > 0)
-	{
-		if(getMaster())
-		{
-			gainExp = gainExp / 2;
-			getMaster()->onGainExperience(gainExp);
-		}
+	if(gainExp <= 0)
+		return;
 
-		std::stringstream ss;
-		ss << gainExp;
-		g_game.addAnimatedText(getPosition(), g_config.getNumber(ConfigManager::EXPERIENCE_COLOR), ss.str());
+	if(getMaster())
+	{
+		gainExp = gainExp / 2;
+		getMaster()->onGainExperience(gainExp);
 	}
+
+	std::stringstream ss;
+	ss << gainExp;
+	g_game.addAnimatedText(getPosition(), g_config.getNumber(ConfigManager::EXPERIENCE_COLOR), ss.str());
 }
 
 void Creature::onGainSharedExperience(uint64_t gainExp)
 {
-	if(gainExp > 0)
-	{
-		std::stringstream ss;
-		ss << gainExp;
-		g_game.addAnimatedText(getPosition(), g_config.getNumber(ConfigManager::EXPERIENCE_COLOR), ss.str());
-	}
-}
+	if(gainExp <= 0)
+		return;
 
-void Creature::onAttackedCreatureBlockHit(Creature* target, BlockType_t blockType)
-{
-	//
-}
-
-void Creature::onBlockHit(BlockType_t blockType)
-{
-	//
+	std::stringstream ss;
+	ss << gainExp;
+	g_game.addAnimatedText(getPosition(), g_config.getNumber(ConfigManager::EXPERIENCE_COLOR), ss.str());
 }
 
 void Creature::addSummon(Creature* creature)
@@ -1416,7 +1373,7 @@ void Creature::executeConditions(uint32_t interval)
 	}
 }
 
-bool Creature::hasCondition(ConditionType_t type, uint32_t subId/* = 0*/) const
+bool Creature::hasCondition(ConditionType_t type, uint32_t subId/* = 0*/, bool checkTime/* = true*/) const
 {
 	if(type == CONDITION_EXHAUST && g_game.getStateDelay() == 0)
 		return true;
@@ -1429,7 +1386,7 @@ bool Creature::hasCondition(ConditionType_t type, uint32_t subId/* = 0*/) const
 		if((*it)->getType() != type || (*it)->getSubId() != subId)
 			continue;
 
-		if(g_config.getBool(ConfigManager::OLD_CONDITION_ACCURACY))
+		if(!checkTime || g_config.getBool(ConfigManager::OLD_CONDITION_ACCURACY))
 			return true;
 
 		if((*it)->getEndTime() == 0)
@@ -1469,7 +1426,7 @@ std::string Creature::getDescription(int32_t lookDistance) const
 	return "a creature";
 }
 
-int32_t Creature::getStepDuration() const
+int32_t Creature::getStepDuration(bool addLastStepCost/* = true*/) const
 {
 	if(isRemoved())
 		return 0;
@@ -1482,7 +1439,7 @@ int32_t Creature::getStepDuration() const
 	if(!stepSpeed)
 		return 0;
 
-	return (1000 * Item::items[tile->ground->getID()].speed) / stepSpeed  * lastStepCost;
+	return (1000 * Item::items[tile->ground->getID()].speed) / stepSpeed * (addLastStepCost ? lastStepCost : 1);
 }
 
 int64_t Creature::getEventStepTicks() const

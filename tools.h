@@ -109,7 +109,7 @@ Direction getReverseDirection(Direction dir);
 Position getNextPosition(Direction direction, Position pos);
 
 void formatDate(time_t time, char* buffer);
-void formatDate2(time_t time, char* buffer);
+void formatDate2(time_t time, char* buffer, bool detailed = false);
 void formatIP(uint32_t ip, char* buffer);
 std::string formatTime(int32_t hours, int32_t minutes);
 
@@ -129,6 +129,7 @@ std::string getAction(ViolationAction_t actionId, bool ipBanishment);
 
 std::string parseVocationString(StringVec vocStringVec);
 bool parseVocationNode(xmlNodePtr vocationNode, VocationMap& vocationMap, StringVec& vocStringMap, std::string& errorStr);
+bool parseIntegerVec(std::string str, IntegerVec& intVector);
 
 bool fileExists(const char* filename);
 uint32_t adlerChecksum(uint8_t *data, size_t length);

@@ -244,6 +244,12 @@ bool ConfigManager::load()
 	m_confBool[SHOW_HEALING_DAMAGE_MONSTER] = getGlobalBool("showHealingDamageForMonsters", "no");
 	m_confBool[CHECK_CORPSE_OWNER] = getGlobalBool("checkCorpseOwner ", "yes");
 	m_confBool[BUFFER_SPELL_FAILURE] = getGlobalBool("bufferMutedOnSpellFailure", "no");
+	m_confBool[CONFIM_OUTDATED_VERSION] = getGlobalBool("confirmOutdatedVersion", "yes");
+	m_confNumber[GUILD_PREMIUM_DAYS] = getGlobalNumber("premiumDaysToFormGuild", 0);
+	m_confNumber[PUSH_CREATURE_DELAY] = getGlobalNumber("pushCreatureDelay", 2 * 1000);
+	m_confNumber[DEATH_CONTAINER] = getGlobalNumber("deathContainerId", 1987);
+	m_confBool[PREMIUM_SKIP_WAIT] = getGlobalBool("premiumPlayerSkipWaitList", "no");
+	m_confNumber[MAXIMUM_DOOR_LEVEL] = getGlobalNumber("maximumDoorLevel", 500);
 
 	m_loaded = true;
 	return true;

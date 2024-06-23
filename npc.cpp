@@ -184,6 +184,12 @@ bool Npc::loadFromXml(const std::string& filename)
 	if(readXMLString(root, "namedescription", strValue) || readXMLString(root, "nameDescription", strValue))
 		nameDescription = strValue;
 
+	if(readXMLString(root, "hidename", strValue) || readXMLString(root, "hideName", strValue))
+		hideName = booleanString(strValue);
+
+	if(readXMLString(root, "hidehealth", strValue) || readXMLString(root, "hideHealth", strValue))
+		hideHealth = booleanString(strValue);
+
 	baseSpeed = 110;
 	if(readXMLInteger(root, "speed", intValue))
 		baseSpeed = intValue;
@@ -355,6 +361,9 @@ bool Npc::loadFromXml(const std::string& filename)
 	xmlFreeDoc(doc);
 	if(scriptfile.empty())
 		return true;
+
+	if(scriptfile.find("/") == std::string::npos)
+		scriptfile = getFilePath(FILE_TYPE_OTHER, "npc/scripts/" + scriptfile);
 
 	m_npcEventHandler = new NpcScript(scriptfile, this);
 	return m_npcEventHandler->isLoaded();
@@ -1234,10 +1243,12 @@ void Npc::onThink(uint32_t interval)
 		bool closeConversation = false, idleTimeout = false;
 		if(!npcState->isQueued)
 		{
-			if(npcState->prevInteraction == 0)
+			if(!npcState->prevInteraction)
 				npcState->prevInteraction = OTSYS_TIME();
 
-			if(idleTime > 0 && (OTSYS_TIME() - npcState->prevInteraction) > (uint64_t)(idleTime * 1000))
+			if(!queueList.empty() && npcState->isIdle && npcState->respondToText.empty())
+				closeConversation = true;
+			else if(idleTime > 0 && (OTSYS_TIME() - npcState->prevInteraction) > (uint64_t)(idleTime * 1000))
 				idleTimeout = closeConversation = true;
 		}
 

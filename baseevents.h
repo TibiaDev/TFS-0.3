@@ -42,6 +42,7 @@ class BaseEvents
 		bool loadFromXml();
 		bool reload();
 
+		bool parseEventNode(xmlNodePtr p, std::string scriptsPath);
 		bool isLoaded() const {return m_loaded;}
 
 	protected:
@@ -88,7 +89,7 @@ class CallBack
 {
 	public:
 		CallBack();
-		virtual ~CallBack();
+		virtual ~CallBack() {};
 
 		bool loadCallBack(LuaScriptInterface* _interface, std::string name);
 

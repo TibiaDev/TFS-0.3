@@ -15,8 +15,10 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ////////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-#include "tile.h"
 #include <iostream>
+
+#include "tile.h"
+#include "housetile.h"
 
 #include "player.h"
 #include "creature.h"
@@ -92,6 +94,27 @@ bool Tile::hasProperty(Item* exclude, enum ITEMPROPERTY prop) const
 	return false;
 }
 
+HouseTile* Tile::getHouseTile()
+{
+	if(isHouseTile())
+		return static_cast<HouseTile*>(this);
+
+	return NULL;
+}
+
+const HouseTile* Tile::getHouseTile() const
+{
+	if(isHouseTile())
+		return static_cast<const HouseTile*>(this);
+
+	return NULL;
+}
+
+bool Tile::isHouseTile() const
+{
+	return hasFlag(TILESTATE_HOUSE);
+}
+
 bool Tile::hasHeight(uint32_t n) const
 {
 	uint32_t height = 0;
@@ -156,6 +179,9 @@ MagicField* Tile::getFieldItem() const
 
 TrashHolder* Tile::getTrashHolder() const
 {
+	if(ground && ground->getTrashHolder())
+		return ground->getTrashHolder();
+
 	Item* iItem = NULL;
 	for(uint32_t i = 0; i < getThingCount(); ++i)
 	{
@@ -168,6 +194,9 @@ TrashHolder* Tile::getTrashHolder() const
 
 Mailbox* Tile::getMailbox() const
 {
+	if(ground && ground->getMailbox())
+		return ground->getMailbox();
+
 	Item* iItem = NULL;
 	for(uint32_t i = 0; i < getThingCount(); ++i)
 	{
@@ -180,6 +209,9 @@ Mailbox* Tile::getMailbox() const
 
 BedItem* Tile::getBedItem() const
 {
+	if(ground && ground->getBed())
+		return ground->getBed();
+
 	Item* iItem = NULL;
 	for(uint32_t i = 0; i < getThingCount(); ++i)
 	{
@@ -258,16 +290,42 @@ void Tile::onAddTileItem(Item* item)
 	updateTileFlags(item, false);
 
 	const Position& cylinderMapPos = getPosition();
+	uint32_t index = __getIndexOfThing(item);
 
 	const SpectatorVec& list = g_game.getSpectators(cylinderMapPos);
 	SpectatorVec::const_iterator it;
 
+	CreatureVector::iterator vit;
+	CreatureVector v;
+	if(creatures && !creatures->empty())
+	{
+		for(vit = creatures->begin(); vit != creatures->end(); ++vit)
+		{
+			if((*vit)->isInGhostMode())
+				v.push_back(*vit);
+		}
+	}
+
 	//send to client
 	Player* tmpPlayer = NULL;
+	int32_t i = 0;
 	for(it = list.begin(); it != list.end(); ++it)
 	{
 		if((tmpPlayer = (*it)->getPlayer()))
-			tmpPlayer->sendAddTileItem(this, cylinderMapPos, item);
+		{
+			//get the correct index
+			i = index;
+			if(!v.empty())
+			{
+				for(vit = v.begin(); vit != v.end(); ++vit)
+				{
+					if(!tmpPlayer->canSeeGhost(*vit))
+						i--;
+				}
+			}
+
+			tmpPlayer->sendAddTileItem(this, cylinderMapPos, i, item);
+		}
 	}
 
 	//event methods
@@ -278,9 +336,6 @@ void Tile::onAddTileItem(Item* item)
 void Tile::onUpdateTileItem(uint32_t index, Item* oldItem, const ItemType& oldType,
 	Item* newItem, const ItemType& newType)
 {
-	updateTileFlags(oldItem, true);
-	updateTileFlags(newItem, false);
-
 	const Position& cylinderMapPos = getPosition();
 
 	const SpectatorVec& list = g_game.getSpectators(cylinderMapPos);
@@ -392,7 +447,7 @@ void Tile::onUpdateTile()
 		(*it)->onUpdateTile(this, cylinderMapPos);
 }
 
-void Tile::moveCreature(Creature* creature, Cylinder* toCylinder, bool teleport /* = false*/)
+void Tile::moveCreature(Creature* creature, Cylinder* toCylinder, bool teleport/* = false*/)
 {
 	int32_t oldStackPos = __getIndexOfThing(creature);
 	//remove the creature
@@ -443,12 +498,13 @@ void Tile::moveCreature(Creature* creature, Cylinder* toCylinder, bool teleport 
 
 	//send to client
 	Player* tmpPlayer = NULL;
-	int32_t i = 0;
+	int32_t i = 0, j = 0;
 	for(it = list.begin(); it != list.end(); ++it)
 	{
 		if((tmpPlayer = (*it)->getPlayer()) && (!creature->isInGhostMode() || tmpPlayer->canSeeGhost(creature)))
 		{
 			i = oldStackPos;
+			j = newStackPos;
 			if(!v.empty())
 			{
 				for(vit = v.begin(); vit != v.end(); ++vit)
@@ -456,12 +512,15 @@ void Tile::moveCreature(Creature* creature, Cylinder* toCylinder, bool teleport 
 					if(__getIndexOfThing(*vit) < oldStackPos)
 					{
 						if(!tmpPlayer->canSeeGhost(*it))
+						{
 							i--;
+							j--;
+						}
 					}
 				}
 			}
 
-			tmpPlayer->sendCreatureMove(creature, toTile, toPos, this, fromPos, i, teleport);
+			tmpPlayer->sendCreatureMove(creature, toTile, toPos, j, this, fromPos, i, teleport);
 		}
 	}
 
@@ -552,7 +611,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, 
 						if(!hasBitSet(FLAG_IGNOREFIELDDAMAGE, flags))
 							return RET_NOTPOSSIBLE;
 
-						if(!monster->canPushItems() && !monster->hasCondition(Combat::DamageToConditionType(combatType)))
+						if(!monster->canPushItems() && !monster->hasCondition(Combat::DamageToConditionType(combatType), false))
 							return RET_NOTPOSSIBLE;
 					}
 				}
@@ -631,7 +690,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, 
 	{
 #ifdef __DEBUG__
 		if(!thing->getParent() && !hasBitSet(FLAG_NOLIMIT, flags))
-			std::cout << "Notice: Tile::__queryAdd() - thing->getParent() == NULL" << std::endl;
+			std::cout << "[Notice - Tile::__queryAdd] thing->getParent() == NULL" << std::endl;
 
 #endif
 		if(hasBitSet(FLAG_NOLIMIT, flags))
@@ -821,6 +880,8 @@ void Tile::__addThing(Creature* actor, int32_t index, Thing* thing)
 			g_game.FreeThing(ground);
 
 			ground = item;
+			updateTileFlags(oldGround, true);
+			updateTileFlags(item, false);
 			onUpdateTileItem(index, oldGround, oldType, item, newType);
 		}
 	}
@@ -933,8 +994,11 @@ void Tile::__updateThing(Thing* thing, uint16_t itemId, uint32_t count)
 	const ItemType& oldType = Item::items[item->getID()];
 	const ItemType& newType = Item::items[itemId];
 
+	updateTileFlags(item, true);
 	item->setID(itemId);
 	item->setSubType(count);
+
+	updateTileFlags(item, false);
 	onUpdateTileItem(index, item, oldType, item, newType);
 }
 
@@ -993,7 +1057,7 @@ void Tile::__replaceThing(uint32_t index, Thing* thing)
 		pos -= (uint32_t)creatures->size();
 	}
 
-	if(downItems && !oldItem &&  pos < (int32_t)downItems->size())
+	if(downItems && !oldItem && pos < (int32_t)downItems->size())
 	{
 		ItemVector::iterator it = downItems->begin();
 		it += pos;
@@ -1010,7 +1074,10 @@ void Tile::__replaceThing(uint32_t index, Thing* thing)
 		const ItemType& oldType = Item::items[oldItem->getID()];
 		const ItemType& newType = Item::items[item->getID()];
 
+		updateTileFlags(oldItem, true);
+		updateTileFlags(item, false);
 		onUpdateTileItem(index, oldItem, oldType, item, newType);
+
 		oldItem->setParent(NULL);
 		return /*RET_NOERROR*/;
 	}
@@ -1121,9 +1188,12 @@ void Tile::__removeThing(Thing* thing, uint32_t count)
 
 				if(item->isStackable() && count != item->getItemCount())
 				{
+					updateTileFlags(item, true);
 					item->setItemCount(std::max(0, (int32_t)(item->getItemCount() - count)));
 						const ItemType& it = Item::items[item->getID()];
-						onUpdateTileItem(index, item, it, item, it);
+
+					updateTileFlags(item, false);
+					onUpdateTileItem(index, item, it, item, it);
 				}
 				else
 				{
@@ -1280,8 +1350,6 @@ void Tile::postAddNotification(Creature* actor, Thing* thing, int32_t index, cyl
 	//add a reference to this item, it may be deleted after being added (mailbox for example)
 	thing->useThing2();
 	Item* item = thing->getItem();
-
-	bool removal = false;
 	if(link == LINK_OWNER)
 	{
 		//calling movement scripts
@@ -1293,17 +1361,10 @@ void Tile::postAddNotification(Creature* actor, Thing* thing, int32_t index, cyl
 		if(Teleport* teleport = getTeleportItem())
 			teleport->__addThing(actor, thing);
 		else if(TrashHolder* trashHolder = getTrashHolder())
-		{
 			trashHolder->__addThing(actor, thing);
-			removal = (thing != trashHolder);
-		}
 		else if(Mailbox* mailbox = getMailbox())
 			mailbox->__addThing(actor, thing);
 	}
-
-	//update floor change flags
-	if(item)
-		updateTileFlags(item, removal);
 
 	//release the reference to this item onces we are finished
 	g_game.FreeThing(thing);
@@ -1331,10 +1392,6 @@ void Tile::postRemoveNotification(Creature* actor, Thing* thing, int32_t index, 
 		g_moveEvents->onCreatureMove(creature, this, false);
 	else if(item)
 		g_moveEvents->onItemMove(actor, item, this, false);
-
-	//update floor change flags
-	if(item)
-		updateTileFlags(item, true);
 }
 
 void Tile::__internalAddThing(Thing* thing)
@@ -1410,7 +1467,6 @@ void Tile::__internalAddThing(uint32_t index, Thing* thing)
 		++thingCount;
 	}
 
-	//update floor change flags
 	updateTileFlags(item, false);
 }
 

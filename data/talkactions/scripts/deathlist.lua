@@ -1,6 +1,10 @@
+local config = {
+	displayLimit = 10
+}
+
 function onSay(cid, words, param, channel)
 	local target = db.getResult("SELECT `name`, `id` FROM `players` WHERE `name` = " .. db.escapeString(param) .. ";")
-	if(target:getID() == LUA_ERROR) then
+	if(target:getID() == -1) then
 		doPlayerSendCancel(cid, "A player with that name does not exist.")
 		return TRUE
 	end
@@ -12,8 +16,10 @@ function onSay(cid, words, param, channel)
 	local str = ""
 	local deaths = db.getResult("SELECT `time`, `level`, `killed_by`, `altkilled_by` FROM `player_deaths` WHERE `player_id` = " .. targetGUID .. " ORDER BY `time` DESC;")
 	if(deaths:getID() ~= -1) then
+		local n = 0
 		local breakline = ""
 		repeat
+			n = n + 1
 			if(str ~= "") then
 				breakline = "\n"
 			end
@@ -39,7 +45,7 @@ function onSay(cid, words, param, channel)
 			end
 
 			str = str .. breakline .. " " .. time .. "  Died at Level " .. level .. " by " .. killed .. "."
-		until not deaths:next()
+		until not(deaths:next()) or n > config.displayLimit
 		deaths:free()
 	else
 		str = "No deaths recorded."

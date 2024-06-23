@@ -58,7 +58,7 @@ function doPlayerSellItem(cid, itemid, count, cost)
 	end
 
 	if(doPlayerAddMoney(cid, cost) ~= TRUE) then
-		error('Could not add money to: ' .. getPlayerName(cid) .. ' (' .. cost .. 'gp).')
+		error('[doPlayerSellItem] Could not add money to: ' .. getPlayerName(cid) .. ' (' .. cost .. 'gp).')
 	end
 
 	return LUA_NO_ERROR
@@ -268,6 +268,10 @@ function doMutePlayer(cid, time)
 	local condition = createConditionObject(CONDITION_MUTED)
 	setConditionParam(condition, CONDITION_PARAM_TICKS, time * 1000)
 	return doAddCondition(cid, condition)
+end
+
+function getPlayerGroupName(cid)
+	return getGroupInfo(getPlayerGroupId(cid)).name
 end
 
 function getPlayerVocationName(cid)

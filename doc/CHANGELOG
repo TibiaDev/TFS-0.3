@@ -21,7 +21,7 @@
 	A = Added.
 
 	[ 0.3.1
-		A...
+		[ A...
 			data/
 				actions/
 					scripts/
@@ -125,8 +125,8 @@
 				XML/
 					servers.xml
 						* GameServers class usage example
-
-		M...
+		]
+		[ M...
 			data/
 				actions/
 					actions.xml
@@ -314,8 +314,8 @@
 
 					servers.xml
 						* Changed 'ip' tag to 'address'
-
-		D...
+		]
+		[ D...
 			data/
 				global.lua
 					* Moved to lib/ directory
@@ -340,9 +340,10 @@
 					scripts/
 						explosive_arrow.lua
 							* Renamed
+		]
 	]
 	[ 0.3.2
-		A...
+		[ A...
 			data/
 				creaturescripts/
 					scripts/
@@ -359,8 +360,8 @@
 					scripts/
 						gamemaster.lua
 							* Added two deprecated hardcoded commands
-
-		M...
+		]
+		[ M...
 			data/
 				actions/
 					actions.xml
@@ -465,19 +466,22 @@
 				XML/
 					vocations.xml
 						* Pre-configured per-vocation loss
-
-		D...
+		]
+		[ D...
 			data/
 				actions/
 					scripts/
 						other/
 							highscores.lua
 								* Moved to actions.xml
+		]
 	]
 	[ 0.3.3
-		A...
+		[ A...
+			//
+		]
 
-		M...
+		[ M...
 			data/
 				creaturescripts/
 					scripts/
@@ -533,12 +537,13 @@
 				XML/
 					vocations.xml
 						* Multiplied lessLoss values due to players loss_* fields changes
-
-		D...
-
+		]
+		[ D...
+			//
+		]
 	]
 	[ 0.3.4
-		A...
+		[ A...
 			data/
 				actions/
 					scripts/
@@ -549,17 +554,19 @@
 								* Added furniture beds (packages with beds)
 
 				items/
+					items.otb
+					items.xml
+						* Fixes + 8.42
 					randomization.xml
 						* Moved item randomization configuration here
 
 				XML/
 					channels.xml
 						* Moved chat channels configuration here
-
 					groups.xml
 						* Moved groups configuration here
-
-		M...
+		]
+		[ M...
 			data/
 				actions/
 					actions.xml
@@ -567,12 +574,15 @@
 						* Reorganization
 					scripts/
 						quests/
-							system.lua
 							annihilator.lua
+							system.lua
 								* Changes due player storage compatibility
 						other/
-							blueberrybush.lua
 							changegold.lua
+								* Rewritten, easiest way to add new coins
+							doors.lua
+								* Special doors improvement
+							blueberrybush.lua
 							constructionkits.lua
 							food.lua
 								* Fixes & formatting
@@ -589,40 +599,62 @@
 						playerdeath.lua
 						guildmotd.lua
 							* Fixes
+							* Fixes, the second
 
 				items/
 					items.xml
 						* Fixed few issues, and added new items
 
 				lib/
-					exhaustion.lua
-						* Fixes + changes due player storage compatibility
-					function.lua
-						* Added new function: doPlayerAddFrags(cid, amount)
-						* Moved getPlayerMoney to sources
-						* doWriteLogFile fix
 					compat.lua
 						* Added doCreatureSetLookDirection
+						* ...
 					constant.lua
 						* Changes due true/false returing
 						* Reload constant for chat
 						* Player sex constants
+						* ...
+					database.lua
+						* Removed unecessary variable
+					exhaustion.lua
+						* Fixes + changes due player storage compatibility
+					function.lua
+						* Added new function: doPlayerAddFrags(cid, amount)
+						* Deprecated getPlayerGroupName(cid), use getGroupInfo(id).name
+						* Moved getPlayerMoney to sources
+						* doWriteLogFile fix
+						* ...
 
 				logs/
 					chat/
 						* Created chat directory, for channels logging
 
+				monsters/
+					Traps/
+						*.xml
+							hidehealth & hidename flags for throwers
+
 				movements/
 					scripts/
+						swimming/
+							*.lua
+								* dataDirectory fixes
 						dough.lua
 							* Param added
 						snow.lua
 							* Invisible GM won't show snow foot prints
+						tiles.lua
+							* Depots fix
 
 				npc/
 					scripts/
 						runes.lua
 							* Changes due player storage compatibility
+					lib/
+						npc.lua
+						npcsystem/
+							npcsystem.lua
+								* dataDirectory fixes
 
 				spells/
 					scripts/
@@ -637,15 +669,24 @@
 							* Channels reloading
 							* Configurable premium days cost
 							* New param: channel (was always possible to use, but noone knew about it..)
+						broadcastclass.lua
+						buypremium.lua
+						deathlist.lua
+							* Fixes
 
 				XML/
+					outfits.xml
+						* Possiblity to use type="0;1;2" or type="0-2" to use for both genders
 					servers.xml
 						* versionMin / versionMax attributes
-
+						* Updated
 					stages.xml
 						* default multiplier attribute, NOTE: only in 'world' node
-
-		D...
+						* Possiblity to use e.g. id="0;1;2" & id="0-5' to use same stages on more servers
+		]
+		[ D...
+			//
+		]
 	]
 ]
 
@@ -794,15 +835,21 @@
 		Chat channels configuration in .xml file (Elf, slawkens)
 		Groups moved to groups.xml file + changed way, how they works (Elf)
 		Displaying XML parser errors (Elf, slawkens)
-		New CONFIG_HELP file, with config values description (slawkens, KaczooH)
+		New doc files: CONFIG_HELP, COMMANDS_HELP, SCRIPTSYSTEM_HELP (slawkens, KaczooH)
 		Possiblity to use <vocation id=""/> in movements, spells etc. (slawkens)
-		onTextEdit creature event (slawkens)
+		onTextEdit, onFollow(cid, target), onTarget(cid, target) creature events (slawkens)
 		Turn click (aka CTRL + key) teleportation (slawkens, Kiper)
-		New configurables: ghostModeInvisibleEffect, gainExperienceColor, checkCorpseOwner, showHealingDamageForMonsters (slawkens)
+		New configurables: ghostModeInvisibleEffect, gainExperienceColor, checkCorpseOwner, showHealingDamageForMonsters
+			premiumDaysToFormGuild, pushCreatureDelay, deathContainerId (slawkens)
 		Moved items randomization to randomization.xml file (slawkens, Elf)
 		Furniture beds (packages with beds) + enchanting system (slawkens)
 		Outfit attributes (Elf)
 		Proccess priority and affinity assinging for both Windows and *nix systems (Elf)
+		'hidename' & 'hidehealth' flags for monsters & npcs (slawkens)
+		Few more options displayed onLook like ghostMode, decayTo, clientVersion, equipTo (slawkens)
+		New LUA functions: doPlayerSetPzLocked(cid, locked), getCreatureLastPosition(cid), getWaypointsList(),
+			getGroupInfo(id), doPlayerAddFrags(cid, amount) (slawkens)
+		Possibility to update from 0.2.1 (Elf)
 	]
 ]
 
@@ -839,7 +886,7 @@
 	]
 	[ 0.3.4
 		LuaFunction: getPlayerLookDir(cid), use getCreatureLookDirection(cid)
-		Integer return values of Lua functions, use booleans
+		Integer return values of Lua functions, use booleans instead
 	]
 ]
 
@@ -933,6 +980,25 @@
 		Gamemasters crashing client when on ghost mode (Elf)
 		Containers loaded from map having unproper weight (OpenTibia SVN)
 		Players being able to track gamemasters on ghost mode with EXURA SIO spell (Elf)
+		Premium account being always removed while logging in (thanks Faramir)
+		Summon teleporting (slawkens)
+		doCreateItem (slawkens)
+		Missing CHAT reload in GUI (slawkens)
+		Some outfits attributes (slawkens)
+		Ghost login (slawkens)
+		Vocation magDamage/magHealingDamage not working onGetFormulaValues callback (slawkens)
+		IP Banishments issue (KaczooH, Elf)
+		pushCreatures (Elf)
+		Crash at payHouses with non-existing player (Elf)
+		OutputMessage, diagonal walk, dashing and spell spamming fixes (OpenTibia SVN)
+		Proper item attributes displaying (Elf)
+		Frag, PZ and skull gaining when player shouldn't [zones] (Elf)
+		Attempt to waiting list (Elf)
+		Missing CTRL+click moving (Elf)
+		Depots on stackpos higher than 2 (slawkens)
+		Stackpos debugging (slawkens, Elf)
+		Lighweight NPC queuing (OpenTibia SVN)
+
 		... and few more.
 	]
 ]

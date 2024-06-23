@@ -78,22 +78,14 @@ bool Combat::getMinMaxValues(Creature* creature, Creature* target, int32_t& min,
 				max = (int32_t)((player->getLevel() + player->getMagicLevel() * 4) * 1. * maxa + maxb);
 
 				Vocation* vocation = player->getVocation();
-				if(max > 0) //Healing multipler
-				{
-					if(vocation && vocation->getMagicHealingMultiplier() != 1.0)
-					{
-						min *= (int32_t)vocation->getMagicHealingMultiplier();
-						max *= (int32_t)vocation->getMagicHealingMultiplier();
-					}
-				}
-				else //Attack multipler
-				{
-					if(vocation && vocation->getMagicMultiplier() != 1.0)
-					{
-						min *= (int32_t)vocation->getMagicMultiplier();
-						max *= (int32_t)vocation->getMagicMultiplier();
-					}
-				}
+				float multiplier = 1.0f;
+				if(max > 0)
+					multiplier = vocation->getMultiplier(MULTIPLIER_MAGICHEALING);
+				else
+					multiplier = vocation->getMultiplier(MULTIPLIER_MAGIC);
+
+				min = (int32_t)(min * multiplier);
+				max = (int32_t)(max * multiplier);
 
 				return true;
 			}
@@ -330,6 +322,19 @@ ReturnValue Combat::canTargetCreature(const Player* player, const Creature* targ
 {
 	if(player == target)
 		return RET_YOUMAYNOTATTACKTHISPLAYER;
+
+	Player* tmpPlayer = const_cast<Player*>(player);
+	CreatureEventList targetEvents = tmpPlayer->getCreatureEvents(CREATURE_EVENT_TARGET);
+
+	bool deny = false;
+	for(CreatureEventList::iterator it = targetEvents.begin(); it != targetEvents.end(); ++it)
+	{
+		if(!(*it)->executeTarget(tmpPlayer, const_cast<Creature*>(target)))
+			deny = true;
+	}
+
+	if(deny)
+		return RET_DONTSHOWMESSAGE;
 
 	if(!player->hasFlag(PlayerFlag_IgnoreProtectionZone))
 	{
@@ -966,6 +971,15 @@ void ValueCallback::getMinMaxValues(Player* player, int32_t& min, int32_t& max, 
 		{
 			max = LuaScriptInterface::popNumber(L);
 			min = LuaScriptInterface::popNumber(L);
+			Vocation* vocation = player->getVocation();
+			float multiplier = 1.0;
+			if(max > 0)
+				multiplier = vocation->getMultiplier(MULTIPLIER_MAGICHEALING);
+			else
+				multiplier = vocation->getMultiplier(MULTIPLIER_MAGIC);
+
+			min = (int32_t)(min * multiplier);
+			max = (int32_t)(max * multiplier);
 		}
 		else
 			LuaScriptInterface::reportError(NULL, std::string(LuaScriptInterface::popString(L)));
@@ -1333,43 +1347,39 @@ void AreaCombat::setupExtArea(const std::list<uint32_t>& list, uint32_t rows)
 
 void MagicField::onStepInField(Creature* creature, bool purposeful/* = true*/)
 {
-	//remove magic walls/wild growth
 	if(isBlocking())
 	{
 		g_game.internalRemoveItem(creature, this, 1);
 		return;
 	}
 
+	if(!purposeful)
+		return;
+
 	const ItemType& it = items[getID()];
 	if(!it.condition)
 		return;
 
 	Condition* conditionCopy = it.condition->clone();
-	uint32_t owner = getOwner();
-	if(purposeful && owner != 0)
+	uint32_t ownerId = getOwner();
+	if(ownerId && !getTile()->hasFlag(TILESTATE_PVPZONE))
 	{
-		bool harmfulField = true;
-		if(g_game.getWorldType() == WORLD_TYPE_NO_PVP || getTile()->hasFlag(TILESTATE_NOPVPZONE))
+		if(Creature* owner = g_game.getCreatureByID(ownerId))
 		{
-			if(Creature* creature = g_game.getCreatureByID(owner))
+			bool harmful = true;
+			if((g_game.getWorldType() == WORLD_TYPE_NO_PVP || getTile()->hasFlag(TILESTATE_NOPVPZONE)) &&
+				(owner->getPlayer() || (owner->isSummon() && owner->getMaster()->getPlayer())))
+				harmful = false;
+			else if(Player* targetPlayer = creature->getPlayer())
 			{
-				if(creature->getPlayer() || (creature->isSummon() && creature->getMaster()->getPlayer()))
-					harmfulField = false;
+				if(owner->getPlayer() && Combat::isProtected(owner->getPlayer(), targetPlayer))
+					harmful = false;
 			}
-		}
 
-		if(Player* targetPlayer = creature->getPlayer())
-		{
-			if(Player* attackerPlayer = g_game.getPlayerByID(owner))
-			{
-				if(Combat::isProtected(attackerPlayer, targetPlayer))
-					harmfulField = false;
-			}
+			if(!harmful || (OTSYS_TIME() - createTime) <= (uint32_t)g_config.getNumber(
+				ConfigManager::FIELD_OWNERSHIP) || creature->hasBeenAttacked(ownerId))
+				conditionCopy->setParam(CONDITIONPARAM_OWNER, ownerId);
 		}
-
-		if(!harmfulField || (OTSYS_TIME() - createTime) <= (uint32_t)g_config.getNumber(ConfigManager::FIELD_OWNERSHIP)
-			|| creature->hasBeenAttacked(owner))
-			conditionCopy->setParam(CONDITIONPARAM_OWNER, owner);
 	}
 
 	creature->addCondition(conditionCopy);

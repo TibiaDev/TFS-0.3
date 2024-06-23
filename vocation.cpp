@@ -85,7 +85,7 @@ bool Vocations::parseVocationNode(xmlNodePtr p)
 		voc->setGainManaAmount(intValue);
 
 	if(readXMLFloat(p, "manamultiplier", floatValue))
-		voc->setManaMultiplier(floatValue);
+		voc->setMultiplier(MULTIPLIER_MANA, floatValue);
 
 	if(readXMLInteger(p, "attackspeed", intValue))
 		voc->setAttackSpeed(intValue);
@@ -131,25 +131,25 @@ bool Vocations::parseVocationNode(xmlNodePtr p)
 		else if(!xmlStrcmp(configNode->name, (const xmlChar*)"formula"))
 		{
 			if(readXMLFloat(configNode, "meleeDamage", floatValue))
-				voc->setMeleeMultiplier(floatValue);
+				voc->setMultiplier(MULTIPLIER_DISTANCE, floatValue);
 
 			if(readXMLFloat(configNode, "distDamage", floatValue) || readXMLFloat(configNode, "distanceDamage", floatValue))
-				voc->setDistanceMultiplier(floatValue);
+				voc->setMultiplier(MULTIPLIER_DISTANCE, floatValue);
 
 			if(readXMLFloat(configNode, "wandDamage", floatValue) || readXMLFloat(configNode, "rodDamage", floatValue))
-				voc->setWandMultiplier(floatValue);
+				voc->setMultiplier(MULTIPLIER_WAND, floatValue);
 
 			if(readXMLFloat(configNode, "magDamage", floatValue) || readXMLFloat(configNode, "magicDamage", floatValue))
-				voc->setMagicMultiplier(floatValue);
+				voc->setMultiplier(MULTIPLIER_MAGIC, floatValue);
 
 			if(readXMLFloat(configNode, "magHealingDamage", floatValue) || readXMLFloat(configNode, "magicHealingDamage", floatValue))
-				voc->setMagicHealingMultiplier(floatValue);
+				voc->setMultiplier(MULTIPLIER_MAGICHEALING, floatValue);
 
 			if(readXMLFloat(configNode, "defense", floatValue))
-				voc->setDefenseMultiplier(floatValue);
+				voc->setMultiplier(MULTIPLIER_DEFENSE, floatValue);
 
 			if(readXMLFloat(configNode, "armor", floatValue))
-				voc->setArmorMultiplier(floatValue);
+				voc->setMultiplier(MULTIPLIER_ARMOR, floatValue);
 		}
 		else if(!xmlStrcmp(configNode->name, (const xmlChar*)"absorb"))
 		{
@@ -279,23 +279,27 @@ Vocation::~Vocation()
 
 void Vocation::reset()
 {
+	memset(absorbPercent, 0, sizeof(absorbPercent));
 	needPremium = false;
 	attackable = true;
-	skillMultipliers[6] = 1.1f;
-	manaMultiplier = 4.0;
+	lessLoss = fromVocation = 0;
+	gainHealthAmount = gainManaAmount = 1;
+	gainHealth = gainMana = gainCap = 5;
+	gainHealthTicks = gainManaTicks = 6;
 	soulMax = 100;
 	soulGainTicks = 120;
 	baseSpeed = 220;
 	attackSpeed = 1500;
 	name = description = "";
-	lessLoss = fromVocation = 0;
-	gainHealthAmount = gainManaAmount = 1;
-	gainHealth = gainMana = gainCap = 5;
-	gainHealthTicks = gainManaTicks = 6;
-	meleeMultiplier = distanceMultiplier = wandMultiplier = magicMultiplier = magicHealingMultiplier = defenseMultiplier = armorMultiplier = 1.0;
-	memset(skillMultipliers, 2.0f, sizeof(skillMultipliers) - 1);
+
 	skillMultipliers[0] = 1.5f;
-	memset(absorbPercent, 0, sizeof(absorbPercent));
+	skillMultipliers[6] = 1.1f;
+	for(int32_t i = 1; i < 6; i++)
+		skillMultipliers[i] = 2.0f;
+
+	formulaMultipliers[MULTIPLIER_MANA] = 4.0f;
+	for(int32_t i = MULTIPLIER_FIRST; i < MULTIPLIER_LAST; i++)
+		formulaMultipliers[i] = 1.0f;
 }
 
 uint32_t Vocation::getReqSkillTries(int32_t skill, int32_t level)
@@ -308,9 +312,8 @@ uint32_t Vocation::getReqSkillTries(int32_t skill, int32_t level)
 	if(it != cacheSkill[skill].end())
 		return it->second;
 
-	uint32_t tries = (uint32_t)(skillBase[skill] * std::pow((float)skillMultipliers[skill], (float)(level - 11)));
-	skillMap[level] = tries;
-	return tries;
+	skillMap[level] = (uint32_t)(skillBase[skill] * std::pow((float)skillMultipliers[skill], (float)(level - 11)));
+	return skillMap[level];
 }
 
 uint64_t Vocation::getReqMana(uint32_t magLevel)
@@ -319,7 +322,7 @@ uint64_t Vocation::getReqMana(uint32_t magLevel)
 	if(it != cacheMana.end())
 		return it->second;
 
-	uint64_t reqMana = (uint64_t)(400 * pow(manaMultiplier, magLevel-1));
+	uint64_t reqMana = (uint64_t)(400 * pow(formulaMultipliers[MULTIPLIER_MANA], magLevel - 1));
 	if(reqMana % 20 < 10)
 		reqMana = reqMana - (reqMana % 20);
 	else
