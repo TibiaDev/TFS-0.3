@@ -22,6 +22,22 @@
 #define __OTSERV_ENUMS_H__
 #include <string>
 
+enum DatabaseEngine_t
+{
+	DATABASE_ENGINE_NONE = 0,
+	DATABASE_ENGINE_MYSQL = 1,
+	DATABASE_ENGINE_SQLITE = 2,
+	DATABASE_ENGINE_POSTGRESQL = 3,
+	DATABASE_ENGINE_ODBC = 4
+};
+
+enum PasswordType_t
+{
+	PASSWORD_TYPE_PLAIN = 0,
+	PASSWORD_TYPE_MD5 = 1,
+	PASSWORD_TYPE_SHA1 = 2
+};
+
 enum StorageValues_t
 {
 	STORAGEVALUE_PROMOTION = 30018
