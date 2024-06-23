@@ -199,6 +199,7 @@ enum PlayerInfo_t
 {
 	PlayerInfoFood,
 	PlayerInfoAccess,
+	PlayerInfoGhostAccess,
 	PlayerInfoLevel,
 	PlayerInfoExperience,
 	PlayerInfoManaSpent,
@@ -215,7 +216,6 @@ enum PlayerInfo_t
 	PlayerInfoGuildNick,
 	PlayerInfoSex,
 	PlayerInfoGroupId,
-	PlayerInfoGroupName,
 	PlayerInfoGUID,
 	PlayerInfoAccountId,
 	PlayerInfoAccount,
@@ -403,6 +403,7 @@ class LuaScriptInterface
 		static int32_t luaDoPlayerWithdrawMoney(lua_State* L);
 		static int32_t luaDoPlayerDepositMoney(lua_State* L);
 		static int32_t luaDoPlayerTransferMoneyTo(lua_State* L);
+		static int32_t luaDoPlayerSetPzLocked(lua_State* L);
 		static int32_t luaDoPlayerSetTown(lua_State* L);
 		static int32_t luaDoPlayerSetVocation(lua_State* L);
 		static int32_t luaDoPlayerRemoveItem(lua_State* L);
@@ -510,6 +511,7 @@ class LuaScriptInterface
 		static int32_t luaGetPlayerNameDescription(lua_State* L);
 		static int32_t luaGetPlayerFood(lua_State* L);
 		static int32_t luaGetPlayerAccess(lua_State* L);
+		static int32_t luaGetPlayerGhostAccess(lua_State* L);
 		static int32_t luaGetPlayerLevel(lua_State* L);
 		static int32_t luaGetPlayerExperience(lua_State* L);
 		static int32_t luaGetPlayerMagLevel(lua_State* L);
@@ -566,7 +568,6 @@ class LuaScriptInterface
 		static int32_t luaSetPlayerPromotionLevel(lua_State* L);
 		static int32_t luaGetPlayerGroupId(lua_State* L);
 		static int32_t luaSetPlayerGroupId(lua_State* L);
-		static int32_t luaGetPlayerGroupName(lua_State* L);
 
 		static int32_t luaDoPlayerLearnInstantSpell(lua_State* L);
 		static int32_t luaDoPlayerUnlearnInstantSpell(lua_State* L);
@@ -672,6 +673,7 @@ class LuaScriptInterface
 		static int32_t luaSetMonsterOutfit(lua_State* L);
 		static int32_t luaSetItemOutfit(lua_State* L);
 		static int32_t luaGetCreaturePosition(lua_State* L);
+		static int32_t luaGetCreatureLastPosition(lua_State* L);
 		static int32_t luaGetCreatureName(lua_State* L);
 		static int32_t luaGetCreatureMaster(lua_State* L);
 		static int32_t luaGetCreatureSummons(lua_State* L);
@@ -745,6 +747,7 @@ class LuaScriptInterface
 		static int32_t luaGetItemShootRange(lua_State* L);
 		static int32_t luaSetItemShootRange(lua_State* L);
 
+		static int32_t luaGetWaypointsList(lua_State* L);
 		static int32_t luaGetWaypointPosition(lua_State* L);
 		static int32_t luaDoWaypointAddTemporial(lua_State* L);
 		static int32_t luaGetDataDir(lua_State* L);

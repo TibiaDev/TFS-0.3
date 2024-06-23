@@ -65,16 +65,19 @@ OTSYS_THREAD_RETURN Dispatcher::dispatcherThread(void* p)
 		if(!task)
 			continue;
 
-		outputPool = OutputMessagePool::getInstance();
-		if(outputPool)
-			outputPool->startExecutionFrame();
+		if(!task->hasExpired())
+		{
+			if((outputPool = OutputMessagePool::getInstance()))
+				outputPool->startExecutionFrame();
 
-		(*task)();
+			(*task)();
+			if(outputPool)
+				outputPool->sendAll();
+
+			g_game.clearSpectatorCache();
+		}
+
 		delete task;
-		if(outputPool)
-			outputPool->sendAll();
-
-		g_game.clearSpectatorCache();
 	}
 
 	#if defined __EXCEPTION_TRACER__
@@ -85,7 +88,7 @@ OTSYS_THREAD_RETURN Dispatcher::dispatcherThread(void* p)
 	#endif
 }
 
-void Dispatcher::addTask(Task* task)
+void Dispatcher::addTask(Task* task, bool front/* = false*/)
 {
 	bool signal = false;
 	if(Dispatcher::m_threadState == Dispatcher::STATE_RUNNING)
@@ -93,7 +96,11 @@ void Dispatcher::addTask(Task* task)
 		OTSYS_THREAD_LOCK(m_taskLock, "");
 		signal = m_taskList.empty();
 
-		m_taskList.push_back(task);
+		if(front)
+			m_taskList.push_front(task);
+		else
+			m_taskList.push_back(task);
+
 		OTSYS_THREAD_UNLOCK(m_taskLock, "");
 	}
 	#ifdef __DEBUG_SCHEDULER__

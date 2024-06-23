@@ -348,8 +348,8 @@ bool Weapon::useFist(Player* player, Creature* target)
 	}
 
 	Vocation* vocation = player->getVocation();
-	if(vocation && vocation->getMeleeMultiplier() != 1.0)
-		maxDamage *= vocation->getMeleeMultiplier();
+	if(vocation && vocation->getMultiplier(MULTIPLIER_MELEE) != 1.0)
+		maxDamage *= vocation->getMultiplier(MULTIPLIER_MELEE);
 
 	maxDamage = std::floor(maxDamage);
 	int32_t damage = -random_range(0, (int32_t)maxDamage, DISTRO_NORMAL);
@@ -643,8 +643,8 @@ int32_t WeaponMelee::getWeaponDamage(const Player* player, const Creature* targe
 	}
 
 	Vocation* vocation = player->getVocation();
-	if(vocation && vocation->getMeleeMultiplier() != 1.0)
-		maxValue *= vocation->getMeleeMultiplier();
+	if(vocation && vocation->getMultiplier(MULTIPLIER_MELEE) != 1.0)
+		maxValue *= vocation->getMultiplier(MULTIPLIER_MELEE);
 
 	int32_t ret = (int32_t)std::floor(maxValue);
 	if(maxDamage)
@@ -666,8 +666,8 @@ int32_t WeaponMelee::getElementDamage(const Player* player, const Item* item) co
 	}
 
 	Vocation* vocation = player->getVocation();
-	if(vocation && vocation->getMeleeMultiplier() != 1.0)
-		maxValue *= vocation->getMeleeMultiplier();
+	if(vocation && vocation->getMultiplier(MULTIPLIER_MELEE) != 1.0)
+		maxValue *= vocation->getMultiplier(MULTIPLIER_MELEE);
 
 	return -random_range(0, (int32_t)std::floor(maxValue), DISTRO_NORMAL);
 }
@@ -883,30 +883,32 @@ bool WeaponDistance::useWeapon(Player* player, Item* item, Creature* target) con
 
 	if(chance < random_range(1, 100))
 	{
-		//miss target
-		typedef std::pair<int32_t, int32_t> tmpPair;
-		std::vector<tmpPair> destList;
-		destList.push_back(tmpPair(-1, -1));
-		destList.push_back(tmpPair(-1, 0));
-		destList.push_back(tmpPair(-1, 1));
-		destList.push_back(tmpPair(0, -1));
-		destList.push_back(tmpPair(0, 1));
-		destList.push_back(tmpPair(1, -1));
-		destList.push_back(tmpPair(1, 0));
-		destList.push_back(tmpPair(1, 1));
-
-		std::random_shuffle(destList.begin(), destList.end());
-		Position destPos = target->getPosition();
-
+		//we failed attack, miss!
 		Tile* destTile = target->getTile();
-		Tile* tmpTile = NULL;
-		for(std::vector<tmpPair>::iterator it = destList.begin(); it != destList.end(); ++it)
+		if(!Position::areInRange<1,1,0>(player->getPosition(), target->getPosition()))
 		{
-			tmpTile = g_game.getTile(destPos.x + it->first, destPos.y + it->second, destPos.z);
-			if(tmpTile && !tmpTile->hasProperty(IMMOVABLEBLOCKSOLID))
+			std::vector<std::pair<int32_t, int32_t> > destList;
+			destList.push_back(std::make_pair(-1, -1));
+			destList.push_back(std::make_pair(-1, 0));
+			destList.push_back(std::make_pair(-1, 1));
+			destList.push_back(std::make_pair(0, -1));
+			destList.push_back(std::make_pair(0, 0));
+			destList.push_back(std::make_pair(0, 1));
+			destList.push_back(std::make_pair(1, -1));
+			destList.push_back(std::make_pair(1, 0));
+			destList.push_back(std::make_pair(1, 1));
+			std::random_shuffle(destList.begin(), destList.end());
+
+			Position destPos = target->getPosition();
+			Tile* tmpTile = NULL;
+			for(std::vector<std::pair<int32_t, int32_t> >::iterator it = destList.begin(); it != destList.end(); ++it)
 			{
-				destTile = tmpTile;
-				break;
+				if((tmpTile = g_game.getTile(destPos.x + it->first, destPos.y + it->second, destPos.z))
+					&& !tmpTile->hasProperty(IMMOVABLEBLOCKSOLID) && tmpTile->ground)
+				{
+					destTile = tmpTile;
+					break;
+				}
 			}
 		}
 
@@ -952,8 +954,8 @@ int32_t WeaponDistance::getWeaponDamage(const Player* player, const Creature* ta
 	}
 
 	Vocation* vocation = player->getVocation();
-	if(vocation && vocation->getDistanceMultiplier() != 1.0)
-		maxValue *= vocation->getDistanceMultiplier();
+	if(vocation && vocation->getMultiplier(MULTIPLIER_DISTANCE) != 1.0)
+		maxValue *= vocation->getMultiplier(MULTIPLIER_DISTANCE);
 
 	int32_t ret = (int32_t)std::floor(maxValue);
 	if(maxDamage)
@@ -1038,10 +1040,10 @@ int32_t WeaponWand::getWeaponDamage(const Player* player, const Creature* target
 
 	int32_t minValue = minChange, maxValue = maxChange;
 	Vocation* vocation = player->getVocation();
-	if(vocation && vocation->getWandMultiplier() != 1.0)
+	if(vocation && vocation->getMultiplier(MULTIPLIER_WAND) != 1.0)
 	{
-		minValue *= vocation->getWandMultiplier();
-		maxValue *= vocation->getWandMultiplier();
+		minValue = (int32_t)(minValue * vocation->getMultiplier(MULTIPLIER_WAND));
+		maxValue = (int32_t)(maxValue * vocation->getMultiplier(MULTIPLIER_WAND));
 	}
 
 	return random_range(-minValue, -maxValue, DISTRO_NORMAL);

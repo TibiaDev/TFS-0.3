@@ -120,7 +120,10 @@ bool DatabaseMySQL::executeQuery(const std::string &query)
 	}
 
 	if(MYSQL_RES* tmp = mysql_store_result(&m_handle))
+	{
 		mysql_free_result(tmp);
+		tmp = NULL;
+	}
 
 	return state;
 }
@@ -130,7 +133,7 @@ DBResult* DatabaseMySQL::storeQuery(const std::string &query)
 	if(!m_connected)
 		return NULL;
 
-	int32_t error = 0;	
+	int32_t error = 0;
 	if(mysql_real_query(&m_handle, query.c_str(), query.length()))
 	{
 		error = mysql_errno(&m_handle);
@@ -159,7 +162,7 @@ DBResult* DatabaseMySQL::storeQuery(const std::string &query)
 std::string DatabaseMySQL::escapeBlob(const char* s, uint32_t length)
 {
 	if(!s)
-		return std::string("''");
+		return "''";
 
 	char* output = new char[length * 2 + 1];
 	mysql_real_escape_string(&m_handle, output, s, length);
@@ -190,7 +193,7 @@ bool DatabaseMySQL::connect()
 	{
 		m_connected = false;
 		mysql_close(&m_handle);
-		OTSYS_SLEEP(100);
+		OTSYS_SLEEP(1000);
 	}
 
 	if(!mysql_real_connect(&m_handle, g_config.getString(ConfigManager::SQL_HOST).c_str(), g_config.getString(ConfigManager::SQL_USER).c_str(),
@@ -321,7 +324,7 @@ void MySQLResult::fetch()
 	m_listNames.clear();
 	int32_t i = 0;
 
-	MYSQL_FIELD* field;	
+	MYSQL_FIELD* field;
 	while((field = mysql_fetch_field(m_handle)))
 		m_listNames[field->name] = i++;
 }

@@ -231,20 +231,7 @@
 		<attribute key="allowpickupable" value="1"/>
 	</item>
 	<item id="724" name="cobbled pavement"/>
-	<item id="777" name="sandstone"/>
-	<item id="778" name="sandstone"/>
-	<item id="779" name="sandstone"/>
-	<item id="780" name="sandstone"/>
-	<item id="781" name="sandstone"/>
-	<item id="782" name="sandstone"/>
-	<item id="783" name="sandstone"/>
-	<item id="784" name="sandstone"/>
-	<item id="785" name="sandstone"/>
-	<item id="786" name="sandstone"/>
-	<item id="787" name="sandstone"/>
-	<item id="788" name="sandstone"/>
-	<item id="789" name="sandstone"/>
-	<item id="790" name="sandstone"/>
+	<item fromid="777" toid="790" name="sandstone"/>
 	<item id="791" name="grass"/>
 	<item id="804" name="dirt"/>
 	<item id="806" name="dirt"/>
@@ -2848,6 +2835,7 @@
 		<attribute key="charges" value="200"/>
 		<attribute key="showcharges" value="1"/>
 		<attribute key="absorbPercentEnergy" value="10"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="2162" article="a" name="magic lightwand">
 		<attribute key="weight" value="1500"/>
@@ -2908,12 +2896,13 @@
 		<attribute key="charges" value="200"/>
 		<attribute key="showcharges" value="1"/>
 		<attribute key="absorbPercentPoison" value="10"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="2171" article="a" name="platinum amulet">
 		<attribute key="description" value="It is an amulet of protection."/>
 		<attribute key="weight" value="600"/>
-		<attribute key="armor" value="2"/>
 		<attribute key="slotType" value="necklace"/>
+		<attribute key="armor" value="2"/>
 	</item>
 	<item id="2172" article="a" name="bronze amulet">
 		<attribute key="weight" value="500"/>
@@ -2921,12 +2910,13 @@
 		<attribute key="charges" value="200"/>
 		<attribute key="showcharges" value="1"/>
 		<attribute key="absorbPercentManaDrain" value="20"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="2173" article="an" name="amulet of loss">
 		<attribute key="weight" value="420"/>
 		<attribute key="slotType" value="necklace"/>
-		<attribute key="preventDrop" value="1"/>
 		<attribute key="charges" value="1"/>
+		<attribute key="preventDrop" value="1"/>
 	</item>
 	<item id="2174" article="a" name="strange symbol">
 		<attribute key="weight" value="200"/>
@@ -3037,6 +3027,7 @@
 		<attribute key="weight" value="750"/>
 		<attribute key="slotType" value="feet"/>
 		<attribute key="speed" value="40"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="2196" article="a" name="broken amulet">
 		<attribute key="weight" value="420"/>
@@ -3049,6 +3040,7 @@
 		<attribute key="showcharges" value="1"/>
 		<attribute key="absorbPercentPhysical" value="80"/>
 		<attribute key="absorbPercentDeath" value="80"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="2198" article="an" name="elven amulet">
 		<attribute key="weight" value="270"/>
@@ -3056,6 +3048,7 @@
 		<attribute key="charges" value="50"/>
 		<attribute key="showcharges" value="1"/>
 		<attribute key="absorbPercentAll" value="5"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="2199" article="a" name="garlic necklace">
 		<attribute key="weight" value="380"/>
@@ -3063,6 +3056,7 @@
 		<attribute key="charges" value="150"/>
 		<attribute key="showcharges" value="1"/>
 		<attribute key="absorbPercentLifeDrain" value="20"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="2200" article="a" name="protection amulet">
 		<attribute key="weight" value="550"/>
@@ -3070,6 +3064,7 @@
 		<attribute key="charges" value="250"/>
 		<attribute key="showcharges" value="1"/>
 		<attribute key="absorbPercentPhysical" value="6"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="2201" article="a" name="dragon necklace">
 		<attribute key="weight" value="630"/>
@@ -3077,6 +3072,7 @@
 		<attribute key="charges" value="200"/>
 		<attribute key="showcharges" value="1"/>
 		<attribute key="absorbPercentFire" value="8"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="2202" article="a" name="stealth ring">
 		<attribute key="weight" value="100"/>
@@ -4999,6 +4995,7 @@
 	</item>
 	<item id="2595" article="a" name="parcel">
 		<attribute key="weight" value="1800"/>
+		<attribute key="type" value="container"/>
 		<attribute key="containerSize" value="10"/>
 	</item>
 	<item id="2596" article="a" name="stamped parcel">
@@ -5012,6 +5009,7 @@
 	</item>
 	<item id="2598" article="a" name="stamped letter">
 		<attribute key="weight" value="30"/>
+		<attribute key="readable" value="1"/>
 	</item>
 	<item id="2599" article="a" name="label">
 		<attribute key="weight" value="10"/>
@@ -16378,7 +16376,6 @@
 	</item>
 	<item id="7459" name="earmuffs">
 		<attribute key="weight" value="500"/>
-		<attribute key="armor" value="0"/>
 		<attribute key="slotType" value="head"/>
 	</item>
 	<item id="7460" article="a" name="norse shield">
@@ -16405,7 +16402,6 @@
 	</item>
 	<item id="7464" article="a" name="mammoth fur shorts">
 		<attribute key="weight" value="150"/>
-		<attribute key="armor" value="0"/>
 		<attribute key="slotType" value="legs"/>
 		<attribute key="description" value="They offer little protection but will at least provide some comfort and warmth."/>
 	</item>
@@ -18087,32 +18083,38 @@
 	<item id="7887" article="a" name="terra amulet">
 		<attribute key="weight" value="500"/>
 		<attribute key="slotType" value="necklace"/>
+		<attribute key="charges" value="200"/>
+		<attribute key="showcharges" value="1"/>
 		<attribute key="absorbPercentEarth" value="20"/>
 		<attribute key="absorbPercentFire" value="-10"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="7888" article="a" name="glacier amulet">
 		<attribute key="weight" value="500"/>
 		<attribute key="slotType" value="necklace"/>
-		<attribute key="absorbPercentIce" value="20"/>
-		<attribute key="absorbPercentEnergy" value="-10"/>
 		<attribute key="charges" value="200"/>
 		<attribute key="showcharges" value="1"/>
+		<attribute key="absorbPercentIce" value="20"/>
+		<attribute key="absorbPercentEnergy" value="-10"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="7889" article="a" name="lightning pendant">
 		<attribute key="weight" value="500"/>
 		<attribute key="slotType" value="necklace"/>
-		<attribute key="absorbPercentEnergy" value="20"/>
-		<attribute key="absorbPercentEarth" value="-10"/>
 		<attribute key="charges" value="200"/>
 		<attribute key="showcharges" value="1"/>
+		<attribute key="absorbPercentEnergy" value="20"/>
+		<attribute key="absorbPercentEarth" value="-10"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="7890" article="a" name="magma amulet">
 		<attribute key="weight" value="500"/>
 		<attribute key="slotType" value="necklace"/>
-		<attribute key="absorbPercentFire" value="20"/>
-		<attribute key="absorbPercentIce" value="-10"/>
 		<attribute key="charges" value="200"/>
 		<attribute key="showcharges" value="1"/>
+		<attribute key="absorbPercentFire" value="20"/>
+		<attribute key="absorbPercentIce" value="-10"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="7891" name="magma boots">
 		<attribute key="weight" value="750"/>
@@ -18124,9 +18126,9 @@
 	<item id="7892" name="glacier shoes">
 		<attribute key="weight" value="750"/>
 		<attribute key="armor" value="2"/>
-		<attribute key="slotType" value="feet"/>
 		<attribute key="absorbPercentIce" value="5"/>
 		<attribute key="absorbPercentEnergy" value="-5"/>
+		<attribute key="slotType" value="feet"/>
 	</item>
 	<item id="7893" name="lightning boots">
 		<attribute key="weight" value="750"/>
@@ -18650,6 +18652,7 @@
 		<attribute key="slotType" value="necklace"/>
 		<attribute key="absorbPercentDeath" value="8"/>
 		<attribute key="absorbPercentHoly" value="-50"/>
+		<attribute key="showattributes" value="1"/>
 	</item>
 	<item id="8268" article="a" name="sun dial"/>
 	<item id="8269" article="a" name="slain lich">
@@ -18718,6 +18721,9 @@
 	<item id="8290" article="a" name="demon oak"/>
 	<item id="8291" article="a" name="demon oak"/>
 	<item id="8292" name="mud"/>
+	<item id="8293" article="a" name="hallowed axe">
+		<attribute key="weight" value="4000"/>
+	</item>
 	<item id="8294" article="a" name="stone wall"/>
 	<item id="8295" article="a" name="stone wall"/>
 	<item id="8298" name="natural soil">
@@ -19676,22 +19682,18 @@
 	</item>
 	<item id="8873" article="a" name="hibiscus dress">
 		<attribute key="weight" value="1900"/>
-		<attribute key="armor" value="0"/>
 		<attribute key="slotType" value="body"/>
 	</item>
 	<item id="8874" article="a" name="summer dress">
 		<attribute key="weight" value="1000"/>
-		<attribute key="armor" value="0"/>
 		<attribute key="slotType" value="body"/>
 	</item>
 	<item id="8875" article="a" name="tunic">
 		<attribute key="weight" value="1500"/>
-		<attribute key="armor" value="0"/>
 		<attribute key="slotType" value="body"/>
 	</item>
 	<item id="8876" article="a" name="girl's dress">
 		<attribute key="weight" value="1300"/>
-		<attribute key="armor" value="0"/>
 		<attribute key="slotType" value="body"/>
 	</item>
 	<item id="8877" article="a" name="lavos armor">
@@ -20319,7 +20321,9 @@
 	<item id="9016"/>
 	<item id="9017"/>
 	<item id="9018"/>
-	<item id="9019"/>
+	<item id="9019" article="a" name="vampire doll">
+		<attribute key="weight" value="940"/>
+	</item>
 	<item id="9020"/>
 	<item id="9021" name="dirt"/>
 	<item id="9022" name="dirt"/>
@@ -21025,6 +21029,18 @@
 	<item id="9971" article="a" name="gold ingot">
 		<attribute key="weight" value="1800"/>
 	</item>
+	<item id="9976" article="a" name="crystal pedestal">
+		<attribute key="weight" value="4000"/>
+	</item>
+	<item id="9977" article="a" name="crystal pedestal">
+		<attribute key="weight" value="4000"/>
+	</item>
+	<item id="9978" article="a" name="crystal pedestal">
+		<attribute key="weight" value="4000"/>
+	</item>
+	<item id="9979" article="a" name="crystal pedestal">
+		<attribute key="weight" value="4000"/>
+	</item>	
 	<item id="9980" article="a" name="crystal of power">
 		<attribute key="description" value="It is said to make you more resistant to weaknesses and to supply you with energy."/>
 		<attribute key="weight" value="850"/>

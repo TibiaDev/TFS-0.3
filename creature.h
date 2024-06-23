@@ -156,6 +156,11 @@ class Creature : public AutoID, virtual public Thing
 		Direction getDirection() const {return direction;}
 		void setDirection(Direction dir) {direction = dir;}
 
+		bool getHideName() const {return hideName;}
+		void setHideName(bool v) {hideName = v;}
+		bool getHideHealth() const {return hideHealth;}
+		void setHideHealth(bool v) {hideHealth = v;}
+
 		const Position& getMasterPos() const {return masterPos;}
 		void setMasterPos(const Position& pos, uint32_t radius = 1) {masterPos = pos; masterRadius = radius;}
 
@@ -168,13 +173,13 @@ class Creature : public AutoID, virtual public Thing
 		virtual bool canSeeGhost(const Creature* creature) const {return false;}
 
 		int64_t getSleepTicks() const;
-		int32_t getWalkDelay(Direction dir) const;
+		int32_t getWalkDelay(Direction dir, uint32_t resolution) const;
 		int64_t getTimeSinceLastMove() const;
 
-		virtual int64_t getEventStepTicks() const;
-
-		int32_t getStepDuration() const;
+		int64_t getEventStepTicks() const;
+		int32_t getStepDuration(bool addLastStepCost = true) const;
 		virtual int32_t getStepSpeed() const {return getSpeed();}
+
 		int32_t getSpeed() const {return baseSpeed + varSpeed;}
 		void setSpeed(int32_t varSpeedDelta)
 		{
@@ -262,7 +267,7 @@ class Creature : public AutoID, virtual public Thing
 		void removeConditions(ConditionEnd_t reason, bool onlyPersistent = true);
 		Condition* getCondition(ConditionType_t type, ConditionId_t id, uint32_t subId = 0) const;
 		void executeConditions(uint32_t interval);
-		bool hasCondition(ConditionType_t type, uint32_t subId = 0) const;
+		bool hasCondition(ConditionType_t type, uint32_t subId = 0, bool checkTime = true) const;
 		virtual bool isImmune(ConditionType_t type) const;
 		virtual bool isImmune(CombatType_t type) const;
 		virtual bool isSuppress(ConditionType_t type) const;
@@ -293,20 +298,20 @@ class Creature : public AutoID, virtual public Thing
 
 		//combat event functions
 		virtual void onAddCondition(ConditionType_t type);
-		virtual void onAddCombatCondition(ConditionType_t type);
-		virtual void onEndCondition(ConditionType_t type);
-		virtual void onTickCondition(ConditionType_t type, bool& _remove);
+		virtual void onAddCombatCondition(ConditionType_t type) {}
+		virtual void onEndCondition(ConditionType_t type) {}
+		virtual void onTickCondition(ConditionType_t type, int32_t interval, bool& _remove);
 		virtual void onCombatRemoveCondition(const Creature* attacker, Condition* condition);
-		virtual void onAttackedCreature(Creature* target);
-		virtual void onAttacked();
+		virtual void onAttackedCreature(Creature* target) {}
+		virtual void onAttacked() {}
 		virtual void onAttackedCreatureDrainHealth(Creature* target, int32_t points);
 		virtual void onTargetCreatureGainHealth(Creature* target, int32_t points);
 		virtual void onAttackedCreatureKilled(Creature* target);
 		virtual bool onKilledCreature(Creature* target);
 		virtual void onGainExperience(uint64_t gainExp);
 		virtual void onGainSharedExperience(uint64_t gainExp);
-		virtual void onAttackedCreatureBlockHit(Creature* target, BlockType_t blockType);
-		virtual void onBlockHit(BlockType_t blockType);
+		virtual void onAttackedCreatureBlockHit(Creature* target, BlockType_t blockType) {}
+		virtual void onBlockHit(BlockType_t blockType) {}
 		virtual void onChangeZone(ZoneType_t zone);
 		virtual void onAttackedCreatureChangeZone(ZoneType_t zone);
 		virtual void onIdleStatus();
@@ -325,7 +330,7 @@ class Creature : public AutoID, virtual public Thing
 			const Item* oldItem, const ItemType& oldType, const Item* newItem, const ItemType& newType);
 		virtual void onRemoveTileItem(const Tile* tile, const Position& pos, uint32_t stackpos,
 			const ItemType& iType, const Item* item);
-		virtual void onUpdateTile(const Tile* tile, const Position& pos);
+		virtual void onUpdateTile(const Tile* tile, const Position& pos) {}
 
 		virtual void onCreatureAppear(const Creature* creature, bool isLogin);
 		virtual void onCreatureDisappear(const Creature* creature, uint32_t stackpos, bool isLogout);
@@ -341,7 +346,7 @@ class Creature : public AutoID, virtual public Thing
 
 		virtual void onCreatureChangeOutfit(const Creature* creature, const Outfit_t& outfit) {}
 		virtual void onCreatureConvinced(const Creature* convincer, const Creature* creature) {}
-		virtual void onCreatureChangeVisible(const Creature* creature, bool visible);
+		virtual void onCreatureChangeVisible(const Creature* creature, bool visible) {}
 		virtual void onPlacedCreature() {};
 		virtual void onRemovedCreature() {};
 
@@ -393,10 +398,12 @@ class Creature : public AutoID, virtual public Thing
 		bool isInternalRemoved;
 		bool isMapLoaded;
 		bool isUpdatingPath;
-		size_t checkCreatureVectorIndex;
+
+		int32_t checkCreatureVectorIndex;
 		int32_t health, healthMax;
 		int32_t mana, manaMax;
 
+		bool hideName, hideHealth, cannotMove;
 		Outfit_t currentOutfit;
 		Outfit_t defaultOutfit;
 
@@ -405,12 +412,10 @@ class Creature : public AutoID, virtual public Thing
 		int32_t masterRadius;
 		uint64_t lastStep;
 		uint32_t lastStepCost;
-		uint32_t extraStepDuration;
 		uint32_t baseSpeed;
 		int32_t varSpeed;
 		bool skillLoss;
 		lootDrop_t lootDrop;
-		bool cannotMove;
 		Skulls_t skull;
 		PartyShields_t partyShield;
 		Direction direction;

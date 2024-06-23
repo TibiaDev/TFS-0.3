@@ -145,6 +145,10 @@ class ConfigManager
 			BLESS_REDUCTION,
 			NICE_LEVEL,
 			EXPERIENCE_COLOR,
+			GUILD_PREMIUM_DAYS,
+			PUSH_CREATURE_DELAY,
+			DEATH_CONTAINER,
+			MAXIMUM_DOOR_LEVEL,
 			LAST_NUMBER_CONFIG /* this must be the last one */
 		};
 
@@ -227,6 +231,8 @@ class ConfigManager
 			SHOW_HEALING_DAMAGE_MONSTER,
 			CHECK_CORPSE_OWNER,
 			BUFFER_SPELL_FAILURE,
+			CONFIM_OUTDATED_VERSION,
+			PREMIUM_SKIP_WAIT,
 			LAST_BOOL_CONFIG /* this must be the last one */
 		};
 

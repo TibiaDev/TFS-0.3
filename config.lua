@@ -51,6 +51,8 @@
 	loginProtectionPeriod = 10 * 1000
 	deathLostPercent = 10
 	stairhopDelay = 2 * 1000
+	pushCreatureDelay = 2 * 1000
+	deathContainerId = 1987
 	gainExperienceColor = 215
 
 	-- Connection config
@@ -63,7 +65,7 @@
 	loginTries = 10
 	retryTimeout = 5 * 1000
 	loginTimeout = 60 * 1000
-	maxPlayers = "1000"
+	maxPlayers = 1000
 	motd = "Welcome to the Forgotten Server!"
 	displayOnOrOffAtCharlist = "no"
 	onePlayerOnlinePerAccount = "yes"
@@ -74,6 +76,7 @@
 	replaceKickOnLogin = "yes"
 	forceSlowConnectionsToDisconnect = "no"
 	loginOnlyWithLoginServer = "no"
+	premiumPlayerSkipWaitList = "no"
 
 	-- Database
 	-- NOTE: sqlFile is used only by sqlite database, and sqlKeepAlive by mysql database.
@@ -97,6 +100,7 @@
 	-- Guilds
 	ingameGuildManagement = "yes"
 	levelToFormGuild = 8
+	premiumDaysToFormGuild = 0
 	guildNameMinLength = 4
 	guildNameMaxLength = 20
 
@@ -120,6 +124,7 @@
 	timeBetweenExActions = 1000
 	checkCorpseOwner = "yes"
 	hotkeyAimbotEnabled = "yes"
+	maximumDoorLevel = 500
 
 	-- Map
 	-- NOTE: storeTrash costs more memory, but will perform alot faster cleaning.
@@ -140,6 +145,7 @@
 	coresUsed = "-1"
 	optimizeDatabaseAtStartup = "yes"
 	removePremiumOnInit = "yes"
+	confirmOutdatedVersion = "yes"
 
 	-- Muted buffer
 	maxMessageBuffer = 4

@@ -70,6 +70,8 @@ Creature()
 	setSkull(mType->skull);
 	setShield(mType->partyShield);
 
+	hideName = mType->hideName, hideHealth = mType->hideHealth;
+
 	minCombatValue = 0;
 	maxCombatValue = 0;
 
@@ -325,6 +327,19 @@ bool Monster::isOpponent(const Creature* creature)
 	return false;
 }
 
+bool Monster::doTeleportToMaster()
+{
+	const Position& tmp = getPosition();
+	if(g_game.internalTeleport(this, g_game.getClosestFreeTile(this, getMaster()->getPosition(), true), false) == RET_NOERROR)
+	{
+		g_game.addMagicEffect(tmp, NM_ME_POFF);
+		g_game.addMagicEffect(getPosition(), NM_ME_TELEPORT);
+		return true;
+	}
+
+	return false;
+}
+
 void Monster::onCreatureLeave(Creature* creature)
 {
 	//std::cout << "onCreatureLeave - " << creature->getName() << std::endl;
@@ -337,7 +352,10 @@ void Monster::onCreatureLeave(Creature* creature)
 			deactivate();
 		}
 		else
-			teleportToMaster = true;
+		{
+			if(!doTeleportToMaster())
+				teleportToMaster = true;
+		}
 	}
 
 	//update friendList
@@ -420,26 +438,26 @@ bool Monster::searchTarget(TargetSearchType_t searchType /*= TARGETSEARCH_DEFAUL
 
 void Monster::onFollowCreatureComplete(const Creature* creature)
 {
-	if(creature)
-	{
-		CreatureList::iterator it = std::find(targetList.begin(), targetList.end(), creature);
-		if(it != targetList.end())
-		{
-			Creature* target = (*it);
-			targetList.erase(it);
+	if(!creature)
+		return;
 
-			if(hasFollowPath) //push target we have found a path to the front
-				targetList.push_front(target);
-			else if(!isSummon()) //push target we have not found a path to the back
-				targetList.push_back(target);
-			else //Since we removed the creature from the targetList (and not put it back) we have to release it too
-				target->releaseThing2();
-		}
+	CreatureList::iterator it = std::find(targetList.begin(), targetList.end(), creature);
+	if(it != targetList.end())
+	{
+		Creature* target = (*it);
+		targetList.erase(it);
+
+		if(hasFollowPath) //push target we have found a path to the front
+			targetList.push_front(target);
+		else if(!isSummon()) //push target we have not found a path to the back
+			targetList.push_back(target);
+		else //Since we removed the creature from the targetList (and not put it back) we have to release it too
+			target->releaseThing2();
 	}
 }
 
 BlockType_t Monster::blockHit(Creature* attacker, CombatType_t combatType, int32_t& damage,
-	bool checkDefense /* = false*/, bool checkArmor /* = false*/)
+	bool checkDefense/* = false*/, bool checkArmor/* = false*/)
 {
 	BlockType_t blockType = Creature::blockHit(attacker, combatType, damage, checkDefense, checkArmor);
 	if(damage != 0)
@@ -542,11 +560,19 @@ bool Monster::deactivate(bool forced /*= false*/)
 
 void Monster::onAddCondition(ConditionType_t type)
 {
+	//the walkCache need to be updated if the monster becomes "resistent" to the damage, see Tile::__queryAdd()
+	if(type == CONDITION_FIRE || type == CONDITION_ENERGY || type == CONDITION_POISON)
+		updateMapCache();
+
 	activate();
 }
 
 void Monster::onEndCondition(ConditionType_t type)
 {
+	//the walkCache need to be updated if the monster loose the "resistent" to the damage, see Tile::__queryAdd()
+	if(type == CONDITION_FIRE || type == CONDITION_ENERGY || type == CONDITION_POISON)
+		updateMapCache();
+
 	deactivate();
 }
 
@@ -560,40 +586,23 @@ void Monster::onThink(uint32_t interval)
 	}
 	else if(!deactivate())
 	{
-		if(teleportToMaster)
-		{
-			const Position& tmp = getPosition();
-			if(g_game.internalTeleport(this, g_game.getClosestFreeTile(this, getMaster()->getPosition(), true), false) == RET_NOERROR)
-			{
-				g_game.addMagicEffect(tmp, NM_ME_POFF);
-				g_game.addMagicEffect(getPosition(), NM_ME_TELEPORT);
-				teleportToMaster = false;
-			}
-		}
+		if(teleportToMaster && doTeleportToMaster())
+			teleportToMaster = false;
 
 		addEventWalk();
 		if(isSummon())
 		{
 			if(!attackedCreature)
 			{
-				if(getMaster() && getMaster()->getAttackedCreature())
-				{
-					///This happens if the monster is summoned during combat
+				if(getMaster() && getMaster()->getAttackedCreature()) //This happens if the monster is summoned during combat
 					selectTarget(getMaster()->getAttackedCreature());
-				}
-				else if(getMaster() != followCreature)
-				{
-					//Our master has not ordered us to attack anything, lets follow him around instead.
+				else if(getMaster() != followCreature) //Our master has not ordered us to attack anything, lets follow him around instead.
 					setFollowCreature(getMaster());
-				}
 			}
 			else if(attackedCreature == this)
 				setFollowCreature(NULL);
-			else if(followCreature != attackedCreature)
-			{
-				//This happens just after a master orders an attack, so lets follow it aswell.
+			else if(followCreature != attackedCreature) //This happens just after a master orders an attack, so lets follow it aswell.
 				setFollowCreature(attackedCreature);
-			}
 		}
 		else if(!targetList.empty())
 		{
@@ -917,10 +926,9 @@ bool Monster::pushCreature(Creature* creature)
 	std::random_shuffle(dirVector.begin(), dirVector.end());
 	for(DirVector::iterator it = dirVector.begin(); it != dirVector.end(); ++it)
 	{
-		const Position& tryPos = Spells::getCasterPosition(creature, *it);
-		Tile* toTile = g_game.getTile(tryPos);
+		Tile* toTile = g_game.getTile(Spells::getCasterPosition(creature, *it));
 		if(toTile && !toTile->hasProperty(BLOCKPATH) && g_game.internalMoveCreature(creature, *it) == RET_NOERROR)
-			return true;
+			return true; //TODO: internalMoveCreature is always returning RET_NOERROR, but creature is really not moved = CRASH
 	}
 
 	return false;
@@ -928,24 +936,21 @@ bool Monster::pushCreature(Creature* creature)
 
 void Monster::pushCreatures(Tile* tile)
 {
-	if(!tile)
-		return;
-
-	CreatureVector* creatures = tile->creatures;
-	if(!creatures || creatures->empty())
+	if(!tile || !tile->creatures || tile->creatures->empty())
 		return;
 
 	bool effect = false;
 	Monster* monster = NULL;
-	for(uint32_t i = 0; i < creatures->size();)
+	for(uint32_t i = 0; (tile->creatures && i < tile->creatures->size());)
 	{
-		if(creatures->at(i) && (monster = creatures->at(i)->getMonster()) && monster->isPushable())
+		if(tile->creatures->at(i) && (monster = tile->creatures->at(
+			i)->getMonster()) && monster->isPushable())
 		{
 			if(pushCreature(monster))
 				continue;
 
-			monster->changeHealth(-monster->getHealth());
 			monster->setDropLoot(LOOT_DROP_NONE);
+			monster->changeHealth(-monster->getHealth());
 			if(!effect)
 				effect = true;
 		}
@@ -993,8 +998,7 @@ bool Monster::getNextStep(Direction& dir)
 
 	if(result && (canPushItems() || canPushCreatures()))
 	{
-		const Position& pos = Spells::getCasterPosition(this, dir);
-		if(Tile* tile = g_game.getTile(pos.x, pos.y, pos.z))
+		if(Tile* tile = g_game.getTile(Spells::getCasterPosition(this, dir)))
 		{
 			if(canPushItems())
 				pushItems(tile);
@@ -1004,7 +1008,7 @@ bool Monster::getNextStep(Direction& dir)
 		}
 #ifdef __DEBUG__
 		else
-			std::cout << "getNextStep - no tile." << std::endl;
+			std::cout << "[Warning - Monster::getNextStep] no tile found." << std::endl;
 #endif
 	}
 

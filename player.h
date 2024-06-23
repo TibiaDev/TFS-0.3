@@ -151,7 +151,7 @@ class Player : public Creature, public Cylinder
 
 		void manageAccount(const std::string& text);
 		bool isAccountManager() const {return (accountManager != MANAGER_NONE);}
-		void kickPlayer(bool displayEffect);
+		void kickPlayer(bool displayEffect, bool executeLogout = true);
 
 		void setGUID(uint32_t _guid) {guid = _guid;}
 		uint32_t getGUID() const {return guid;}
@@ -167,6 +167,7 @@ class Player : public Creature, public Cylinder
 			return ((50ULL * lv * lv * lv) - (150ULL * lv * lv) + (400ULL * lv)) / 3ULL;
 		}
 
+		uint32_t getPromotionLevel() const {return promotionLevel;}
 		void setPromotionLevel(uint32_t pLevel);
 
 		bool changeOutfit(Outfit_t outfit);
@@ -212,6 +213,8 @@ class Player : public Creature, public Cylinder
 
 		OperatingSystem_t getOperatingSystem() const {return operatingSystem;}
 		void setOperatingSystem(OperatingSystem_t clientOs) {operatingSystem = clientOs;}
+		uint32_t getClientVersion() const {return clientVersion;}
+		void setClientVersion(uint32_t version) {clientVersion = version;}
 
 		bool isVirtual() const {return (getID() == 0);}
 		void disconnect() {if(client) client->disconnect();}
@@ -243,7 +246,7 @@ class Player : public Creature, public Cylinder
 
 		bool isInGhostMode() const {return hasCondition(CONDITION_GAMEMASTER, GAMEMASTER_INVISIBLE);}
 		bool canSeeGhost(const Creature* creature) const
-			{return (creature->getPlayer() && creature->getPlayer()->getAccess() <= getAccess());}
+			{return (creature->getPlayer() && creature->getPlayer()->getGhostAccess() <= getGhostAccess());}
 
 		void switchSaving() {saving = !saving;}
 		bool isSaving() const {return saving;}
@@ -256,6 +259,7 @@ class Player : public Creature, public Cylinder
 		uint16_t getAccess() const {return group ? group->getAccess() : 0;}
 		uint16_t getAccessLevel() const {return getAccess();}
 		uint16_t getViolationAccess() const {return group ? group->getViolationAccess() : 0;}
+		uint16_t getGhostAccess() const {return group ? group->getGhostAccess() : 0;}
 		bool isPremium() const;
 
 		uint32_t getLevel() const {return level;}
@@ -263,8 +267,10 @@ class Player : public Creature, public Cylinder
 		uint32_t getMagicLevel() const {return getPlayerInfo(PLAYERINFO_MAGICLEVEL);}
 		uint64_t getSpentMana() const {return manaSpent;}
 
-		void setVocation(uint32_t vocId);
+		int32_t getPremiumDays() const {return premiumDays;}
+
 		uint32_t getVocationId() const {return vocation_id;}
+		void setVocation(uint32_t vocId);
 		PlayerSex_t getSex() const {return sex;}
 		void setSex(PlayerSex_t);
 
@@ -276,6 +282,7 @@ class Player : public Creature, public Cylinder
 		void removeStamina(int64_t value) {addStamina(-value);}
 		uint64_t getSpentStamina() {return (uint64_t)STAMINA_MAX - stamina;}
 
+		int64_t getLastLogin() const {return lastLogin;}
 		time_t getLastLoginSaved() const {return lastLoginSaved;}
 		time_t getLastLogout() const {return lastLogout;}
 
@@ -373,10 +380,10 @@ class Player : public Creature, public Cylinder
 		}
 
 		//V.I.P. functions
-		void notifyLogIn(Player* player);
-		void notifyLogOut(Player* player);
+		void notifyLogIn(Player* loginPlayer);
+		void notifyLogOut(Player* logoutPlayer);
 		bool removeVIP(uint32_t guid);
-		bool addVIP(uint32_t guid, std::string& name, bool isOnline, bool interal = false);
+		bool addVIP(uint32_t guid, std::string& name, bool isOnline, bool internal = false);
 
 		//follow functions
 		virtual bool setFollowCreature(Creature* creature, bool fullPathSearch = false);
@@ -411,6 +418,7 @@ class Player : public Creature, public Cylinder
 		void changeSoul(int32_t soulChange);
 
 		bool isPzLocked() const {return pzLocked;}
+		void setPzLocked(bool v) {pzLocked = v;}
 		virtual BlockType_t blockHit(Creature* attacker, CombatType_t combatType, int32_t& damage,
 			bool checkDefense = false, bool checkArmor = false);
 		virtual void doAttacking(uint32_t interval);
@@ -463,7 +471,7 @@ class Player : public Creature, public Cylinder
 		virtual void onAttackedCreatureChangeZone(ZoneType_t zone);
 		virtual void onIdleStatus();
 		virtual void onPlacedCreature();
-		virtual void onRemovedCreature();
+		virtual void onRemovedCreature() {}
 
 		virtual void getCreatureLight(LightInfo& light) const;
 		Skulls_t getSkull() const;
@@ -488,8 +496,8 @@ class Player : public Creature, public Cylinder
 
 		//tile
 		//send methods
-		void sendAddTileItem(const Tile* tile, const Position& pos, const Item* item)
-			{if(client) client->sendAddTileItem(tile, pos, item);}
+		void sendAddTileItem(const Tile* tile, const Position& pos, uint32_t stackpos, const Item* item)
+			{if(client) client->sendAddTileItem(tile, pos, stackpos, item);}
 		void sendUpdateTileItem(const Tile* tile, const Position& pos,
 			uint32_t stackpos, const Item* olditem, const Item* newitem)
 			{if(client) client->sendUpdateTileItem(tile, pos, stackpos, newitem);}
@@ -500,13 +508,13 @@ class Player : public Creature, public Cylinder
 
 		void sendChannelMessage(std::string author, std::string text, SpeakClasses type, uint8_t channel)
 			{if(client) client->sendChannelMessage(author, text, type, channel);}
-		void sendCreatureAppear(const Creature* creature, bool isLogin)
-			{if(client) client->sendAddCreature(creature, isLogin);}
+		void sendCreatureAppear(const Creature* creature, const Position& pos, uint32_t stackpos, bool isLogin)
+			{if(client) client->sendAddCreature(creature, pos, stackpos, isLogin);}
 		void sendCreatureDisappear(const Creature* creature, uint32_t stackpos, bool isLogout)
 			{if(client) client->sendRemoveCreature(creature, creature->getPosition(), stackpos, isLogout);}
-		void sendCreatureMove(const Creature* creature, const Tile* newTile, const Position& newPos,
+		void sendCreatureMove(const Creature* creature, const Tile* newTile, const Position& newPos, uint32_t stackpos,
 		const Tile* oldTile, const Position& oldPos, uint32_t oldStackPos, bool teleport)
-			{if(client) client->sendMoveCreature(creature, newTile, newPos, oldTile, oldPos, oldStackPos, teleport);}
+			{if(client) client->sendMoveCreature(creature, newTile, newPos, stackpos, oldTile, oldPos, oldStackPos, teleport);}
 
 		void sendCreatureTurn(const Creature* creature, uint32_t stackpos)
 			{if(client) client->sendCreatureTurn(creature, stackpos);}
@@ -571,7 +579,7 @@ class Player : public Creature, public Cylinder
 		void autoCloseContainers(const Container* container);
 
 		//inventory
-		void onAddInventoryItem(slots_t slot, Item* item);
+		void onAddInventoryItem(slots_t slot, Item* item) {}
 		void onUpdateInventoryItem(slots_t slot, Item* oldItem, const ItemType& oldType,
 			Item* newItem, const ItemType& newType);
 		void onRemoveInventoryItem(slots_t slot, Item* item);
@@ -799,6 +807,7 @@ class Player : public Creature, public Cylinder
 		int32_t shieldBlockCount;
 		int32_t shootRange;
 
+		uint32_t clientVersion;
 		uint32_t MessageBufferTicks;
 		uint32_t internalPing;
 		uint32_t npings;
