@@ -17,8 +17,10 @@
 // along with this program; if not, write to the Free Software Foundation,
 // Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //////////////////////////////////////////////////////////////////////
+#ifdef __REMOTE_CONTROL__
 #include "otpch.h"
 
+#include <iostream>
 #include "admin.h"
 #include "game.h"
 #include "connection.h"
@@ -30,15 +32,53 @@
 #include "tools.h"
 #include "rsa.h"
 
-#include "logger.h"
-
-static void addLogLine(ProtocolAdmin* protocol, eLogType type, int32_t level, std::string message);
-
 extern Game g_game;
 extern ConfigManager g_config;
-
 Admin* g_admin = NULL;
 
+Logger::Logger()
+{
+	m_file = fopen(getFilePath(FILE_TYPE_LOG, "OTAdmin.log").c_str(), "a");
+}
+
+Logger::~Logger()
+{
+	if(m_file)
+		fclose(m_file);
+}
+
+void Logger::logMessage(const char* channel, eLogType type, int32_t level, std::string message, const char* func)
+{
+	char buffer[32];
+	formatDate(time(NULL), buffer);
+	fprintf(m_file, "%s", buffer);
+
+	if(channel)
+		fprintf(m_file, " [%s] ", channel);
+
+	std::string typeStr;
+	switch(type)
+	{
+		case LOGTYPE_EVENT:
+			typeStr = "event";
+			break;
+		case LOGTYPE_WARNING:
+			typeStr = "warning";
+			break;
+		case LOGTYPE_ERROR:
+			typeStr = "error";
+			break;
+		default:
+			typeStr = "unknown";
+			break;
+	}
+
+	fprintf(m_file, " %s:", typeStr.c_str());
+	fprintf(m_file, " %s\n", message.c_str());
+	fflush(m_file);
+}
+
+static void addLogLine(ProtocolAdmin* protocol, eLogType type, int32_t level, std::string message);
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 uint32_t ProtocolAdmin::protocolAdminCount = 0;
 #endif
@@ -110,11 +150,12 @@ void ProtocolAdmin::deleteProtocolTask()
 void ProtocolAdmin::parsePacket(NetworkMessage& msg)
 {
 	uint8_t recvbyte = msg.GetByte();
-
 	OutputMessagePool* outputPool = OutputMessagePool::getInstance();
 	OutputMessage* output = outputPool->getOutputMessage(this, false);
-	TRACK_MESSAGE(output);
+	if(!output)
+		return;
 
+	TRACK_MESSAGE(output);
 	switch(m_state)
 	{
 		case ENCRYPTION_NO_SET:
@@ -247,11 +288,7 @@ void ProtocolAdmin::parsePacket(NetworkMessage& msg)
 						if(RSA_decrypt(rsa, msg))
 						{
 							m_state = NO_LOGGED_IN;
-							uint32_t k[4];
-							k[0] = msg.GetU32();
-							k[1] = msg.GetU32();
-							k[2] = msg.GetU32();
-							k[3] = msg.GetU32();
+							uint32_t k[4]= {msg.GetU32(), msg.GetU32(), msg.GetU32(), msg.GetU32()};
 
 							//use for in/out the new key we have
 							enableXTEAEncryption();
@@ -427,8 +464,10 @@ void ProtocolAdmin::parsePacket(NetworkMessage& msg)
 void ProtocolAdmin::adminCommandPayHouses()
 {
 	OutputMessage* output = OutputMessagePool::getInstance()->getOutputMessage(this, false);
-	TRACK_MESSAGE(output);
+	if(!output)
+		return;
 
+	TRACK_MESSAGE(output);
 	if(Houses::getInstance().payHouses())
 	{
 		addLogLine(this, LOGTYPE_EVENT, 1, "pay houses ok");
@@ -447,8 +486,10 @@ void ProtocolAdmin::adminCommandPayHouses()
 void ProtocolAdmin::adminCommandKickPlayer(const std::string& name)
 {
 	OutputMessage* output = OutputMessagePool::getInstance()->getOutputMessage(this, false);
-	TRACK_MESSAGE(output);
+	if(!output)
+		return;
 
+	TRACK_MESSAGE(output);
 	Player* player = NULL;
 	if(g_game.getPlayerByNameWildcard(name, player) == RET_NOERROR)
 	{
@@ -469,9 +510,11 @@ void ProtocolAdmin::adminCommandKickPlayer(const std::string& name)
 void ProtocolAdmin::adminCommandSetOwner(const std::string& param)
 {
 	OutputMessage* output = OutputMessagePool::getInstance()->getOutputMessage(this, false);
-	TRACK_MESSAGE(output);
+	if(!output)
+		return;
 
-	std::vector<std::string> params = explodeString(param, ";");
+	TRACK_MESSAGE(output);
+	StringVec params = explodeString(param, ";");
 	std::string houseId = params[0], name = params[1];
 	trimString(houseId);
 	trimString(name);
@@ -527,7 +570,6 @@ bool Admin::loadXMLConfig()
 
 	xmlNodePtr root, p, q;
 	root = xmlDocGetRootElement(doc);
-
 	if(!xmlStrEqual(root->name,(const xmlChar*)"otadmin"))
 	{
 		xmlFreeDoc(doc);
@@ -675,10 +717,9 @@ RSA* Admin::getRSAKey(uint8_t type)
 		default:
 			break;
 	}
+
 	return NULL;
 }
-
-/////////////////////////////////////////////
 
 static void addLogLine(ProtocolAdmin* protocol, eLogType type, int32_t level, std::string message)
 {
@@ -698,3 +739,4 @@ static void addLogLine(ProtocolAdmin* protocol, eLogType type, int32_t level, st
 		LOG_MESSAGE("OTADMIN", type, level, tmp);
 	}
 }
+#endif

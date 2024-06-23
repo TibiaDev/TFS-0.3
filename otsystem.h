@@ -21,13 +21,14 @@
 #ifndef __OTSERV_OTTHREAD_H__
 #define __OTSERV_OTTHREAD_H__
 
-#include "logger.h"
-
+#include "definitions.h"
 #include <list>
 #include <vector>
 #include <algorithm>
-
-typedef std::vector< std::pair<uint32_t, uint32_t> > IPList;
+#ifdef __USE_BOOST_THREAD__
+#include <boost/thread.hpp>
+#endif
+typedef std::vector<std::pair<uint32_t, uint32_t> > IPList;
 
 #ifdef WIN32
 #ifdef __WIN_LOW_FRAG_HEAP__
@@ -39,9 +40,17 @@ typedef std::vector< std::pair<uint32_t, uint32_t> > IPList;
 #include <process.h>
 #include <windows.h>
 
-#define OTSYS_CREATE_THREAD(a, b) _beginthread(a, 0, b)
+inline int64_t OTSYS_TIME()
+{
+	_timeb t;
+	_ftime(&t);
+	return ((int64_t)t.millitm) + ((int64_t)t.time) * 1000;
+}
 
+#ifndef __USE_BOOST_THREAD__
+#define OTSYS_CREATE_THREAD(a, b)	_beginthread(a, 0, b)
 #define OTSYS_THREAD_LOCKVAR		CRITICAL_SECTION
+#define OTSYS_THREAD_LOCKVAR_PTR	CRITICAL_SECTION
 
 #define OTSYS_THREAD_LOCKVARINIT(a)	InitializeCriticalSection(&a);
 #define OTSYS_THREAD_LOCKVARRELEASE(a)	DeleteCriticalSection(&a);
@@ -50,17 +59,10 @@ typedef std::vector< std::pair<uint32_t, uint32_t> > IPList;
 #define OTSYS_THREAD_UNLOCK_PTR(a, b)	LeaveCriticalSection(a);
 
 #define OTSYS_THREAD_TIMEOUT WAIT_TIMEOUT
-#define OTSYS_THREAD_SIGNALVARINIT(a) a = CreateEvent(NULL, FALSE, FALSE, NULL)
-#define OTSYS_THREAD_SIGNAL_SEND(a) SetEvent(a);
+#define OTSYS_THREAD_SIGNALVARINIT(a)	a = CreateEvent(NULL, FALSE, FALSE, NULL)
+#define OTSYS_THREAD_SIGNAL_SEND(a)	SetEvent(a);
 
 typedef HANDLE OTSYS_THREAD_SIGNALVAR;
-
-inline int64_t OTSYS_TIME()
-{
-	_timeb t;
-	_ftime(&t);
-	return ((int64_t)t.millitm) + ((int64_t)t.time) * 1000;
-}
 
 inline int OTSYS_THREAD_WAITSIGNAL(OTSYS_THREAD_SIGNALVAR& signal, OTSYS_THREAD_LOCKVAR& lock)
 {
@@ -92,9 +94,8 @@ inline int OTSYS_THREAD_WAITSIGNAL_TIMED(OTSYS_THREAD_SIGNALVAR& signal, OTSYS_T
 
 	return ret;
 }
-
+#endif
 #else
-
 #include <pthread.h>
 #include <semaphore.h>
 #include <time.h>
@@ -107,7 +108,21 @@ inline int OTSYS_THREAD_WAITSIGNAL_TIMED(OTSYS_THREAD_SIGNALVAR& signal, OTSYS_T
 #include <stdint.h>
 #include <errno.h>
 
+#ifndef __USE_BOOST_THREAD__
 #define PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
+
+#define OTSYS_THREAD_LOCKVARRELEASE(a)	//todo: working macro
+#define OTSYS_THREAD_LOCK(a, b)		pthread_mutex_lock(&a);
+#define OTSYS_THREAD_UNLOCK(a, b)	pthread_mutex_unlock(&a);
+#define OTSYS_THREAD_UNLOCK_PTR(a, b)	pthread_mutex_unlock(a);
+
+#define OTSYS_THREAD_TIMEOUT		ETIMEDOUT
+#define OTSYS_THREAD_SIGNALVARINIT(a)	pthread_cond_init(&a, NULL);
+#define OTSYS_THREAD_SIGNAL_SEND(a)	pthread_cond_signal(&a);
+
+typedef pthread_mutex_t OTSYS_THREAD_LOCKVAR;
+typedef pthread_mutex_t OTSYS_THREAD_LOCKVAR_PTR;
+typedef pthread_cond_t OTSYS_THREAD_SIGNALVAR;
 
 inline void OTSYS_CREATE_THREAD(void *(*a)(void*), void *b)
 {
@@ -118,8 +133,6 @@ inline void OTSYS_CREATE_THREAD(void *(*a)(void*), void *b)
 	pthread_create(&id, &attr, a, b);
 }
 
-typedef pthread_mutex_t OTSYS_THREAD_LOCKVAR;
-
 inline void OTSYS_THREAD_LOCKVARINIT(OTSYS_THREAD_LOCKVAR& l)
 {
 	pthread_mutexattr_t attr;
@@ -128,30 +141,12 @@ inline void OTSYS_THREAD_LOCKVARINIT(OTSYS_THREAD_LOCKVAR& l)
 	pthread_mutex_init(&l, &attr);
 }
 
-#define OTSYS_THREAD_LOCKVARRELEASE(a)  //todo: working macro
-
-#define OTSYS_THREAD_LOCK(a, b)          pthread_mutex_lock(&a);
-#define OTSYS_THREAD_UNLOCK(a, b)        pthread_mutex_unlock(&a);
-#define OTSYS_THREAD_UNLOCK_PTR(a, b)    pthread_mutex_unlock(a);
-#define OTSYS_THREAD_TIMEOUT			  ETIMEDOUT
-#define OTSYS_THREAD_SIGNALVARINIT(a) pthread_cond_init(&a, NULL);
-#define OTSYS_THREAD_SIGNAL_SEND(a)   pthread_cond_signal(&a);
-
-typedef pthread_cond_t OTSYS_THREAD_SIGNALVAR;
-
 inline void OTSYS_SLEEP(int t)
 {
 	timespec tv;
 	tv.tv_sec  = t / 1000;
 	tv.tv_nsec = (t % 1000)*1000000;
 	nanosleep(&tv, NULL);
-}
-
-inline int64_t OTSYS_TIME()
-{
-	timeb t;
-	ftime(&t);
-	return ((int64_t)t.millitm) + ((int64_t)t.time) * 1000;
 }
 
 inline int OTSYS_THREAD_WAITSIGNAL(OTSYS_THREAD_SIGNALVAR& signal, OTSYS_THREAD_LOCKVAR& lock)
@@ -169,28 +164,76 @@ inline int OTSYS_THREAD_WAITSIGNAL_TIMED(OTSYS_THREAD_SIGNALVAR& signal, OTSYS_T
 }
 
 #endif
+inline int64_t OTSYS_TIME()
+{
+	timeb t;
+	ftime(&t);
+	return ((int64_t)t.millitm) + ((int64_t)t.time) * 1000;
+}
+#endif
 
+#ifdef __USE_BOOST_THREAD__
+#define OTSYS_CREATE_THREAD(a, b)		boost::thread(boost::bind(&a, (void*)b))
+
+#define OTSYS_THREAD_LOCKVAR			boost::recursive_mutex
+#define OTSYS_THREAD_LOCKVAR_PTR		boost::mutex
+#define OTSYS_THREAD_LOCKVARINIT(a)
+#define OTSYS_THREAD_LOCKVARRELEASE(a)
+#define OTSYS_THREAD_LOCK(a, b)			a.lock();
+#define OTSYS_THREAD_UNLOCK(a, b)		a.unlock();
+#define OTSYS_THREAD_UNLOCK_PTR(a, b)		a->unlock();
+
+#define OTSYS_SLEEP(time)			boost::this_thread::sleep(boost::posix_time::milliseconds(time))
+
+#define OTSYS_THREAD_TIMEOUT			false
+#define OTSYS_THREAD_SIGNALVAR			boost::condition_variable
+#define OTSYS_THREAD_SIGNALVARINIT(a)
+#define OTSYS_THREAD_SIGNAL_SEND(a)		a.notify_all()
+
+inline int OTSYS_THREAD_WAITSIGNAL(OTSYS_THREAD_SIGNALVAR& a, OTSYS_THREAD_LOCKVAR_PTR& b)
+{
+	boost::unique_lock<boost::mutex> lock(b, boost::defer_lock);
+	a.wait(lock);
+	return (int)true;
+}
+
+inline int OTSYS_THREAD_WAITSIGNAL_TIMED(OTSYS_THREAD_SIGNALVAR&a, OTSYS_THREAD_LOCKVAR_PTR&b, uint64_t c)
+{
+	boost::unique_lock<boost::mutex> lock(b, boost::defer_lock);
+	return (int)a.timed_wait(lock, boost::get_system_time() + boost::posix_time::milliseconds(c));
+}
+
+typedef boost::recursive_mutex::scoped_lock OTSYS_THREAD_LOCK_CLASS;
+#else
 class OTSYS_THREAD_LOCK_CLASS
 {
 	public:
 		inline OTSYS_THREAD_LOCK_CLASS(OTSYS_THREAD_LOCKVAR &a)
 		{
 			mutex = &a;
-			OTSYS_THREAD_LOCK(a, NULL)
+			OTSYS_THREAD_LOCK(a, "")
 		}
 
 		inline OTSYS_THREAD_LOCK_CLASS(OTSYS_THREAD_LOCKVAR &a, const char* s)
 		{
 			mutex = &a;
-			OTSYS_THREAD_LOCK(a, NULL)
+			OTSYS_THREAD_LOCK(a, "")
 		}
 
 		inline ~OTSYS_THREAD_LOCK_CLASS()
 		{
-			OTSYS_THREAD_UNLOCK_PTR(mutex, NULL)
+			OTSYS_THREAD_UNLOCK_PTR(mutex, "")
 		}
 
 		OTSYS_THREAD_LOCKVAR *mutex;
 };
+#endif
+
+#ifdef __GNUC__
+#define __OTSERV_PRETTY_FUNCTION__ __PRETTY_FUNCTION__
+#endif
+#ifdef _MSC_VER
+#define __OTSERV_PRETTY_FUNCTION__ __FUNCDNAME__
+#endif
 
 #endif // #ifndef __OTSYSTEM_H__

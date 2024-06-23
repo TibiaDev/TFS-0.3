@@ -54,7 +54,6 @@ OTSYS_THREAD_RETURN Dispatcher::dispatcherThread(void* p)
 
 		// check if there are tasks waiting
 		OTSYS_THREAD_LOCK(getDispatcher().m_taskLock, "")
-
 		if(getDispatcher().m_taskList.empty())
 		{
 			//if the list is empty wait for signal
@@ -69,7 +68,6 @@ OTSYS_THREAD_RETURN Dispatcher::dispatcherThread(void* p)
 		}
 
 		OTSYS_THREAD_UNLOCK(getDispatcher().m_taskLock, "");
-
 		// finally execute the task...
 		if(task)
 		{
@@ -83,7 +81,7 @@ OTSYS_THREAD_RETURN Dispatcher::dispatcherThread(void* p)
 	#if defined __EXCEPTION_TRACER__
 	dispatcherExceptionHandler.RemoveHandler();
 	#endif
-	#ifndef WIN32
+	#if not defined(__USE_BOOST_THREAD__) && not defined(WIN32)
 	return NULL;
 	#endif
 }

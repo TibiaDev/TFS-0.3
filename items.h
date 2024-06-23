@@ -61,77 +61,44 @@ struct Abilities
 {
 	Abilities()
 	{
-		absorbPercentOther = 0;
-		absorbPercentPhysical = 0;
-		absorbPercentFire = 0;
-		absorbPercentEnergy = 0;
-		absorbPercentEarth = 0;
-		absorbPercentLifeDrain = 0;
-		absorbPercentManaDrain = 0;
-		absorbPercentDrown = 0;
-		absorbPercentIce = 0;
-		absorbPercentHoly = 0;
-		absorbPercentDeath = 0;
+		memset(skills, 0, sizeof(skills));
+		memset(stats, 0 , sizeof(stats));
+		memset(statsPercent, 0, sizeof(statsPercent));
+		memset(absorbPercent, 0, sizeof(absorbPercent));
+
+		healthGain = healthTicks = manaGain = manaTicks = 0;
 
 		elementType = COMBAT_NONE;
 		elementDamage = 0;
 
-		memset(skills, 0, sizeof(skills));
-		memset(stats, 0 , sizeof(stats));
-		memset(statsPercent, 0, sizeof(statsPercent));
+		conditionImmunities = conditionSuppressions = 0;
 
 		speed = 0;
-		manaShield = false;
-		invisible = false;
-		regeneration = false;
-		preventLoss = false;
-
-		healthGain = 0;
-		healthTicks = 0;
-		manaGain = 0;
-		manaTicks = 0;
-
-		conditionImmunities = 0;
-		conditionSuppressions = 0;
+		manaShield = invisible = regeneration = preventLoss = false;
 	};
-
-	//damage abilities modifiers
-	int16_t absorbPercentOther;
-	int16_t absorbPercentPhysical;
-	int16_t absorbPercentFire;
-	int16_t absorbPercentEnergy;
-	int16_t absorbPercentEarth;
-	int16_t absorbPercentLifeDrain;
-	int16_t absorbPercentManaDrain;
-	int16_t absorbPercentDrown;
-	int16_t absorbPercentIce;
-	int16_t absorbPercentHoly;
-	int16_t absorbPercentDeath;
-
-	//elemental damage
-	CombatType_t elementType;
-	int16_t elementDamage;
 
 	//extra skill modifiers
 	int32_t skills[SKILL_LAST + 1];
 
 	//stats modifiers
-	int32_t stats[STAT_LAST + 1];
-	int32_t statsPercent[STAT_LAST + 1];
+	int32_t stats[STAT_LAST + 1], statsPercent[STAT_LAST + 1];
 
+	//damage abilities modifiers
+	int16_t absorbPercent[COMBAT_LAST + 1];
+
+	//regeneration
+	uint32_t healthGain, healthTicks, manaGain, manaTicks;
+
+	//elements
+	CombatType_t elementType;
+	int16_t elementDamage;
+
+	//conditions
+	uint32_t conditionImmunities, conditionSuppressions;
+
+	//other
 	int32_t speed;
-	bool manaShield;
-	bool invisible;
-	bool regeneration;
-	bool preventLoss;
-
-	uint32_t healthGain;
-	uint32_t healthTicks;
-	uint32_t manaGain;
-	uint32_t manaTicks;
-
-	uint32_t conditionImmunities;
-	uint32_t conditionSuppressions;
+	bool manaShield, invisible, regeneration, preventLoss;
 };
 
 class Condition;
@@ -161,13 +128,14 @@ class ItemType
 		bool isMailbox() const {return (type == ITEM_TYPE_MAILBOX);}
 		bool isTrashHolder() const {return (type == ITEM_TYPE_TRASHHOLDER);}
 		bool isBed() const {return (type == ITEM_TYPE_BED);}
-		bool isLevelDoor() const {return id == 1227 || id == 1229 || id == 1245 || id == 1247 || id == 1259 || id == 1261 || id == 3540 || id == 3549 || id == 5103 || id == 5112 || id == 5121 || id == 5130 || id == 5292 || id == 5294 || id == 6206 || id == 6208 || id == 6263 || id == 6265 || id == 6896 || id == 6905 || id == 7038 || id == 7047 || id == 8555 || id == 8557;}
-		bool hasSubType() const {return (isFluidContainer() || isSplash() || stackable || charges != 0);}
+
 		bool isRune() const {return clientCharges;}
+		bool hasSubType() const {return (isFluidContainer() || isSplash() || stackable || charges != 0);}
 
 		Direction bedPartnerDir;
 		uint16_t transformToOnUse[2];
 		uint16_t transformToFree;
+		uint32_t levelDoor;
 
 		uint16_t id;
 		uint16_t clientId;
@@ -215,12 +183,11 @@ class ItemType
 		bool rotable;
 		int32_t rotateTo;
 
-		int32_t runeMagLevel;
-		int32_t runeLevel;
 		std::string runeSpellName;
-
-		uint32_t wieldInfo;
+		int32_t runeLevel;
+		int32_t runeMagLevel;
 		std::string vocationString;
+		uint32_t wieldInfo;
 		uint32_t minReqLevel;
 		uint32_t minReqMagicLevel;
 
@@ -252,6 +219,7 @@ class ItemType
 		AmmoAction_t ammoAction;
 		FluidTypes_t fluidSource;
 
+		uint32_t worth;
 		Abilities abilities;
 
 		Condition* condition;
@@ -280,8 +248,8 @@ class Array
 template<typename A>
 Array<A>::Array(uint32_t n)
 {
-	m_data = (A*)malloc(sizeof(A)*n);
-	memset(m_data, 0, sizeof(A)*n);
+	m_data = (A*)malloc(sizeof(A) * n);
+	memset(m_data, 0, sizeof(A) * n);
 	m_size = n;
 }
 
@@ -296,8 +264,8 @@ A Array<A>::getElement(uint32_t id)
 {
 	if(id < m_size)
 		return m_data[id];
-	else
-		return 0;
+
+	return 0;
 }
 
 template<typename A>
@@ -305,8 +273,8 @@ const A Array<A>::getElement(uint32_t id) const
 {
 	if(id < m_size)
 		return m_data[id];
-	else
-		return 0;
+
+	return 0;
 }
 
 template<typename A>
@@ -315,10 +283,11 @@ void Array<A>::addElement(A a, uint32_t pos)
 	#define INCREMENT 5000
 	if(pos >= m_size)
 	{
-		m_data = (A*)realloc(m_data, sizeof(A)*(pos + INCREMENT));
-		memset(m_data + m_size, 0, sizeof(A)*(pos + INCREMENT - m_size));
+		m_data = (A*)realloc(m_data, sizeof(A) * (pos + INCREMENT));
+		memset(m_data + m_size, 0, sizeof(A) * (pos + INCREMENT - m_size));
 		m_size = pos + INCREMENT;
 	}
+
 	m_data[pos] = a;
 }
 

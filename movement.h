@@ -56,9 +56,9 @@ class MoveEvents : public BaseEvents
 		virtual ~MoveEvents();
 
 		uint32_t onCreatureMove(Creature* creature, Tile* tile, bool isStepping);
-		uint32_t onPlayerEquip(Player* player, Item* item, slots_t slot);
+		uint32_t onPlayerEquip(Player* player, Item* item, slots_t slot, bool isCheck);
 		uint32_t onPlayerDeEquip(Player* player, Item* item, slots_t slot, bool isRemoval);
-		uint32_t onItemMove(Item* item, Tile* tile, bool isAdd);
+		uint32_t onItemMove(Creature* actor, Item* item, Tile* tile, bool isAdd);
 
 		MoveEvent* getEvent(Item* item, MoveEvent_t eventType);
 
@@ -92,7 +92,7 @@ class MoveEvents : public BaseEvents
 
 typedef uint32_t (StepFunction)(Creature* creature, Item* item, const Position& pos);
 typedef uint32_t (MoveFunction)(Item* item, Item* tileItem, const Position& pos);
-typedef uint32_t (EquipFunction)(MoveEvent* moveEvent, Player* player, Item* item, slots_t slot, bool isRemoval);
+typedef uint32_t (EquipFunction)(MoveEvent* moveEvent, Player* player, Item* item, slots_t slot, bool boolean);
 
 class MoveEvent : public Event
 {
@@ -108,15 +108,16 @@ class MoveEvent : public Event
 		virtual bool loadFunction(const std::string& functionName);
 
 		uint32_t fireStepEvent(Creature* creature, Item* item, const Position& pos);
-		uint32_t fireAddRemItem(Item* item, Item* tileItem, const Position& pos);
-		uint32_t fireEquip(Player* player, Item* item, slots_t slot, bool isRemoval);
+		uint32_t fireAddRemItem(Creature* actor, Item* item, Item* tileItem, const Position& pos);
+		uint32_t fireEquip(Player* player, Item* item, slots_t slot, bool boolean);
 
 		uint32_t getSlot() const {return slot;}
 
 		//scripting
 		uint32_t executeStep(Creature* creature, Item* item, const Position& pos);
 		uint32_t executeEquip(Player* player, Item* item, slots_t slot);
-		uint32_t executeAddRemItem(Item* item, Item* tileItem, const Position& pos);
+		uint32_t executeAddRemItem(Creature* actor, Item* item, Item* tileItem, const Position& pos);
+		uint32_t executeAddRemItemEx(Creature* actor, Item* item, Item* tileItem, const Position& pos);
 
 		//onEquip information
 		int32_t getReqLevel() const {return reqLevel;}

@@ -376,7 +376,7 @@ void Tile::moveCreature(Creature* creature, Cylinder* toCylinder, bool teleport 
 	}
 
 	//add the creature
-	toTile->__addThing(creature);
+	toTile->__addThing(NULL, creature);
 	int32_t newStackPos = toTile->__getIndexOfThing(creature);
 
 	Position fromPos = getPosition();
@@ -428,14 +428,13 @@ void Tile::moveCreature(Creature* creature, Cylinder* toCylinder, bool teleport 
 	for(it = list.begin(); it != list.end(); ++it)
 		(*it)->onCreatureMove(creature, toTile, toPos, this, fromPos, oldStackPos, teleport);
 
-	postRemoveNotification(creature, oldStackPos, true);
-	toTile->postAddNotification(creature, newStackPos);
+	postRemoveNotification(NULL, creature, oldStackPos, true);
+	toTile->postAddNotification(NULL, creature, newStackPos);
 }
 
 ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, uint32_t flags) const
 {
 	Thing* iithing = NULL;
-
 	if(const Creature* creature = thing->getCreature())
 	{
 		if(hasBitSet(FLAG_NOLIMIT, flags))
@@ -464,11 +463,9 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, 
 				for(uint32_t i = 0; i < creatures.size(); ++i)
 				{
 					creature = creatures[i];
-					if(!creature->getMonster() || !creature->isPushable() ||
-						(creature->getMonster()->isSummon() && creature->getMonster()->getMaster()->getPlayer()))
-					{
+					if(!creature->getMonster() || !creature->isPushable() || (creature->getMonster()->isSummon()
+						&& creature->getMonster()->getMaster()->getPlayer()))
 						return RET_NOTPOSSIBLE;
-					}
 				}
 			}
 			else if(!creatures.empty())
@@ -508,18 +505,14 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, 
 					{
 						//1) Monster is "strong" enough to handle the damage
 						//2) Monster is already afflicated by this type of condition
-						if(hasBitSet(FLAG_IGNOREFIELDDAMAGE, flags))
-						{
-							if(!monster->canPushItems() && !monster->hasCondition(Combat::DamageToConditionType(combatType)))
-								return RET_NOTPOSSIBLE;
-						}
-						else
+						if(!hasBitSet(FLAG_IGNOREFIELDDAMAGE, flags))
 							return RET_NOTPOSSIBLE;
+
+						if(!monster->canPushItems() && !monster->hasCondition(Combat::DamageToConditionType(combatType)))
+							return RET_NOTPOSSIBLE;	
 					}
 				}
 			}
-
-			return RET_NOERROR;
 		}
 		else if(const Player* player = creature->getPlayer())
 		{
@@ -581,14 +574,12 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, 
 				const ItemType& iiType = Item::items[iitem->getID()];
 				if(iiType.blockSolid)
 				{
-					if(hasBitSet(FLAG_IGNOREBLOCKITEM, flags))
-					{
-						if(!iiType.moveable || ((iitem->getUniqueId() != 0 || iitem->getActionId() != 0) &&
-							iitem->isLoadedFromMap()))
-							return RET_NOTPOSSIBLE;
-					}
-					else
+					if(!hasBitSet(FLAG_IGNOREBLOCKITEM, flags))
 						return RET_NOTENOUGHROOM;
+
+					if(!iiType.moveable || (iitem->isLoadedFromMap() &&
+						(iitem->getUniqueId() != 0 || (iitem->getActionId() != 0 && iitem->getContainer()))))
+						return RET_NOTPOSSIBLE;
 				}
 			}
 		}
@@ -611,8 +602,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, 
 		if(!creatures.empty() && item->isBlocking() && !hasBitSet(FLAG_IGNOREBLOCKCREATURE, flags))
 			return RET_NOTENOUGHROOM;
 
-		bool hasHangable = false;
-		bool supportHangable = false;
+		bool hasHangable = false, supportHangable = false;
 		for(uint32_t i = 0; i < getThingCount(); ++i)
 		{
 			iithing = __getThing(i);
@@ -627,20 +617,16 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, 
 					supportHangable = true;
 
 				if(itemIsHangable && (iiType.isHorizontal || iiType.isVertical))
-				{
-					//
-				}
+					{}
 				else if(iiType.blockSolid)
 				{
-					if(item->isPickupable())
-					{
-						if(iiType.allowPickupable)
-							continue;
+					if(!item->isPickupable())
+						return RET_NOTENOUGHROOM;
 
-						if(!iiType.hasHeight || iiType.pickupable || iiType.isBed())
-							return RET_NOTENOUGHROOM;
-					}
-					else
+					if(iiType.allowPickupable)
+						continue;
+
+					if(!iiType.hasHeight || iiType.pickupable || iiType.isBed())
 						return RET_NOTENOUGHROOM;
 				}
 			}
@@ -649,6 +635,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, 
 		if(itemIsHangable && hasHangable && supportHangable)
 			return RET_NEEDEXCHANGE;
 	}
+
 	return RET_NOERROR;
 }
 
@@ -662,7 +649,6 @@ ReturnValue Tile::__queryMaxCount(int32_t index, const Thing* thing, uint32_t co
 ReturnValue Tile::__queryRemove(const Thing* thing, uint32_t count, uint32_t flags) const
 {
 	int32_t index = __getIndexOfThing(thing);
-
 	if(index == -1)
 		return RET_NOTPOSSIBLE;
 
@@ -679,8 +665,7 @@ ReturnValue Tile::__queryRemove(const Thing* thing, uint32_t count, uint32_t fla
 	return RET_NOERROR;
 }
 
-Cylinder* Tile::__queryDestination(int32_t& index, const Thing* thing, Item** destItem,
-	uint32_t& flags)
+Cylinder* Tile::__queryDestination(int32_t& index, const Thing* thing, Item** destItem, uint32_t& flags)
 {
 	Tile* destTile = NULL;
 	*destItem = NULL;
@@ -743,12 +728,12 @@ Cylinder* Tile::__queryDestination(int32_t& index, const Thing* thing, Item** de
 	return destTile;
 }
 
-void Tile::__addThing(Thing* thing)
+void Tile::__addThing(Creature* actor, Thing* thing)
 {
-	__addThing(0, thing);
+	__addThing(actor, 0, thing);
 }
 
-void Tile::__addThing(int32_t index, Thing* thing)
+void Tile::__addThing(Creature* actor, int32_t index, Thing* thing)
 {
 	Creature* creature = thing->getCreature();
 	if(creature)
@@ -863,6 +848,7 @@ void Tile::__addThing(int32_t index, Thing* thing)
 					}
 				}
 			}
+
 			downItems.insert(downItems.begin(), item);
 			++thingCount;
 			onAddTileItem(item);
@@ -1182,7 +1168,7 @@ Thing* Tile::__getThing(uint32_t index) const
 	return NULL;
 }
 
-void Tile::postAddNotification(Thing* thing, int32_t index, cylinderlink_t link /*= LINK_OWNER*/)
+void Tile::postAddNotification(Creature* actor, Thing* thing, int32_t index, cylinderlink_t link /*= LINK_OWNER*/)
 {
 	const Position& cylinderMapPos = getPosition();
 
@@ -1193,7 +1179,7 @@ void Tile::postAddNotification(Thing* thing, int32_t index, cylinderlink_t link 
 	for(it = list.begin(); it != list.end(); ++it)
 	{
 		if((tmpPlayer = (*it)->getPlayer()))
-			tmpPlayer->postAddNotification(thing, index, LINK_NEAR);
+			tmpPlayer->postAddNotification(actor, thing, index, LINK_NEAR);
 	}
 
 	//add a reference to this item, it may be deleted after being added (mailbox for example)
@@ -1207,17 +1193,17 @@ void Tile::postAddNotification(Thing* thing, int32_t index, cylinderlink_t link 
 		if(Creature* creature = thing->getCreature())
 			g_moveEvents->onCreatureMove(creature, this, true);
 		else if(item)
-			g_moveEvents->onItemMove(item, this, true);
+			g_moveEvents->onItemMove(actor, item, this, true);
 
 		if(Teleport* teleport = getTeleportItem())
-			teleport->__addThing(thing);
+			teleport->__addThing(actor, thing);
 		else if(TrashHolder* trashHolder = getTrashHolder())
 		{
-			trashHolder->__addThing(thing);
+			trashHolder->__addThing(actor, thing);
 			removal = (thing != trashHolder);
 		}
 		else if(Mailbox* mailbox = getMailbox())
-			mailbox->__addThing(thing);
+			mailbox->__addThing(actor, thing);
 	}
 
 	//update floor change flags
@@ -1228,7 +1214,7 @@ void Tile::postAddNotification(Thing* thing, int32_t index, cylinderlink_t link 
 	g_game.FreeThing(thing);
 }
 
-void Tile::postRemoveNotification(Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link /*= LINK_OWNER*/)
+void Tile::postRemoveNotification(Creature* actor, Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link /*= LINK_OWNER*/)
 {
 	const Position& cylinderMapPos = getPosition();
 
@@ -1242,7 +1228,7 @@ void Tile::postRemoveNotification(Thing* thing, int32_t index, bool isCompleteRe
 	for(it = list.begin(); it != list.end(); ++it)
 	{
 		if((tmpPlayer = (*it)->getPlayer()))
-			tmpPlayer->postRemoveNotification(thing, index, isCompleteRemoval, LINK_NEAR);
+			tmpPlayer->postRemoveNotification(actor, thing, index, isCompleteRemoval, LINK_NEAR);
 	}
 
 	//calling movement scripts
@@ -1250,7 +1236,7 @@ void Tile::postRemoveNotification(Thing* thing, int32_t index, bool isCompleteRe
 	if(Creature* creature = thing->getCreature())
 		g_moveEvents->onCreatureMove(creature, this, false);
 	else if(item)
-		g_moveEvents->onItemMove(item, this, false);
+		g_moveEvents->onItemMove(actor, item, this, false);
 
 	//update floor change flags
 	if(item)
@@ -1265,9 +1251,7 @@ void Tile::__internalAddThing(Thing* thing)
 void Tile::__internalAddThing(uint32_t index, Thing* thing)
 {
 	thing->setParent(this);
-
-	Creature* creature = thing->getCreature();
-	if(creature)
+	if(Creature* creature = thing->getCreature())
 	{
 		g_game.clearSpectatorCache();
 		creatures.insert(creatures.begin(), creature);
@@ -1314,6 +1298,7 @@ void Tile::__internalAddThing(uint32_t index, Thing* thing)
 				downItems.insert(downItems.begin(), item);
 			else
 				downItems.push_back(item);
+
 			++thingCount;
 		}
 

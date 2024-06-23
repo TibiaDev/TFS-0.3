@@ -121,11 +121,13 @@ ItemType::ItemType()
 	combatType = COMBAT_NONE;
 
 	replaceable = true;
+	worth = 0;
 
 	bedPartnerDir = NORTH;
 	transformToOnUse[PLAYERSEX_MALE] = 0;
 	transformToOnUse[PLAYERSEX_FEMALE] = 0;
 	transformToFree = 0;
+	levelDoor = 0;
 }
 
 ItemType::~ItemType()
@@ -134,7 +136,7 @@ ItemType::~ItemType()
 }
 
 Items::Items() :
-items(8000)
+items(15000)
 {
 	//
 }
@@ -178,19 +180,24 @@ int32_t Items::loadFromOtb(std::string file)
 		uint32_t flags;
 		if(!props.GET_ULONG(flags))
 			return ERROR_INVALID_FORMAT;
+
 		attribute_t attr;
 		if(!props.GET_VALUE(attr))
 			return ERROR_INVALID_FORMAT;
+
 		if(attr == ROOT_ATTR_VERSION)
 		{
 			datasize_t datalen = 0;
 			if(!props.GET_VALUE(datalen))
 				return ERROR_INVALID_FORMAT;
+
 			if(datalen != sizeof(VERSIONINFO))
 				return ERROR_INVALID_FORMAT;
+
 			VERSIONINFO *vi;
 			if(!props.GET_STRUCT(vi))
 				return ERROR_INVALID_FORMAT;
+
 			Items::dwMajorVersion = vi->dwMajorVersion; //items otb format file version
 			Items::dwMinorVersion = vi->dwMinorVersion; //client version
 			Items::dwBuildNumber = vi->dwBuildNumber; //revision
@@ -198,24 +205,30 @@ int32_t Items::loadFromOtb(std::string file)
 	}
 
 	if(Items::dwMajorVersion == 0xFFFFFFFF)
-		std::cout << "[Warning] Items::loadFromOtb items.otb using generic client version." << std::endl;
-	else if(Items::dwMajorVersion != 3)
+		std::cout << "[Warning - Items::loadFromOtb] items.otb using generic client version." << std::endl;
+	else if(Items::dwMajorVersion < 3)
 	{
-		std::cout << "Old version detected, a newer version of items.otb is required." << std::endl;
+		std::cout << "[Error - Items::loadFromOtb] Old version detected, a newer version of items.otb is required." << std::endl;
 		return ERROR_INVALID_FORMAT;
 	}
-	else if(Items::dwMinorVersion < CLIENT_VERSION_820)
+	else if(Items::dwMajorVersion > 3)
 	{
-		std::cout << "A newer version of items.otb is required." << std::endl;
+		std::cout << "[Error - Items::loadFromOtb] New version detected, an older version of items.otb is required." << std::endl;
 		return ERROR_INVALID_FORMAT;
 	}
-	node = f.getChildNode(node, type);
+	else if(Items::dwMinorVersion != CLIENT_VERSION_840)
+	{
+		std::cout << "[Error - Items::loadFromOtb] Another (client) version of items.otb is required." << std::endl;
+		return ERROR_INVALID_FORMAT;
+	}
 
+	node = f.getChildNode(node, type);
 	while(node != NO_NODE)
 	{
 		PropStream props;
 		if(!f.getProps(node,props))
 			return f.getError();
+
 		flags_t flags;
 		ItemType* iType = new ItemType();
 		iType->group = (itemgroup_t)type;
@@ -245,7 +258,6 @@ int32_t Items::loadFromOtb(std::string file)
 				break;
 			default:
 				return ERROR_INVALID_FORMAT;
-				break;
 		}
 		//read 4 byte flags
 		if(!props.GET_VALUE(flags))
@@ -286,6 +298,7 @@ int32_t Items::loadFromOtb(std::string file)
 				delete iType;
 				return ERROR_INVALID_FORMAT;
 			}
+
 			switch(attrib)
 			{
 				case ITEM_ATTR_SERVERID:
@@ -368,22 +381,19 @@ int32_t Items::loadFromOtb(std::string file)
 		items.addElement(iType, iType->id);
 		node = f.getNextNode(node, type);
 	}
+
 	return ERROR_NONE;
 }
 
 bool Items::loadFromXml()
 {
-	std::string filename = getFilePath(FILE_TYPE_OTHER, "items/items.xml");
-
-	xmlDocPtr doc = xmlParseFile(filename.c_str());
-	int32_t intValue;
-	std::string strValue;
-	uint32_t id = 0;
-
-	if(doc)
+	if(xmlDocPtr doc = xmlParseFile(getFilePath(FILE_TYPE_OTHER, "items/items.xml").c_str()))
 	{
-		xmlNodePtr root = xmlDocGetRootElement(doc);
+		int32_t intValue;
+		std::string strValue;
+		uint32_t id = 0;
 
+		xmlNodePtr root = xmlDocGetRootElement(doc);
 		if(xmlStrcmp(root->name,(const xmlChar*)"items") != 0)
 		{
 			xmlFreeDoc(doc);
@@ -408,7 +418,6 @@ bool Items::loadFromXml()
 					}
 
 					ItemType& it = Item::items.getItemType(id);
-
 					if(readXMLString(itemNode, "name", strValue))
 						it.name = strValue;
 
@@ -419,7 +428,6 @@ bool Items::loadFromXml()
 						it.pluralName = strValue;
 
 					xmlNodePtr itemAttributesNode = itemNode->children;
-
 					while(itemAttributesNode)
 					{
 						if(readXMLString(itemAttributesNode, "key", strValue))
@@ -714,7 +722,7 @@ bool Items::loadFromXml()
 							else if(tmpStrValue == "duration")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.decayTime = intValue;
+									it.decayTime = std::max((int32_t)0, intValue);
 							}
 							else if(tmpStrValue == "showduration")
 							{
@@ -844,12 +852,12 @@ bool Items::loadFromXml()
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 									it.abilities.skills[SKILL_FIST] = intValue;
 							}
-							else if(tmpStrValue == "maxhitpoints" || tmpStrValue == "maxhealthpoints")
+							else if(tmpStrValue == "maxhealthpoints")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 									it.abilities.stats[STAT_MAXHEALTH] = intValue;
 							}
-							else if(tmpStrValue == "maxhitpointspercent" || tmpStrValue == "maxhealthpercent")
+							else if(tmpStrValue == "maxhealthpercent")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 									it.abilities.statsPercent[STAT_MAXHEALTH] = intValue;
@@ -859,7 +867,7 @@ bool Items::loadFromXml()
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 									it.abilities.stats[STAT_MAXMANA] = intValue;
 							}
-							else if(tmpStrValue == "maxmanapointspercent" || tmpStrValue == "maxmanapercent")
+							else if(tmpStrValue == "maxmanapercent")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 									it.abilities.statsPercent[STAT_MAXMANA] = intValue;
@@ -869,17 +877,17 @@ bool Items::loadFromXml()
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 									it.abilities.stats[STAT_SOUL] = intValue;
 							}
-							else if(tmpStrValue == "soulpointspercent" || tmpStrValue == "soulpercent")
+							else if(tmpStrValue == "soulpercent")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 									it.abilities.statsPercent[STAT_SOUL] = intValue;
 							}
-							else if(tmpStrValue == "magicpoints" || tmpStrValue == "magiclevelpoints")
+							else if(tmpStrValue == "magiclevelpoints")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 									it.abilities.stats[STAT_MAGICLEVEL] = intValue;
 							}
-							else if(tmpStrValue == "magicpointspercent" || tmpStrValue == "magiclevelpercent")
+							else if(tmpStrValue == "magiclevelpercent")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 									it.abilities.statsPercent[STAT_MAGICLEVEL] = intValue;
@@ -888,95 +896,91 @@ bool Items::loadFromXml()
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 								{
-									it.abilities.absorbPercentEnergy += intValue;
-									it.abilities.absorbPercentFire += intValue;
-									it.abilities.absorbPercentEarth += intValue;
-									it.abilities.absorbPercentIce += intValue;
-									it.abilities.absorbPercentHoly += intValue;
-									it.abilities.absorbPercentDeath += intValue;
-									it.abilities.absorbPercentPhysical += intValue;
-									it.abilities.absorbPercentLifeDrain += intValue;
-									it.abilities.absorbPercentManaDrain += intValue;
-									it.abilities.absorbPercentDrown += intValue;
-									it.abilities.absorbPercentOther += intValue;
+									for(uint32_t i = COMBAT_FIRST; i <= COMBAT_LAST; i++)
+										it.abilities.absorbPercent[i] += intValue;
 								}
 							}
 							else if(tmpStrValue == "absorbpercentelements")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 								{
-									it.abilities.absorbPercentEnergy += intValue;
-									it.abilities.absorbPercentFire += intValue;
-									it.abilities.absorbPercentEarth += intValue;
-									it.abilities.absorbPercentIce += intValue;
+									it.abilities.absorbPercent[COMBAT_ENERGYDAMAGE] += intValue;
+									it.abilities.absorbPercent[COMBAT_FIREDAMAGE] += intValue;
+									it.abilities.absorbPercent[COMBAT_EARTHDAMAGE] += intValue;
+									it.abilities.absorbPercent[COMBAT_ICEDAMAGE] += intValue;
 								}
 							}
 							else if(tmpStrValue == "absorbpercentmagic")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
 								{
-									it.abilities.absorbPercentEnergy += intValue;
-									it.abilities.absorbPercentFire += intValue;
-									it.abilities.absorbPercentEarth += intValue;
-									it.abilities.absorbPercentIce += intValue;
-									it.abilities.absorbPercentHoly += intValue;
-									it.abilities.absorbPercentDeath += intValue;
+									it.abilities.absorbPercent[COMBAT_ENERGYDAMAGE] += intValue;
+									it.abilities.absorbPercent[COMBAT_FIREDAMAGE] += intValue;
+									it.abilities.absorbPercent[COMBAT_EARTHDAMAGE] += intValue;
+									it.abilities.absorbPercent[COMBAT_ICEDAMAGE] += intValue;
+									it.abilities.absorbPercent[COMBAT_HOLYDAMAGE] += intValue;
+									it.abilities.absorbPercent[COMBAT_DEATHDAMAGE] += intValue;
 								}
 							}
 							else if(tmpStrValue == "absorbpercentenergy")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentEnergy += intValue;
+									it.abilities.absorbPercent[COMBAT_ENERGYDAMAGE] += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentfire")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentFire += intValue;
+									it.abilities.absorbPercent[COMBAT_FIREDAMAGE] += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentpoison" ||	tmpStrValue == "absorbpercentearth")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentEarth += intValue;
+									it.abilities.absorbPercent[COMBAT_EARTHDAMAGE] += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentice")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentIce += intValue;
+									it.abilities.absorbPercent[COMBAT_ICEDAMAGE] += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentholy")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentHoly += intValue;
+									it.abilities.absorbPercent[COMBAT_HOLYDAMAGE] += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentdeath")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentDeath += intValue;
+									it.abilities.absorbPercent[COMBAT_DEATHDAMAGE] += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentlifedrain")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentLifeDrain += intValue;
+									it.abilities.absorbPercent[COMBAT_LIFEDRAIN] += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentmanadrain")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentManaDrain += intValue;
+									it.abilities.absorbPercent[COMBAT_MANADRAIN] += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentdrown")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentDrown += intValue;
+									it.abilities.absorbPercent[COMBAT_DROWNDAMAGE] += intValue;
 							}
 							else if(tmpStrValue == "absorbpercentphysical")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentPhysical += intValue;
+									it.abilities.absorbPercent[COMBAT_PHYSICALDAMAGE] += intValue;
 							}
-							else if(tmpStrValue == "absorbpercentother")
+							else if(tmpStrValue == "absorbpercenthealing")
 							{
 								if(readXMLInteger(itemAttributesNode, "value", intValue))
-									it.abilities.absorbPercentOther += intValue;
+									it.abilities.absorbPercent[COMBAT_HEALING] += intValue;
+							}
+							else if(tmpStrValue == "absorbpercentundefined")
+							{
+								if(readXMLInteger(itemAttributesNode, "value", intValue))
+									it.abilities.absorbPercent[COMBAT_UNDEFINEDDAMAGE] += intValue;
 							}
 							else if(tmpStrValue == "suppressdrunk")
 							{
@@ -1035,33 +1039,31 @@ bool Items::loadFromXml()
 									tmpStrValue = asLowerCaseString(strValue);
 									if(tmpStrValue == "fire")
 									{
-										conditionDamage = new ConditionDamage(CONDITIONID_COMBAT, CONDITION_FIRE);
+										conditionDamage = new ConditionDamage(CONDITIONID_COMBAT, CONDITION_FIRE, false);
 										combatType = COMBAT_FIREDAMAGE;
 									}
 									else if(tmpStrValue == "energy")
 									{
-										conditionDamage = new ConditionDamage(CONDITIONID_COMBAT, CONDITION_ENERGY);
+										conditionDamage = new ConditionDamage(CONDITIONID_COMBAT, CONDITION_ENERGY, false);
 										combatType = COMBAT_ENERGYDAMAGE;
 									}
 									else if(tmpStrValue == "earth" || tmpStrValue == "poison")
 									{
-										conditionDamage = new ConditionDamage(CONDITIONID_COMBAT, CONDITION_POISON);
+										conditionDamage = new ConditionDamage(CONDITIONID_COMBAT, CONDITION_POISON, false);
 										combatType = COMBAT_EARTHDAMAGE;
 									}
 									else if(tmpStrValue == "drown")
 									{
-										conditionDamage = new ConditionDamage(CONDITIONID_COMBAT, CONDITION_DROWN);
+										conditionDamage = new ConditionDamage(CONDITIONID_COMBAT, CONDITION_DROWN, false);
 										combatType = COMBAT_DROWNDAMAGE;
 									}
-									/*
-									else if(tmpStrValue == "physical")
+									/*else if(tmpStrValue == "physical")
 									{
-										damageCondition = new ConditionDamage(CONDITIONID_COMBAT, CONDITION_PHYSICAL);
+										conditionDamage = new ConditionDamage(CONDITIONID_COMBAT, CONDITION_PHYSICAL, false);
 										combatType = COMBAT_PHYSICALDAMAGE;
-									}
-									*/
+									}*/
 									else
-										std::cout << "Warning: [Items::loadFromXml] " << "Unknown field value " << strValue << std::endl;
+										std::cout << "[Warning - Items::loadFromXml] " << "Unknown field value " << strValue << std::endl;
 
 									if(combatType != COMBAT_NONE)
 									{
@@ -1116,6 +1118,7 @@ bool Items::loadFromXml()
 													}
 												}
 											}
+
 											fieldAttributesNode = fieldAttributesNode->next;
 										}
 
@@ -1197,9 +1200,20 @@ bool Items::loadFromXml()
 									it.abilities.elementType = COMBAT_ENERGYDAMAGE;
 								}
 							}
+							else if(tmpStrValue == "worth")
+							{
+								if(readXMLInteger(itemAttributesNode, "value", intValue))
+									it.worth = intValue;
+							}
+							else if(tmpStrValue == "leveldoor")
+							{
+								if(readXMLInteger(itemAttributesNode, "value", intValue))
+									it.levelDoor = intValue;
+							}
 							else
-								std::cout << "Warning: [Items::loadFromXml] Unknown key value " << strValue << std::endl;
+								std::cout << "[Warning - Items::loadFromXml] Unknown key value " << strValue << std::endl;
 						}
+
 						itemAttributesNode = itemAttributesNode->next;
 					}
 
@@ -1207,10 +1221,12 @@ bool Items::loadFromXml()
 						it.pluralName = it.name + "s";
 				}
 				else
-					std::cout << "Warning: [Items::loadFromXml] - No itemid found" << std::endl;
+					std::cout << "[Warning - Items::loadFromXml] No itemid found" << std::endl;
 			}
+
 			itemNode = itemNode->next;
 		}
+
 		xmlFreeDoc(doc);
 	}
 
@@ -1223,8 +1239,9 @@ bool Items::loadFromXml()
 
 		//check bed items
 		if((it->transformToFree != 0 || it->transformToOnUse[PLAYERSEX_FEMALE] != 0 || it->transformToOnUse[PLAYERSEX_MALE] != 0) && it->type != ITEM_TYPE_BED)
-			std::cout << "Warning: [Items::loadFromXml] Item " << it->id << " is not set as a bed-type." << std::endl;
+			std::cout << "[Warning - Items::loadFromXml] Item " << it->id << " is not set as a bed-type." << std::endl;
 	}
+
 	return true;
 }
 
@@ -1264,6 +1281,7 @@ const ItemType& Items::getItemIdByClientId(int32_t spriteId) const
 		iType = items.getElement(i);
 		if(iType && iType->clientId == spriteId)
 			return *iType;
+
 		i++;
 	}
 	while(iType);
@@ -1286,9 +1304,11 @@ int32_t Items::getItemIdByName(const std::string& name)
 				if(strcasecmp(name.c_str(), iType->name.c_str()) == 0)
 					return i;
 			}
+
 			i++;
 		}
 		while(iType);
 	}
+
 	return -1;
 }

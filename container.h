@@ -21,6 +21,8 @@
 #ifndef __OTSERV_CONTAINER_H__
 #define __OTSERV_CONTAINER_H__
 
+#include <queue>
+
 #include "definitions.h"
 #include "cylinder.h"
 #include "item.h"
@@ -28,6 +30,32 @@
 typedef std::list<Item *> ItemList;
 
 class Depot;
+class Container;
+
+class ContainerIterator
+{
+	public:
+		ContainerIterator();
+		ContainerIterator(const ContainerIterator& rhs);
+		virtual ~ContainerIterator();
+	
+		ContainerIterator& operator=(const ContainerIterator& rhs);
+		bool operator==(const ContainerIterator& rhs);
+		bool operator!=(const ContainerIterator& rhs);
+		ContainerIterator& operator++();
+		ContainerIterator operator++(int32_t);
+		Item* operator*();
+		Item* operator->();
+	
+	protected:
+		ContainerIterator(Container* super);
+	
+		Container* super;
+		std::queue<Container*> over;
+		ItemList::iterator cur;
+
+		friend class Container;
+};
 
 class Container : public Item, public Cylinder
 {
@@ -44,11 +72,15 @@ class Container : public Item, public Cylinder
 		//serialization
 		virtual bool unserialize(xmlNodePtr p);
 		virtual xmlNodePtr serialize();
-
 		bool unserializeItemNode(FileLoader& f, NODE node, PropStream& propStream);
 
 		uint32_t size() const {return (uint32_t)itemlist.size();}
 		uint32_t capacity() const {return maxSize;}
+
+		ContainerIterator begin();
+		ContainerIterator end();
+		ContainerIterator begin() const;
+		ContainerIterator end() const;
 
 		ItemList::const_iterator getItems() const {return itemlist.begin();}
 		ItemList::const_iterator getEnd() const {return itemlist.end();}
@@ -56,7 +88,6 @@ class Container : public Item, public Cylinder
 		void addItem(Item* item);
 		Item* getItem(uint32_t index);
 		bool isHoldingItem(const Item* item) const;
-
 		uint32_t getItemHoldingCount() const;
 		virtual double getWeight() const;
 
@@ -69,8 +100,8 @@ class Container : public Item, public Cylinder
 		virtual Cylinder* __queryDestination(int32_t& index, const Thing* thing, Item** destItem,
 			uint32_t& flags);
 
-		virtual void __addThing(Thing* thing);
-		virtual void __addThing(int32_t index, Thing* thing);
+		virtual void __addThing(Creature* actor, Thing* thing);
+		virtual void __addThing(Creature* actor, int32_t index, Thing* thing);
 
 		virtual void __updateThing(Thing* thing, uint16_t itemId, uint32_t count);
 		virtual void __replaceThing(uint32_t index, Thing* thing);
@@ -83,8 +114,8 @@ class Container : public Item, public Cylinder
 		virtual uint32_t __getItemTypeCount(uint16_t itemId, int32_t subType = -1, bool itemCount = true) const;
 		virtual Thing* __getThing(uint32_t index) const;
 
-		virtual void postAddNotification(Thing* thing, int32_t index, cylinderlink_t link = LINK_OWNER);
-		virtual void postRemoveNotification(Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link = LINK_OWNER);
+		virtual void postAddNotification(Creature* actor, Thing* thing, int32_t index, cylinderlink_t link = LINK_OWNER);
+		virtual void postRemoveNotification(Creature* actor, Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link = LINK_OWNER);
 
 		virtual void __internalAddThing(Thing* thing);
 		virtual void __internalAddThing(uint32_t index, Thing* thing);
@@ -102,9 +133,9 @@ class Container : public Item, public Cylinder
 	protected:
 		uint32_t maxSize;
 		double totalWeight;
-		ItemList itemlist;
 
-		//friend void Item::setParent(Cylinder* cylinder);
+		ItemList itemlist;
+		friend class ContainerIterator;
 };
 
 #endif

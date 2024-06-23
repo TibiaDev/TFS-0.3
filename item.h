@@ -72,7 +72,7 @@ enum ItemDecayState_t
 	DECAYING_PENDING
 };
 
-/*from iomap.h*/
+// from iomap.h
 #pragma pack(1)
 struct TeleportDest
 {
@@ -192,15 +192,15 @@ class ItemAttributes
 			ATTR_ITEM_WRITTENBY = 32,
 
 			ATTR_ITEM_NAME = 64,
-			ATTR_ITEM_ARTICLE = 128,
-			ATTR_ITEM_PLURALNAME = 256,
-			ATTR_ITEM_ATTACK = 512,
-			ATTR_ITEM_EXTRAATTACK = 1024,
-			ATTR_ITEM_DEFENSE = 2048,
-			ATTR_ITEM_EXTRADEFENSE = 4096,
-			ATTR_ITEM_ARMOR = 8192,
-			ATTR_ITEM_ATTACKSPEED = 16384,
-			ATTR_ITEM_HITCHANCE = 32768,
+			ATTR_ITEM_PLURALNAME = 128,
+			ATTR_ITEM_ATTACK = 256,
+			ATTR_ITEM_EXTRAATTACK = 512,
+			ATTR_ITEM_DEFENSE = 1024,
+			ATTR_ITEM_EXTRADEFENSE = 2048,
+			ATTR_ITEM_ARMOR = 4096,
+			ATTR_ITEM_ATTACKSPEED = 8192,
+			ATTR_ITEM_HITCHANCE = 16384,
+			ATTR_ITEM_SHOOTRANGE = 32768,
 
 			ATTR_ITEM_OWNER = 65536,
 			ATTR_ITEM_DURATION = 131072,
@@ -208,7 +208,9 @@ class ItemAttributes
 			ATTR_ITEM_CORPSEOWNER = 524288,
 			ATTR_ITEM_CHARGES = 1048576,
 			ATTR_ITEM_FLUIDTYPE = 2097152,
-			ATTR_ITEM_DOORID = 4194304
+			ATTR_ITEM_DOORID = 4194304,
+
+			ATTR_ITEM_ARTICLE = 8388608
 		};
 
 		bool hasAttribute(itemAttrTypes type) const;
@@ -299,9 +301,13 @@ class Item : virtual public Thing, public ItemAttributes
 		virtual BedItem* getBed() {return NULL;}
 		virtual const BedItem* getBed() const {return NULL;}
 
-		static std::string getDescription(const ItemType& it, int32_t lookDistance,
-			const Item* item = NULL, int32_t subType = -1, bool addArticle = true);
+		static std::string getDescription(const ItemType& it, int32_t lookDistance, const Item* item = NULL, int32_t subType = -1, bool addArticle = true);
+		static std::string getNameDescription(const ItemType& it, const Item* item = NULL, int32_t subType = -1, bool addArticle = true);
 		static std::string getWeightDescription(const ItemType& it, double weight, uint32_t count = 1);
+
+		virtual std::string getDescription(int32_t lookDistance) const;
+		std::string getNameDescription() const;
+		std::string getWeightDescription() const;
 
 		//serialization
 		virtual bool unserialize(xmlNodePtr p);
@@ -309,29 +315,18 @@ class Item : virtual public Thing, public ItemAttributes
 
 		virtual bool readAttr(AttrTypes_t attr, PropStream& propStream);
 		virtual bool unserializeAttr(PropStream& propStream);
-		virtual bool unserializeItemNode(FileLoader& f, NODE node, PropStream& propStream);
-
 		virtual bool serializeAttr(PropWriteStream& propWriteStream);
+		virtual bool unserializeItemNode(FileLoader& f, NODE node, PropStream& propStream);
 
 		virtual bool isPushable() const {return !isNotMoveable();}
 		virtual int32_t getThrowRange() const {return (isPickupable() ? 15 : 2);}
-
-		virtual std::string getDescription(int32_t lookDistance) const;
-		std::string getWeightDescription() const;
 
 		uint16_t getID() const {return id;}
 		uint16_t getClientID() const {return items[id].clientId;}
 		void setID(uint16_t newid);
 
-		WeaponType_t getWeaponType() const {return items[id].weaponType;}
-		Ammo_t	getAmmoType() const {return items[id].ammoType;}
-		int32_t getShootRange() const {return items[id].shootRange;}
-
 		const std::string& getName() const {return getStrAttr(ATTR_ITEM_NAME) != "" ? getStrAttr(ATTR_ITEM_NAME) : items[id].name;}
 		void setName(std::string name) {setStrAttr(ATTR_ITEM_NAME, name);}
-
-		const std::string& getArticle() const {return getStrAttr(ATTR_ITEM_ARTICLE) != "" ? getStrAttr(ATTR_ITEM_ARTICLE) : items[id].article;}
-		void setArticle(std::string article) {setStrAttr(ATTR_ITEM_ARTICLE, article);}
 
 		const std::string& getPluralName() const {return getStrAttr(ATTR_ITEM_PLURALNAME) != "" ? getStrAttr(ATTR_ITEM_PLURALNAME) : items[id].pluralName;}
 		void setPluralName(std::string pluralname) {setStrAttr(ATTR_ITEM_PLURALNAME, pluralname);}
@@ -357,35 +352,49 @@ class Item : virtual public Thing, public ItemAttributes
 		int32_t getHitChance() const {return hasAttribute(ATTR_ITEM_HITCHANCE) ? getIntAttr(ATTR_ITEM_HITCHANCE) : items[id].hitChance;}
 		void setHitChance(int32_t hitchance) {setIntAttr(ATTR_ITEM_HITCHANCE, hitchance);}
 
+		int32_t getShootRange() const {return hasAttribute(ATTR_ITEM_SHOOTRANGE) ? getIntAttr(ATTR_ITEM_SHOOTRANGE) : items[id].shootRange;}
+		void setShootRange(int32_t shootrange) {setIntAttr(ATTR_ITEM_HITCHANCE, shootrange);}
+
+		const std::string& getArticle() const {return getStrAttr(ATTR_ITEM_ARTICLE) != "" ? getStrAttr(ATTR_ITEM_ARTICLE) : items[id].article;}
+		void setArticle(std::string article) {setStrAttr(ATTR_ITEM_ARTICLE, article);}
+
 		virtual double getWeight() const;
-		int32_t getSlotPosition() const {return items[id].slotPosition;}
 
 		bool isReadable() const {return items[id].canReadText;}
 		bool canWriteText() const {return items[id].canWriteText;}
 		int32_t getMaxWriteLength() const {return items[id].maxTextLen;}
 
-		int32_t getWorth() const;
+		int32_t getSlotPosition() const {return items[id].slotPosition;}
+		WeaponType_t getWeaponType() const {return items[id].weaponType;}
+		Ammo_t getAmmoType() const {return items[id].ammoType;}
+
+		int32_t getWorth() const {return getItemCount() * items[id].worth;}
 		void getLight(LightInfo& lightInfo);
 
 		bool hasProperty(enum ITEMPROPERTY prop) const;
+		bool hasCharges() const {return items[id].charges != 0;}
+		bool isGroundTile() const {return items[id].isGroundTile();}
+		bool isContainer() const {return items[id].isContainer();}
+		bool isSplash() const {return items[id].isSplash();}
+		bool isFluidContainer() const {return (items[id].isFluidContainer());}
+		bool isDoor() const {return items[id].isDoor();}
+		bool isMagicField() const {return items[id].isMagicField();}
+		bool isTeleport() const {return items[id].isTeleport();}
+		bool isKey() const {return items[id].isKey();}
+		bool isDepot() const {return items[id].isDepot();}
+		bool isMailbox() const {return items[id].isMailbox();}
+		bool isTrashHolder() const {return items[id].isTrashHolder();}
+		bool isBed() const {return items[id].isBed();}
+		bool isRune() const {return items[id].isRune();}
 		bool isBlocking() const {return items[id].blockSolid;}
 		bool isStackable() const {return items[id].stackable;}
-		bool isRune() const {return items[id].isRune();}
-		bool isFluidContainer() const {return (items[id].isFluidContainer());}
 		bool isAlwaysOnTop() const {return items[id].alwaysOnTop;}
-		bool isGroundTile() const {return items[id].isGroundTile();}
-		bool isSplash() const {return items[id].isSplash();}
-		bool isMagicField() const {return items[id].isMagicField();}
 		bool isNotMoveable() const {return !items[id].moveable;}
 		bool isPickupable() const {return items[id].pickupable;}
-		bool isWeapon() const {return (items[id].weaponType != WEAPON_NONE);}
 		bool isUseable() const {return items[id].useable;}
 		bool isHangable() const {return items[id].isHangable;}
 		bool isRoteable() const {const ItemType& it = items[id]; return it.rotable && it.rotateTo;}
-		bool isDoor() const {return items[id].isDoor();}
-		bool isBed() const {return items[id].isBed();}
-		bool isLevelDoor() const {return items[id].isLevelDoor();}
-		bool hasCharges() const {return items[id].charges != 0;}
+		bool isWeapon() const {return (items[id].weaponType != WEAPON_NONE);}
 
 		bool floorChangeDown() const {return items[id].floorChangeDown;}
 		bool floorChangeNorth() const {return items[id].floorChangeNorth;}
@@ -429,7 +438,6 @@ class Item : virtual public Thing, public ItemAttributes
 		uint8_t count; // number of stacked items
 
 		bool loadedFromMap;
-
 		//Don't add variables here, use the ItemAttribute class.
 };
 

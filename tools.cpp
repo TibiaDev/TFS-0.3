@@ -256,25 +256,25 @@ bool readXMLContentString(xmlNodePtr node, std::string& value)
 	return false;
 }
 
-std::vector<std::string> explodeString(const std::string& inString, const std::string& separator)
+StringVec explodeString(const std::string& string, const std::string& separator)
 {
-	std::vector<std::string> returnVector;
-	std::string::size_type start = 0, end = 0;
+	StringVec returnVector;
+	size_t start = 0, end = 0;
 
-	while((end = inString.find(separator, start)) != std::string::npos)
+	while((end = string.find(separator, start)) != std::string::npos)
 	{
-		returnVector.push_back(inString.substr(start, end - start));
+		returnVector.push_back(string.substr(start, end - start));
 		start = end + separator.size();
 	}
 
-	returnVector.push_back(inString.substr(start));
+	returnVector.push_back(string.substr(start));
 	return returnVector;
 }
 
-std::vector<int32_t> vectorAtoi(std::vector<std::string> stringVector)
+IntegerVec vectorAtoi(StringVec stringVector)
 {
-	std::vector<int32_t> returnVector;
-	for(std::vector<std::string>::iterator it = stringVector.begin(); it != stringVector.end(); ++it)
+	IntegerVec returnVector;
+	for(StringVec::iterator it = stringVector.begin(); it != stringVector.end(); ++it)
 		returnVector.push_back(atoi((*it).c_str()));
 
 	return returnVector;
@@ -465,8 +465,8 @@ bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 			lenBeforeSpace = lenBeforeQuote = lenBeforeDash = 0;
 		}
 
-		if((!isLowercaseLetter(text[size]) && text[size] != 32 && text[size] != 39 && text[size] != 45)
-			|| (text[size - 1] == 32 && !isUppercaseLetter(text[size])))
+		if(!(isLowercaseLetter(text[size]) || text[size] == 32 || text[size] == 39 || text[size] == 45
+			|| (isUppercaseLetter(text[size]) && text[size - 1] == 32)))
 			return false;
 	}
 	return true;
@@ -981,41 +981,63 @@ FluidTypes_t getFluidType(const std::string& strValue)
 	return FLUID_NONE;
 }
 
-std::string getSkillName(uint16_t skillId)
+std::string getSkillName(uint16_t skillId, bool suffix/* = true*/)
 {
 	switch(skillId)
 	{
 		case SKILL_FIST:
-			return "fist fighting";
-			break;
+		{
+			std::string tmp = "fist";
+			if(suffix)
+				tmp += " fighting";
+
+			return tmp;
+		}
 		case SKILL_CLUB:
-			return "club fighting";
-			break;
+		{
+			std::string tmp = "club";
+			if(suffix)
+				tmp += " fighting";
+
+			return tmp;
+		}
 		case SKILL_SWORD:
-			return "sword fighting";
-			break;
+		{
+			std::string tmp = "sword";
+			if(suffix)
+				tmp += " fighting";
+
+			return tmp;
+		}
 		case SKILL_AXE:
-			return "axe fighting";
-			break;
+		{
+			std::string tmp = "axe";
+			if(suffix)
+				tmp += " fighting";
+
+			return tmp;
+		}
 		case SKILL_DIST:
-			return "distance fighting";
-			break;
+		{
+			std::string tmp = "distance";
+			if(suffix)
+				tmp += " fighting";
+
+			return tmp;
+		}
 		case SKILL_SHIELD:
 			return "shielding";
-			break;
 		case SKILL_FISH:
 			return "fishing";
-			break;
 		case MAGLEVEL:
 			return "magic level";
-			break;
 		case LEVEL:
 			return "level";
-			break;
 		default:
-			return "unknown";
 			break;
 	}
+
+	return "unknown";
 }
 
 skills_t getSkillId(std::string param)
@@ -1044,77 +1066,55 @@ std::string getReason(int32_t reasonId)
 	{
 		case 0:
 			return "Offensive Name";
-			break;
 		case 1:
 			return "Invalid Name Format";
-			break;
 		case 2:
 			return "Unsuitable Name";
-			break;
 		case 3:
 			return "Name Inciting Rule Violation";
-			break;
 		case 4:
 			return "Offensive Statement";
-			break;
 		case 5:
 			return "Spamming";
-			break;
 		case 6:
 			return "Illegal Advertising";
-			break;
 		case 7:
 			return "Off-Topic Public Statement";
-			break;
 		case 8:
 			return "Non-English Public Statement";
-			break;
 		case 9:
 			return "Inciting Rule Violation";
-			break;
 		case 10:
 			return "Bug Abuse";
-			break;
 		case 11:
 			return "Game Weakness Abuse";
-			break;
 		case 12:
 			return "Using Unofficial Software to Play";
-			break;
 		case 13:
 			return "Hacking";
-			break;
 		case 14:
 			return "Multi-Clienting";
-			break;
 		case 15:
 			return "Account Trading or Sharing";
-			break;
 		case 16:
 			return "Threatening Gamemaster";
-			break;
 		case 17:
 			return "Pretending to Have Influence on Rule Enforcement";
-			break;
 		case 18:
 			return "False Report to Gamemaster";
-			break;
 		case 19:
 			return "Destructive Behaviour";
-			break;
 		case 20:
 			return "Excessive Unjustified Player Killing";
-			break;
 		case 21:
 			return "Invalid Payment";
-			break;
 		case 22:
 			return "Spoiling Auction";
-			break;
 		default:
-			return "Unknown Reason";
 			break;
 	}
+
+	return "Unknown Reason";
 }
 
 std::string getAction(int32_t actionId, bool ipBanishment)
@@ -1167,7 +1167,7 @@ bool fileExists(const char* filename)
 
 uint32_t adlerChecksum(uint8_t *data, size_t length)
 {
-	if(length > NETWORKMESSAGE_MAXSIZE)
+	if(length > NETWORKMESSAGE_MAXSIZE || length < 0)
 		return 0;
 
 	const uint16_t adler = 65521;
@@ -1186,6 +1186,7 @@ uint32_t adlerChecksum(uint8_t *data, size_t length)
 		a %= adler;
 		b %= adler;
 	}
+
 	return (b << 16) | a;
 }
 

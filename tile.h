@@ -137,19 +137,14 @@ class Tile : public Cylinder
 			{
 				case NORTH:
 					return hasFlag(TILESTATE_FLOORCHANGE_NORTH);
-					break;
 				case SOUTH:
 					return hasFlag(TILESTATE_FLOORCHANGE_SOUTH);
-					break;
 				case EAST:
 					return hasFlag(TILESTATE_FLOORCHANGE_EAST);
-					break;
 				case WEST:
 					return hasFlag(TILESTATE_FLOORCHANGE_WEST);
-					break;
 				default:
 					return false;
-					break;
 			}
 		}
 		bool hasHeight(uint32_t n) const;
@@ -168,8 +163,8 @@ class Tile : public Cylinder
 		virtual Cylinder* __queryDestination(int32_t& index, const Thing* thing, Item** destItem,
 			uint32_t& flags);
 
-		virtual void __addThing(Thing* thing);
-		virtual void __addThing(int32_t index, Thing* thing);
+		virtual void __addThing(Creature* actor, Thing* thing);
+		virtual void __addThing(Creature* actor, int32_t index, Thing* thing);
 
 		virtual void __updateThing(Thing* thing, uint16_t itemId, uint32_t count);
 		virtual void __replaceThing(uint32_t index, Thing* thing);
@@ -182,8 +177,8 @@ class Tile : public Cylinder
 		virtual uint32_t __getItemTypeCount(uint16_t itemId, int32_t subType = -1, bool itemCount = true) const;
 		virtual Thing* __getThing(uint32_t index) const;
 
-		virtual void postAddNotification(Thing* thing, int32_t index, cylinderlink_t link = LINK_OWNER);
-		virtual void postRemoveNotification(Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link = LINK_OWNER);
+		virtual void postAddNotification(Creature* actor, Thing* thing, int32_t index, cylinderlink_t link = LINK_OWNER);
+		virtual void postRemoveNotification(Creature* actor, Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link = LINK_OWNER);
 
 		virtual void __internalAddThing(Thing* thing);
 		virtual void __internalAddThing(uint32_t index, Thing* thing);

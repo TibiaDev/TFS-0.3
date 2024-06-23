@@ -21,7 +21,6 @@
 #ifndef __OTSERV_SCHEDULER_H__
 #define __OTSERV_SCHEDULER_H__
 
-#include <boost/function.hpp>
 #include <boost/bind.hpp>
 #include <vector>
 #include <queue>
@@ -111,7 +110,7 @@ class Scheduler
 			STATE_TERMINATED
 		};
 
-		OTSYS_THREAD_LOCKVAR m_eventLock;
+		OTSYS_THREAD_LOCKVAR_PTR m_eventLock;
 		OTSYS_THREAD_SIGNALVAR m_eventSignal;
 
 		std::priority_queue<SchedulerTask*, std::vector<SchedulerTask*>, lessSchedTask > m_eventList;

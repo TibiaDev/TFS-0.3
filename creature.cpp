@@ -96,8 +96,7 @@ isInternalRemoved(false)
 
 Creature::~Creature()
 {
-	std::list<Creature*>::iterator cit;
-	for(cit = summons.begin(); cit != summons.end(); ++cit)
+	for(std::list<Creature*>::iterator cit = summons.begin(); cit != summons.end(); ++cit)
 	{
 		(*cit)->setAttackedCreature(NULL);
 		(*cit)->setMaster(NULL);
@@ -105,7 +104,6 @@ Creature::~Creature()
 	}
 
 	summons.clear();
-
 	for(ConditionList::iterator it = conditions.begin(); it != conditions.end(); ++it)
 	{
 		(*it)->endCondition(this, CONDITIONEND_CLEANUP);
@@ -113,9 +111,7 @@ Creature::~Creature()
 	}
 
 	conditions.clear();
-
 	attackedCreature = NULL;
-
 	eventsList.clear();
 	//std::cout << "Creature destructor " << this->getID() << std::endl;
 }
@@ -238,16 +234,20 @@ void Creature::onAttacking(uint32_t interval)
 {
 	if(attackedCreature)
 	{
+		//scripting event - onAttack
+		if(CreatureEvent* eventAttack = getCreatureEvent(CREATURE_EVENT_ATTACK))
+		{
+			if(!eventAttack->executeOnAttack(this, attackedCreature))
+			{
+				setAttackedCreature(NULL);
+				return;
+			}
+		}
+
 		onAttacked();
 		attackedCreature->onAttacked();
-
 		if(g_game.isSightClear(getPosition(), attackedCreature->getPosition(), true))
 			doAttacking(interval);
-
-		//scripting event - onAttack
-		CreatureEvent* eventAttack = getCreatureEvent(CREATURE_EVENT_ATTACK);
-		if(eventAttack)
-			eventAttack->executeOnAttack(this, attackedCreature);
 	}
 }
 
@@ -759,12 +759,13 @@ bool Creature::onDeath()
 {
 	Creature* lastHitCreatureMaster = NULL;
 	Creature* mostDamageCreatureMaster = NULL;
+	bool lastHitKiller = false, mostDamageKiller = false;
 	if(getKillers(&lastHitCreature, &mostDamageCreature))
 	{
 		if(lastHitCreature)
 		{
-			lastHitCreature->onKilledCreature(this);
 			lastHitCreatureMaster = lastHitCreature->getMaster();
+			lastHitKiller = true;
 		}
 
 		if(mostDamageCreature)
@@ -772,9 +773,9 @@ bool Creature::onDeath()
 			mostDamageCreatureMaster = mostDamageCreature->getMaster();
 			bool isNotLastHitMaster = (mostDamageCreature != lastHitCreatureMaster);
 			bool isNotMostDamageMaster = (lastHitCreature != mostDamageCreatureMaster);
-			bool isNotSameMaster = lastHitCreatureMaster == NULL || (mostDamageCreatureMaster != lastHitCreatureMaster);
+			bool isNotSameMaster = !lastHitCreatureMaster || (mostDamageCreatureMaster != lastHitCreatureMaster);
 			if(mostDamageCreature != lastHitCreature && isNotLastHitMaster && isNotMostDamageMaster && isNotSameMaster)
-				mostDamageCreature->onKilledCreature(this);
+				mostDamageKiller = true;
 		}
 	}
 
@@ -783,6 +784,16 @@ bool Creature::onDeath()
 		if(!eventPrepareDeath->executeOnPrepareDeath(this, lastHitCreature, mostDamageCreature))
 			return false;
 	}
+
+	bool deny = false;
+	if(lastHitKiller && !lastHitCreature->onKilledCreature(this))
+		deny = true;
+
+	if(mostDamageKiller && !mostDamageCreature->onKilledCreature(this))
+		deny = true;
+
+	if(deny)
+		return false;
 
 	for(CountMap::iterator it = damageMap.begin(); it != damageMap.end(); ++it)
 	{
@@ -821,13 +832,13 @@ void Creature::dropCorpse()
 
 		if(splash)
 		{
-			g_game.internalAddItem(tile, splash, INDEX_WHEREEVER, FLAG_NOLIMIT);
+			g_game.internalAddItem(NULL, tile, splash, INDEX_WHEREEVER, FLAG_NOLIMIT);
 			g_game.startDecay(splash);
 		}
 
 		if(corpse)
 		{
-			g_game.internalAddItem(tile, corpse, INDEX_WHEREEVER, FLAG_NOLIMIT);
+			g_game.internalAddItem(NULL, tile, corpse, INDEX_WHEREEVER, FLAG_NOLIMIT);
 			dropLoot(corpse->getContainer());
 			g_game.startDecay(corpse);
 		}
@@ -923,7 +934,6 @@ BlockType_t Creature::blockHit(Creature* attacker, CombatType_t combatType, int3
 	bool checkDefense /* = false */, bool checkArmor /* = false */)
 {
 	BlockType_t blockType = BLOCK_NONE;
-
 	if(isImmune(combatType))
 	{
 		damage = 0;
@@ -938,7 +948,8 @@ BlockType_t Creature::blockHit(Creature* attacker, CombatType_t combatType, int3
 			hasDefense = true;
 		}
 
-		if(checkDefense && hasDefense)
+		if(checkDefense && hasDefense && (!hasCondition(CONDITION_DISABLE_DEFENSE) ||
+			(getPlayer() && getPlayer()->hasCustomFlag(PlayerCustomFlag_IgnoreDisable))))
 		{
 			int32_t maxDefense = getDefense();
 			int32_t minDefense = maxDefense / 2;
@@ -986,7 +997,6 @@ BlockType_t Creature::blockHit(Creature* attacker, CombatType_t combatType, int3
 	}
 
 	onAttacked();
-
 	return blockType;
 }
 
@@ -1273,15 +1283,20 @@ void Creature::onAttackedCreatureKilled(Creature* target)
 	}
 }
 
-void Creature::onKilledCreature(Creature* target)
+bool Creature::onKilledCreature(Creature* target)
 {
+	bool ret = true;
 	if(getMaster())
-		getMaster()->onKilledCreature(target);
+		ret = getMaster()->onKilledCreature(target);
 
 	//scripting event - onKill
-	CreatureEvent* eventKill = getCreatureEvent(CREATURE_EVENT_KILL);
-	if(eventKill)
-		eventKill->executeOnKill(this, target);
+	if(CreatureEvent* eventKill = getCreatureEvent(CREATURE_EVENT_KILL))
+	{
+		if(!eventKill->executeOnKill(this, target))
+			return false;
+	}
+
+	return ret;
 }
 
 void Creature::onGainExperience(uint64_t gainExp)
@@ -1296,7 +1311,7 @@ void Creature::onGainExperience(uint64_t gainExp)
 
 		std::stringstream strExp;
 		strExp << gainExp;
-		g_game.addAnimatedText(getPosition(), TEXTCOLOR_WHITE_EXP, strExp.str());
+		g_game.addAnimatedText(getPosition(), TEXTCOLOR_WHITE, strExp.str());
 	}
 }
 
@@ -1306,7 +1321,7 @@ void Creature::onGainSharedExperience(uint64_t gainExp)
 	{
 		std::stringstream strExp;
 		strExp << gainExp;
-		g_game.addAnimatedText(getPosition(), TEXTCOLOR_WHITE_EXP, strExp.str());
+		g_game.addAnimatedText(getPosition(), TEXTCOLOR_WHITE, strExp.str());
 	}
 }
 
@@ -1436,8 +1451,9 @@ void Creature::removeCondition(Condition* condition)
 		it = conditions.erase(it);
 
 		condition->endCondition(this, CONDITIONEND_ABORT);
-		onEndCondition(condition->getType());
 		delete condition;
+
+		onEndCondition(condition->getType());
 	}
 }
 
@@ -1455,8 +1471,9 @@ void Creature::removeConditions(ConditionEnd_t reason, bool onlyPersistent/* = t
 		it = conditions.erase(it);
 
 		condition->endCondition(this, reason);
-		onEndCondition(condition->getType());
 		delete condition;
+
+		onEndCondition(condition->getType());
 	}
 }
 
@@ -1485,9 +1502,6 @@ void Creature::executeConditions(uint32_t interval)
 {
 	for(ConditionList::iterator it = conditions.begin(); it != conditions.end();)
 	{
-		//(*it)->executeCondition(this, newticks);
-		//if((*it)->getTicks() <= 0){
-
 		if(!(*it)->executeCondition(this, interval))
 		{
 			ConditionType_t type = (*it)->getType();
@@ -1512,8 +1526,21 @@ bool Creature::hasCondition(ConditionType_t type) const
 
 	for(ConditionList::const_iterator it = conditions.begin(); it != conditions.end(); ++it)
 	{
-		if((*it)->getType() == type && ((*it)->getTicks() == -1 || (*it)->getEndTime() >= OTSYS_TIME()))
-			return true;
+		if((*it)->getType() == type)
+		{
+			if((*it)->getEndTime() == 0)
+				return true;
+
+			int64_t seekTime = g_game.getStateTime();
+			if(seekTime == 0)
+				return true;
+
+			if((*it)->getEndTime() >= seekTime)
+				seekTime = (*it)->getEndTime();
+
+			if(seekTime >= OTSYS_TIME())
+				return true;
+		}
 	}
 
 	return false;

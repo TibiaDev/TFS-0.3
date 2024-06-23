@@ -91,7 +91,7 @@ bool Spells::onPlayerSay(Player* player, const std::string& words)
 	if(param.length())
 	{
 		trimString(param);
-		size_t tmp = 0, rtmp = (param.length() - 1);
+		size_t tmp = 0, rtmp = param.length();
 		if(param[0] == '"')
 			tmp = 1;
 
@@ -108,10 +108,11 @@ void Spells::clear()
 {
 	for(RunesMap::iterator rit = runes.begin(); rit != runes.end(); ++rit)
 		delete rit->second;
-	runes.clear();
 
+	runes.clear();
 	for(InstantsMap::iterator it = instants.begin(); it != instants.end(); ++it)
 		delete it->second;
+
 	instants.clear();
 }
 
@@ -134,8 +135,8 @@ Event* Spells::getEvent(const std::string& nodeName)
 		return new InstantSpell(&m_scriptInterface);
 	else if(tmpNodeName == "conjure")
 		return new ConjureSpell(&m_scriptInterface);
-	else
-		return NULL;
+
+	return NULL;
 }
 
 bool Spells::registerEvent(Event* event, xmlNodePtr p)
@@ -144,7 +145,7 @@ bool Spells::registerEvent(Event* event, xmlNodePtr p)
 	RuneSpell* rune = dynamic_cast<RuneSpell*>(event);
 	if(instant)
 	{
-		if(instants[instant->getWords()] != NULL)
+		if(instants.find(instant->getWords()) != instants.end())
 		{
 			std::cout << "[Warning - Spells::registerEvent] Duplicate registered instant spell with words: " << instant->getWords() << std::endl;
 			return false;
@@ -155,7 +156,7 @@ bool Spells::registerEvent(Event* event, xmlNodePtr p)
 	}
 	else if(rune)
 	{
-		if(runes[rune->getRuneItemId()] != NULL)
+		if(runes.find(rune->getRuneItemId()) != runes.end())
 		{
 			std::cout << "[Warning - Spells::registerEvent] Duplicate registered rune with id: " << rune->getRuneItemId() << std::endl;
 			return false;
@@ -240,9 +241,11 @@ InstantSpell* Spells::getInstantSpellByIndex(const Player* player, uint32_t inde
 		{
 			if(count == index)
 				return instantSpell;
+
 			++count;
 		}
 	}
+
 	return NULL;
 }
 
@@ -401,8 +404,9 @@ Spell::Spell()
 	selfTarget = false;
 	blockingSolid = false;
 	blockingCreature = false;
-	premium = false;
 	enabled = true;
+	premium = false;
+	party = false;
 	isAggressive = true;
 	learnable = false;
 }
@@ -446,7 +450,7 @@ bool Spell::configureSpell(xmlNodePtr p)
 			"cursecondition"
 		};
 
-		for(uint32_t i = 0; i < sizeof(reservedList)/sizeof(const char*); ++i)
+		for(uint32_t i = 0; i < sizeof(reservedList) / sizeof(const char*); ++i)
 		{
 			if(strcasecmp(reservedList[i], name.c_str()) == 0)
 			{
@@ -461,10 +465,10 @@ bool Spell::configureSpell(xmlNodePtr p)
 		return false;
 	}
 
-	if(readXMLInteger(p, "lvl", intValue))
+	if(readXMLInteger(p, "lvl", intValue) || readXMLInteger(p, "level", intValue))
 	 	level = intValue;
 
-	if(readXMLInteger(p, "maglv", intValue))
+	if(readXMLInteger(p, "maglv", intValue) || readXMLInteger(p, "magiclevel", intValue))
 	 	magLevel = intValue;
 
 	if(readXMLInteger(p, "mana", intValue))
@@ -479,41 +483,38 @@ bool Spell::configureSpell(xmlNodePtr p)
 	if(readXMLInteger(p, "exhaustion", intValue))
 		exhaustion = intValue;
 
-	if(readXMLInteger(p, "prem", intValue))
-		premium = (intValue == 1);
+	if(readXMLString(p, "enabled", strValue))
+		enabled = booleanString(strValue);
 
-	if(readXMLInteger(p, "enabled", intValue))
-		enabled = (intValue == 1);
+	if(readXMLString(p, "prem", strValue) || readXMLString(p, "premium", strValue))
+		premium = booleanString(strValue);
 
-	if(readXMLInteger(p, "needtarget", intValue))
-		needTarget = (intValue == 1);
+	if(readXMLString(p, "party", strValue))
+		party = booleanString(strValue);
 
-	if(readXMLInteger(p, "needweapon", intValue))
-		needWeapon = (intValue == 1);
+	if(readXMLString(p, "needtarget", strValue))
+		needTarget = booleanString(strValue);
 
-	if(readXMLInteger(p, "selftarget", intValue))
-		selfTarget = (intValue == 1);
+	if(readXMLString(p, "needweapon", strValue))
+		needWeapon = booleanString(strValue);
 
-	if(readXMLInteger(p, "needlearn", intValue))
-		learnable = (intValue == 1);
+	if(readXMLString(p, "selftarget", strValue))
+		selfTarget = booleanString(strValue);
+
+	if(readXMLString(p, "needlearn", strValue))
+		learnable = booleanString(strValue);
 
 	if(readXMLInteger(p, "range", intValue))
 		range = intValue;
 
-	if(readXMLInteger(p, "blocking", intValue))
-	{
-		blockingSolid = (intValue == 1);
-		blockingCreature = (intValue == 1);
-	}
+	if(readXMLString(p, "blocking", strValue))
+		blockingCreature = blockingSolid = booleanString(strValue);
 
 	if(readXMLString(p, "blocktype", strValue))
 	{
 		std::string tmpStrValue = asLowerCaseString(strValue);
 		if(tmpStrValue == "all")
-		{
-			blockingSolid = true;
-			blockingCreature = true;
-		}
+			blockingCreature = blockingSolid = true;
 		else if(tmpStrValue == "solid")
 			blockingSolid = true;
 		else if(tmpStrValue == "creature")
@@ -522,8 +523,8 @@ bool Spell::configureSpell(xmlNodePtr p)
 			std::cout << "[Warning - Spell::configureSpell] Blocktype \"" <<strValue << "\" does not exist." << std::endl;
 	}
 
-	if(readXMLInteger(p, "aggressive", intValue))
-		isAggressive = (intValue == 1);
+	if(readXMLString(p, "aggressive", strValue))
+		isAggressive = booleanString(strValue);
 
 	xmlNodePtr vocationNode = p->children;
 	while(vocationNode)
@@ -539,14 +540,23 @@ bool Spell::configureSpell(xmlNodePtr p)
 					int32_t promotedVocation = g_vocations.getPromotedVocation(vocationId);
 					if(promotedVocation != -1)
 						vocSpellMap[promotedVocation] = true;
+
+					intValue = 1;
+					readXMLInteger(vocationNode, "showInDescription", intValue);
+					if(intValue != 0)
+					{
+						toLowerCaseString(strValue);
+						vocStringVec.push_back(strValue);
+					}
 				}
 				else
-					std::cout << "Warning: [Spell::configureSpell] Wrong vocation name: " << strValue << std::endl;
+					std::cout << "[Warning - Spell::configureSpell] Wrong vocation name: " << strValue << std::endl;
 			}
 		}
 
 		vocationNode = vocationNode->next;
 	}
+
 	return true;
 }
 
@@ -555,113 +565,114 @@ bool Spell::playerSpellCheck(Player* player) const
 	if(player->hasFlag(PlayerFlag_CannotUseSpells))
 		return false;
 
-	if(!player->hasFlag(PlayerFlag_IgnoreSpellCheck))
+	if(player->hasFlag(PlayerFlag_IgnoreSpellCheck))
+		return true;
+
+	if(!isEnabled())
+		return false;
+
+	bool exhausted = false;
+	if(isAggressive)
 	{
-		if(!enabled)
-			return false;
-
-		bool exhaust = false;
-		if(isAggressive)
+		if(!player->hasFlag(PlayerFlag_IgnoreProtectionZone) && player->getZone() == ZONE_PROTECTION)
 		{
-			if(!player->hasFlag(PlayerFlag_IgnoreProtectionZone) && player->getZone() == ZONE_PROTECTION)
-			{
-				player->sendCancelMessage(RET_ACTIONNOTPERMITTEDINPROTECTIONZONE);
-				return false;
-			}
-
-			if(player->hasCondition(CONDITION_EXHAUST_COMBAT))
-				exhaust = true;
-		}
-		else if(player->hasCondition(CONDITION_EXHAUST_HEAL))
-			exhaust = true;
-
-		if(exhaust)
-		{
-			player->sendCancelMessage(RET_YOUAREEXHAUSTED);
-
-			if(isInstant())
-				g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
-
+			player->sendCancelMessage(RET_ACTIONNOTPERMITTEDINPROTECTIONZONE);
 			return false;
 		}
 
-		if((int32_t)player->getLevel() < level)
-		{
-			player->sendCancelMessage(RET_NOTENOUGHLEVEL);
+		if(player->hasCondition(CONDITION_EXHAUST_COMBAT))
+			exhausted = true;
+	}
+	else if(player->hasCondition(CONDITION_EXHAUST_HEAL))
+			exhausted = true;
+
+	if(exhausted && !player->hasFlag(PlayerFlag_HasNoExhaustion))
+	{
+		player->sendCancelMessage(RET_YOUAREEXHAUSTED);
+		if(isInstant())
 			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
-			return false;
-		}
 
-		if((int32_t)player->getMagicLevel() < magLevel)
-		{
-			player->sendCancelMessage(RET_NOTENOUGHMAGICLEVEL);
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
-			return false;
-		}
+		return false;
+	}
 
-		if(player->getMana() < getManaCost(player) && !player->hasFlag(PlayerFlag_HasInfiniteMana))
-		{
-			player->sendCancelMessage(RET_NOTENOUGHMANA);
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
-			return false;
-		}
+	if(isPremium() && !player->isPremium())
+	{
+		player->sendCancelMessage(RET_YOUNEEDPREMIUMACCOUNT);
+		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		return false;
+	}
 
-		if(player->getPlayerInfo(PLAYERINFO_SOUL) < soul && !player->hasFlag(PlayerFlag_HasInfiniteSoul))
-		{
-			player->sendCancelMessage(RET_NOTENOUGHSOUL);
-			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
-			return false;
-		}
+	if(isParty() && !player->getParty())
+	{
+		player->sendCancelMessage(RET_NOPARTYMEMBERSINRANGE);
+		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		return false;
+	}
 
-		if(isInstant() && isLearnable())
-		{
-			if(!player->hasLearnedInstantSpell(getName()))
-			{
-				player->sendCancelMessage(RET_YOUNEEDTOLEARNTHISSPELL);
-				g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
-				return false;
-			}
-		}
-		else
-		{
-			if(!vocSpellMap.empty())
-			{
-				if(vocSpellMap.find(player->getVocationId()) == vocSpellMap.end())
-				{
-					player->sendCancelMessage(RET_YOURVOCATIONCANNOTUSETHISSPELL);
-					g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
-					return false;
-				}
-			}
-		}
+	if((int32_t)player->getLevel() < level)
+	{
+		player->sendCancelMessage(RET_NOTENOUGHLEVEL);
+		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		return false;
+	}
 
-		if(needWeapon)
-		{
-			switch(player->getWeaponType())
-			{
-				case WEAPON_SWORD:
-				case WEAPON_CLUB:
-				case WEAPON_AXE:
-				case WEAPON_FIST:
-					break;
+	if((int32_t)player->getMagicLevel() < magLevel)
+	{
+		player->sendCancelMessage(RET_NOTENOUGHMAGICLEVEL);
+		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		return false;
+	}
 
-				default:
-				{
-					player->sendCancelMessage(RET_YOUNEEDAWEAPONTOUSETHISSPELL);
-					g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
-					return false;
-					break;
-				}
-			}
-		}
+	if(player->getMana() < getManaCost(player) && !player->hasFlag(PlayerFlag_HasInfiniteMana))
+	{
+		player->sendCancelMessage(RET_NOTENOUGHMANA);
+		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		return false;
+	}
 
-		if(isPremium() && !player->isPremium())
+	if(player->getPlayerInfo(PLAYERINFO_SOUL) < soul && !player->hasFlag(PlayerFlag_HasInfiniteSoul))
+	{
+		player->sendCancelMessage(RET_NOTENOUGHSOUL);
+		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		return false;
+	}
+
+	if(isInstant() && isLearnable() && !player->hasLearnedInstantSpell(getName()))
+	{
+		player->sendCancelMessage(RET_YOUNEEDTOLEARNTHISSPELL);
+		g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+		return false;
+	}
+
+	if(!vocSpellMap.empty())
+	{
+		if(vocSpellMap.find(player->getVocationId()) == vocSpellMap.end())
 		{
-			player->sendCancelMessage(RET_YOUNEEDPREMIUMACCOUNT);
+			player->sendCancelMessage(RET_YOURVOCATIONCANNOTUSETHISSPELL);
 			g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
 			return false;
 		}
 	}
+
+	if(needWeapon)
+	{
+		switch(player->getWeaponType())
+		{
+			case WEAPON_SWORD:
+			case WEAPON_CLUB:
+			case WEAPON_AXE:
+			case WEAPON_FIST:
+				break;
+
+			default:
+			{
+				player->sendCancelMessage(RET_YOUNEEDAWEAPONTOUSETHISSPELL);
+				g_game.addMagicEffect(player->getPosition(), NM_ME_POFF);
+				return false;
+			}
+		}
+	}			
+
 	return true;
 }
 
@@ -843,12 +854,9 @@ int32_t Spell::getManaCost(const Player* player) const
 	if(mana != 0)
 		return mana;
 
-	if(manaPercent != 0)
-	{
-		int32_t maxMana = player->getMaxMana();
-		int32_t manaCost = (maxMana * manaPercent) / 100;
-		return manaCost;
-	}
+	if(player && manaPercent != 0)
+		return (int32_t)std::floor(double(player->getMaxMana() * manaPercent) / 100);
+
 	return 0;
 }
 
@@ -859,26 +867,23 @@ int32_t Spell::getSoulCost() const
 
 ReturnValue Spell::CreateIllusion(Creature* creature, const Outfit_t outfit, int32_t time)
 {
-	ConditionOutfit* outfitCondition = new ConditionOutfit(CONDITIONID_COMBAT, CONDITION_OUTFIT, time);
+	ConditionOutfit* outfitCondition = new ConditionOutfit(CONDITIONID_COMBAT, CONDITION_OUTFIT, time, false);
 
 	if(!outfitCondition)
 		return RET_NOTPOSSIBLE;
 
 	outfitCondition->addOutfit(outfit);
 	creature->addCondition(outfitCondition);
-
 	return RET_NOERROR;
 }
 
 ReturnValue Spell::CreateIllusion(Creature* creature, const std::string& name, int32_t time)
 {
 	uint32_t mId = g_monsters.getIdByName(name);
-
 	if(mId == 0)
 		return RET_CREATUREDOESNOTEXIST;
 
 	const MonsterType* mType = g_monsters.getMonsterType(mId);
-
 	if(mType == NULL)
 		return RET_CREATUREDOESNOTEXIST;
 
@@ -1538,7 +1543,7 @@ ReturnValue ConjureSpell::internalConjureItem(Player* player, uint32_t conjureId
 		if(!newItem)
 			return RET_NOTPOSSIBLE;
 
-		ReturnValue ret = g_game.internalPlayerAddItem(player, newItem, true);
+		ReturnValue ret = g_game.internalPlayerAddItem(player, player, newItem, true);
 		if(ret != RET_NOERROR)
 			delete newItem;
 
@@ -1723,20 +1728,33 @@ bool RuneSpell::configureEvent(xmlNodePtr p)
 		return false;
 	}
 
-	uint32_t charges = 0;
 	if(readXMLInteger(p, "charges", intValue))
-		charges = (uint32_t)intValue;
+		hasCharges = (intValue > 0);
 
-	hasCharges = (charges > 0);
+	ItemType& it = Item::items.getItemType(runeId);
+	if(level != 0 && level != it.runeLevel)
+		it.runeLevel = level;
 
-	if(magLevel != 0 || level != 0)
+	if(magLevel != 0 && magLevel != it.runeMagLevel)
+		it.runeMagLevel = magLevel;
+
+	if(!vocStringVec.empty())
 	{
-		//Change information in the ItemType to get accurate description
-		ItemType& iType = Item::items.getItemType(runeId);
-		iType.runeLevel = level;
-		iType.runeMagLevel = magLevel;
-		iType.charges = charges;
+		for(VocStringVec::iterator vit = vocStringVec.begin(); vit != vocStringVec.end(); ++vit)
+		{
+			if((*vit) != vocStringVec.front())
+			{
+				if((*vit) != vocStringVec.back())
+					it.vocationString += ", ";
+				else
+					it.vocationString += " and ";
+			}
+
+			it.vocationString += (*vit);
+			it.vocationString += "s";
+		}
 	}
+
 	return true;
 }
 
