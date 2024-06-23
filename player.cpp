@@ -19,9 +19,6 @@
 //////////////////////////////////////////////////////////////////////
 #include "otpch.h"
 
-#include "definitions.h"
-
-#include <string>
 #include <iostream>
 #include <algorithm>
 
@@ -70,6 +67,7 @@ Creature()
 		client->setPlayer(this);
 
 	name = _name;
+	nameDescription = _name;
 	setVocation(0);
 	promotionLevel = 0;
 	capacity = 400.00;
@@ -188,8 +186,8 @@ Creature()
 	saving = true;
 	mayNotMove = false;
 	ghostMode = false;
-	ignorePrivMsg = false;
-	teleportByMap = false;
+	privateIgnore = false;
+	clickTeleport = false;
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 
 	playerCount++;
@@ -259,11 +257,11 @@ std::string Player::getDescription(int32_t lookDistance) const
 	}
 	else
 	{
-		s << name;
-		if(!hasCustomFlag(PlayerCustomFlag_DescriptionHideLevel))
+		s << nameDescription;
+		if(!hasCustomFlag(PlayerCustomFlag_HideLevel))
 			s << " (Level " << level << ")";
-		s << ".";
 
+		s << ".";
 		if(sex == PLAYERSEX_FEMALE)
 			s << " She";
 		else
@@ -295,7 +293,6 @@ std::string Player::getDescription(int32_t lookDistance) const
 			s << "husband";
 
 		s << " of " << tmp;
-		tmp = "";
 	}
 
 	s << ".";
@@ -482,9 +479,9 @@ int32_t Player::getArmor() const
 
 void Player::getShieldAndWeapon(const Item* &shield, const Item* &weapon) const
 {
+	shield = weapon = NULL;
+
 	Item* item;
-	shield = NULL;
-	weapon = NULL;
 	for(uint32_t slot = SLOT_RIGHT; slot <= SLOT_LEFT; slot++)
 	{
 		item = getInventoryItem((slots_t)slot);
@@ -513,28 +510,30 @@ void Player::getShieldAndWeapon(const Item* &shield, const Item* &weapon) const
 
 int32_t Player::getDefense() const
 {
-	int32_t baseDefense = 5;
-	int32_t defenseValue = 0;
-	int32_t defenseSkill = 0;
-	int32_t extraDefense = 0;
+	int32_t baseDefense = 5, defenseValue = 0, defenseSkill = 0, extraDefense = 0;
 	float defenseFactor = getDefenseFactor();
+
 	const Item* weapon = NULL;
 	const Item* shield = NULL;
 	getShieldAndWeapon(shield, weapon);
 
 	if(weapon)
 	{
-		defenseValue = baseDefense + weapon->getDefense();
 		extraDefense = weapon->getExtraDefense();
+		defenseValue = baseDefense + weapon->getDefense();
 		defenseSkill = getWeaponSkill(weapon);
 	}
 
-	if(shield && shield->getDefense() >= defenseValue)
+	if(shield && shield->getDefense() > defenseValue)
 	{
-		defenseValue = baseDefense + shield->getDefense() + extraDefense;
+		if(shield->getExtraDefense() > extraDefense)
+			extraDefense = shield->getExtraDefense();
+
+		defenseValue = baseDefense + shield->getDefense();
 		defenseSkill = getSkill(SKILL_SHIELD, SKILL_LEVEL);
 	}
 
+	defenseValue += extraDefense;
 	if(vocation->defenseMultipler != 1.0)
 		defenseValue = int32_t(defenseValue * vocation->defenseMultipler);
 
@@ -543,28 +542,17 @@ int32_t Player::getDefense() const
 
 float Player::getAttackFactor() const
 {
-	switch(fightMode){
-		case FIGHTMODE_ATTACK:
-		{
-			return 1.0f;
-			break;
-		}
-
+	switch(fightMode)
+	{
 		case FIGHTMODE_BALANCED:
-		{
 			return 1.2f;
-			break;
-		}
 
 		case FIGHTMODE_DEFENSE:
-		{
 			return 2.0f;
-			break;
-		}
 
+		case FIGHTMODE_ATTACK:
 		default:
 			return 1.0f;
-			break;
 	}
 }
 
@@ -572,17 +560,8 @@ float Player::getDefenseFactor() const
 {
 	switch(fightMode)
 	{
-		case FIGHTMODE_ATTACK:
-		{
-			return 1.0f;
-			break;
-		}
-
 		case FIGHTMODE_BALANCED:
-		{
 			return 1.2f;
-			break;
-		}
 
 		case FIGHTMODE_DEFENSE:
 		{
@@ -593,12 +572,11 @@ float Player::getDefenseFactor() const
 			}
 
 			return 2.0f;
-			break;
 		}
 
+		case FIGHTMODE_ATTACK:
 		default:
 			return 1.0f;
-			break;
 	}
 }
 
@@ -619,13 +597,12 @@ void Player::sendIcons() const
 
 void Player::updateInventoryWeigth()
 {
+	inventoryWeight = 0.00;
 	if(!hasFlag(PlayerFlag_HasInfiniteCapacity))
 	{
-		inventoryWeight = 0.00;
 		for(int32_t i = SLOT_FIRST; i < SLOT_LAST; ++i)
 		{
-			Item* item = getInventoryItem((slots_t)i);
-			if(item)
+			if(Item* item = getInventoryItem((slots_t)i))
 				inventoryWeight += item->getWeight();
 		}
 	}
@@ -875,30 +852,30 @@ void Player::dropLoot(Container* corpse)
 	}
 }
 
-void Player::addStorageValue(const uint32_t key, const int32_t value)
+void Player::addStorageValue(const uint32_t key, const std::string& value)
 {
 	if(IS_IN_KEYRANGE(key, RESERVED_RANGE))
 	{
 		if(IS_IN_KEYRANGE(key, OUTFITS_RANGE))
 		{
 			Outfit outfit;
-			outfit.looktype = value >> 16;
-			outfit.addons = value & 0xFF;
-			if(outfit.addons > 3)
-				std::cout << "Warning: No valid addons value key:" << key << " value: " << (int32_t)(value & 0xFF) << " player: " << getName() << std::endl;
-			else
+			outfit.looktype = atoi(value.c_str()) >> 16;
+			outfit.addons = atoi(value.c_str()) & 0xFF;
+			if(outfit.addons <= 3)
 				m_playerOutfits.addOutfit(outfit);
+			else
+				std::cout << "[Warning - Player::addStorageValue]: Invalid addons value key: " << key << ", value: " << value << " for player: " << getName() << std::endl;
 		}
 		else
-			std::cout << "Warning: unknown reserved key: " << key << " player: " << getName() << std::endl;
+			std::cout << "[Warning - Player::addStorageValue]: Unknown reserved key: " << key << " for player: " << getName() << std::endl;
 	}
-	else if(value == -1)
+	else if(atoi(value.c_str()) == -1)
 		storageMap.erase(key);
 	else
 		storageMap[key] = value;
 }
 
-bool Player::getStorageValue(const uint32_t key, int32_t& value) const
+bool Player::getStorageValue(const uint32_t key, std::string& value) const
 {
 	StorageMap::const_iterator it;
 	it = storageMap.find(key);
@@ -909,7 +886,7 @@ bool Player::getStorageValue(const uint32_t key, int32_t& value) const
 	}
 	else
 	{
-		value = -1;
+		value = "-1";
 		return false;
 	}
 }
@@ -1194,6 +1171,10 @@ void Player::sendCancelMessage(ReturnValue message) const
 
 		case RET_NAMEISTOOAMBIGIOUS:
 			sendCancel("Name is too ambigious.");
+			break;
+
+		case RET_YOUARENOTTHEOWNER:
+			sendCancel("You are not the owner.");
 			break;
 
 		case RET_NOTPOSSIBLE:
@@ -2212,8 +2193,12 @@ uint32_t Player::getIP() const
 	return 0;
 }
 
-void Player::death()
+bool Player::onDeath()
 {
+	if(!Creature::onDeath())
+		return false;
+
+	removeConditions(CONDITIONEND_DEATH);
 	if(skillLoss)
 	{
 		//Magic level loss
@@ -2268,37 +2253,39 @@ void Player::death()
 		}
 
 		removeExperience(getLostExperience(), false);
-		removeConditions(CONDITIONEND_DEATH);
 		loginPosition = masterPos;
 		blessings = 0;
 		if(!inventory[SLOT_BACKPACK])
 			__internalAddThing(SLOT_BACKPACK, Item::CreateItem(1987));
 
+		sendStats();
+		sendSkills();
 		sendReLoginWindow();
+		g_game.removeCreature(this, false);
 	}
+	else
+		setLossSkill(true);
 
-	sendStats();
-	sendSkills();
+	return true;
 }
 
 void Player::dropCorpse()
 {
-	if(getZone() == ZONE_PVP)
+	if(lootDrop)
+		Creature::dropCorpse();
+	else
 	{
-		setDropLoot(true);
-		setLossSkill(true);
-		onThink(EVENT_CREATURE_THINK_INTERVAL);
-		g_game.internalTeleport(this, getTemplePosition(), true);
-		g_game.addCreatureHealth(this);
 		if(health <= 0)
 		{
 			health = healthMax;
 			mana = manaMax;
-			sendStats();
 		}
+
+		sendStats();
+		onThink(EVENT_CREATURE_THINK_INTERVAL);
+		setDropLoot(true);
+		g_game.internalTeleport(this, getTemplePosition(), true);
 	}
-	else
-		Creature::dropCorpse();
 }
 
 Item* Player::getCorpse()
@@ -2322,32 +2309,34 @@ Item* Player::getCorpse()
 
 void Player::addWeaponExhaust(uint32_t ticks)
 {
-	Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_EXHAUST_WEAPON, ticks, 0);
-	addCondition(condition);
+	if(Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_EXHAUST_WEAPON, ticks, 0))
+		addCondition(condition);
 }
 
 void Player::addCombatExhaust(uint32_t ticks)
 {
-	Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_EXHAUST_COMBAT, ticks, 0);
-	addCondition(condition);
+	if(Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_EXHAUST_COMBAT, ticks, 0))
+		addCondition(condition);
 }
 
 void Player::addHealExhaust(uint32_t ticks)
 {
-	Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_EXHAUST_HEAL, ticks, 0);
-	addCondition(condition);
+	if(Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_EXHAUST_HEAL, ticks, 0))
+		addCondition(condition);
 }
 
-void Player::addInFightTicks()
+void Player::addInFightTicks(bool pzLock/* = false*/)
 {
-	Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_INFIGHT, g_game.getInFightTicks(), 0);
-	addCondition(condition);
+	if(Condition* condition = Condition::createCondition(CONDITIONID_DEFAULT, CONDITION_INFIGHT, g_game.getInFightTicks(), 0))
+		addCondition(condition);
+
+	if(pzLock)
+		pzLocked = true;
 }
 
 void Player::addDefaultRegeneration(uint32_t addTicks)
 {
 	Condition* condition = getCondition(CONDITION_REGENERATION, CONDITIONID_DEFAULT);
-
 	if(condition)
 		condition->setTicks(condition->getTicks() + addTicks);
 	else
@@ -2731,7 +2720,7 @@ ReturnValue Player::__queryMaxCount(int32_t index, const Thing* thing, uint32_t 
 		return RET_NOERROR;
 }
 
-ReturnValue Player::__queryRemove(const Thing* thing, uint32_t count) const
+ReturnValue Player::__queryRemove(const Thing* thing, uint32_t count, uint32_t flags) const
 {
 	int32_t index = __getIndexOfThing(thing);
 
@@ -2745,7 +2734,7 @@ ReturnValue Player::__queryRemove(const Thing* thing, uint32_t count) const
 	if(count == 0 || (item->isStackable() && count > item->getItemCount()))
 		return RET_NOTPOSSIBLE;
 
-	if(item->isNotMoveable())
+	 if(item->isNotMoveable() && !hasBitSet(FLAG_IGNORENOTMOVEABLE, flags))
 		return RET_NOTMOVEABLE;
 
 	return RET_NOERROR;
@@ -2763,7 +2752,7 @@ Cylinder* Player::__queryDestination(int32_t& index, const Thing* thing, Item** 
 			return this;
 
 		//find a appropiate slot
-		for(int i = SLOT_FIRST; i < SLOT_LAST; ++i)
+		for(int32_t i = SLOT_FIRST; i < SLOT_LAST; ++i)
 		{
 			if(inventory[i] == NULL)
 			{
@@ -2993,7 +2982,7 @@ void Player::__removeThing(Thing* thing, uint32_t count)
 
 int32_t Player::__getIndexOfThing(const Thing* thing) const
 {
-	for(int i = SLOT_FIRST; i < SLOT_LAST; ++i)
+	for(int32_t i = SLOT_FIRST; i < SLOT_LAST; ++i)
 	{
 		if(inventory[i] == thing)
 			return i;
@@ -3123,12 +3112,9 @@ void Player::postRemoveNotification(Thing* thing, int32_t index, bool isComplete
 	{
 		if(const Container* container = item->getContainer())
 		{
-			if(!container->isRemoved() &&
-					(container->getTopParent() == this || (dynamic_cast<const Container*>(container->getTopParent()))) &&
-					Position::areInRange<1,1,0>(getPosition(), container->getPosition()))
-			{
+			if(!container->isRemoved() && (container->getTopParent() == this || (dynamic_cast<const Container*>(container->getTopParent())))
+				&& Position::areInRange<1,1,0>(getPosition(), container->getPosition()))
 				onSendContainer(container);
-			}
 			else
 				autoCloseContainers(container);
 		}
@@ -3146,7 +3132,7 @@ void Player::postUpdateGoods(uint32_t itemId)
 		return;
 	}
 
-	uint32_t amount = 0;
+	bool send = false;
 	for(ShopInfoList::iterator it = shopOffer.begin(); it != shopOffer.end(); ++it)
 	{
 		if((*it).sellPrice > 0 && (*it).itemId == itemId)
@@ -3157,11 +3143,12 @@ void Player::postUpdateGoods(uint32_t itemId)
 			else
 				goodsMap.erase((*it).itemId);
 
-			amount++;
+			if(!send)
+				send = true;
 		}
 	}
 
-	if(amount > 0)
+	if(send)
 		sendGoods();
 }
 
@@ -3224,9 +3211,6 @@ bool Player::setFollowCreature(Creature* creature, bool fullPathSearch /*= false
 		return false;
 	}
 
-	if(creature)
-		Dispatcher::getDispatcher().addTask(createTask(boost::bind(&Game::checkCreatureAttack, &g_game, getID())));
-
 	return true;
 }
 
@@ -3249,6 +3233,9 @@ bool Player::setAttackedCreature(Creature* creature)
 	else
 		setFollowCreature(NULL);
 
+	if(creature)
+		Dispatcher::getDispatcher().addTask(createTask(boost::bind(&Game::checkCreatureAttack, &g_game, getID())));
+
 	return true;
 }
 
@@ -3266,32 +3253,24 @@ void Player::onAttacking(uint32_t interval)
 void Player::doAttacking(uint32_t interval)
 {
 	if(lastAttack == 0)
-		lastAttack = OTSYS_TIME() - interval;
+		lastAttack = OTSYS_TIME() - getAttackSpeed() - 1;
 
 	if((OTSYS_TIME() - lastAttack) >= getAttackSpeed())
 	{
 		Item* tool = getWeapon();
-		const Weapon* weapon = g_weapons->getWeapon(tool);
-
-		bool result = false;
-		if(weapon)
+		if(const Weapon* weapon = g_weapons->getWeapon(tool))
 		{
-			if(!weapon->interuptSwing())
-				result = weapon->useWeapon(this, tool, attackedCreature);
-			else if(!canDoAction())
+			if(weapon->interruptSwing() && !canDoAction())
 			{
-				uint32_t delay = getNextActionTime();
-				SchedulerTask* task = createSchedulerTask(delay, boost::bind(&Game::checkCreatureAttack,
-					&g_game, getID()));
+				SchedulerTask* task = createSchedulerTask(getNextActionTime(), boost::bind(
+					&Game::checkCreatureAttack, &g_game, getID()));
 				setNextActionTask(task);
 			}
-			else if(!hasCondition(CONDITION_EXHAUST_WEAPON) || !weapon->hasExhaustion())
-				result = weapon->useWeapon(this, tool, attackedCreature);
+			else if((!hasCondition(CONDITION_EXHAUST_WEAPON) || !weapon->hasExhaustion())
+				&& weapon->useWeapon(this, tool, attackedCreature))
+				lastAttack = OTSYS_TIME();
 		}
-		else
-			result = Weapon::useFist(this, attackedCreature);
-
-		if(result)
+		else if(Weapon::useFist(this, attackedCreature))
 			lastAttack = OTSYS_TIME();
 	}
 }
@@ -3591,7 +3570,6 @@ void Player::onKilledCreature(Creature* target)
 		target->setDropLoot(false);
 
 	Creature::onKilledCreature(target);
-
 	if(Player* targetPlayer = target->getPlayer())
 	{
 		if(targetPlayer && targetPlayer->getZone() == ZONE_PVP)
@@ -3709,7 +3687,7 @@ const OutfitListType& Player::getPlayerOutfits()
 
 bool Player::canWear(uint32_t _looktype, uint32_t _addons)
 {
-	return m_playerOutfits.isInList(_looktype, _addons, isPremium(), getSex());
+	return m_playerOutfits.isInList(getID(), _looktype, _addons);
 }
 
 bool Player::canLogout()
@@ -3728,25 +3706,22 @@ bool Player::canLogout()
 
 void Player::genReservedStorageRange()
 {
-	uint32_t baseKey;
-	//generate outfits range
-	baseKey = PSTRG_OUTFITS_RANGE_START + 1;
-
-	const OutfitList& globalOutfits = Outfits::getInstance()->getOutfitList(sex);
+	uint32_t baseKey = PSTRG_OUTFITS_RANGE_START + 1;
 	const OutfitListType& outfits = m_playerOutfits.getOutfits();
 
+	const OutfitList& globalOutfits = Outfits::getInstance()->getOutfitList(sex);
 	for(OutfitListType::const_iterator it = outfits.begin(); it != outfits.end(); ++it)
 	{
-		uint32_t looktype = (*it)->looktype;
-		uint32_t addons = (*it)->addons;
-		if(!globalOutfits.isInList(looktype, addons, isPremium(), getSex()))
+		if(!globalOutfits.isInList(getID(), (*it)->looktype, (*it)->addons))
 		{
-			int64_t value = (looktype << 16) | (addons & 0xFF);
-			storageMap[baseKey] = value;
+			char buffer[100];
+			sprintf(buffer, "%lld", int64_t((*it)->looktype << 16) | ((*it)->addons & 0xFF));
+			storageMap[baseKey] = buffer;
+
 			baseKey++;
 			if(baseKey > PSTRG_OUTFITS_RANGE_START + PSTRG_OUTFITS_RANGE_SIZE)
 			{
-				std::cout << "Warning: [Player::genReservedStorageRange()] Player " << getName() << " with more than 500 outfits!." << std::endl;
+				std::cout << "[Warning - Player::genReservedStorageRange] Player " << getName() << " with more than 500 outfits!." << std::endl;
 				break;
 			}
 		}
@@ -3772,16 +3747,18 @@ bool Player::remOutfit(uint32_t _looktype, uint32_t _addons)
 void Player::setSex(PlayerSex_t newSex)
 {
 	sex = newSex;
-	Outfits* outfits = Outfits::getInstance();
-	const OutfitListType& global_outfits = outfits->getOutfits(sex);
-	OutfitListType::const_iterator it;
-	Outfit outfit;
-	for(it = global_outfits.begin(); it != global_outfits.end(); ++it)
+	if(Outfits* outfits = Outfits::getInstance())
 	{
-		outfit.looktype = (*it)->looktype;
-		outfit.addons = (*it)->addons;
-		outfit.premium = (*it)->premium;
-		m_playerOutfits.addOutfit(outfit);
+		const OutfitListType& global_outfits = outfits->getOutfits(sex);
+		Outfit outfit;
+		for(OutfitListType::const_iterator it = global_outfits.begin(); it != global_outfits.end(); ++it)
+		{
+			outfit.looktype = (*it)->looktype;
+			outfit.addons = (*it)->addons;
+			outfit.quest = (*it)->quest;
+			outfit.premium = (*it)->premium;
+			m_playerOutfits.addOutfit(outfit);
+		}
 	}
 }
 
@@ -3870,10 +3847,8 @@ void Player::addUnjustifiedDead(const Player* attacked)
 
 		if(success)
 		{
-			uint32_t playerId = getID();
 			g_game.addMagicEffect(getPosition(), NM_ME_MAGIC_POISON);
-			Scheduler::getScheduler().addEvent(createSchedulerTask(500,
-				boost::bind(&Game::kickPlayer, &g_game, playerId, false)));
+			Scheduler::getScheduler().addEvent(createSchedulerTask(500, boost::bind(&Game::kickPlayer, &g_game, getID(), false)));
 		}
 	}
 }
@@ -3922,13 +3897,16 @@ double Player::getLostPercent(lossTypes_t lossType)
 		lostPercent -= 3;
 	}
 
-	for(int16_t i = 0; i < 16; i++)
+	if(isPremium() || !g_config.getBool(ConfigManager::BLESSING_ONLY_PREMIUM))
 	{
-		if(!lostPercent)
-			return 0;
+		for(int16_t i = 0; i < 16; i++)
+		{
+			if(!lostPercent)
+				return 0;
 
-		if(hasBlessing(i))
-			lostPercent--;
+			if(hasBlessing(i))
+				lostPercent--;
+		}
 	}
 
 	return (double)lostPercent / 100;
@@ -4504,6 +4482,7 @@ bool Player::isPremium() const
 {
 	if(g_config.getBool(ConfigManager::FREE_PREMIUM) || hasFlag(PlayerFlag_IsAlwaysPremium))
 		return true;
+
 	return premiumDays;
 }
 
@@ -4662,7 +4641,7 @@ bool Player::withdrawMoney(uint64_t amount)
 	if(!g_config.getBool(ConfigManager::BANK_SYSTEM))
 		return false;
 
-	if(balance < amount)
+	if(amount > balance)
 		return false;
 
 	g_game.addMoney(this, amount);

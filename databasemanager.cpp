@@ -170,8 +170,8 @@ uint32_t DatabaseManager::updateDatabase()
 				query << "CREATE TABLE IF NOT EXISTS `server_config` ( `config` VARCHAR(35) NOT NULL DEFAULT '', `value` INTEGER NOT NULL );";
 			else
 				query << "CREATE TABLE IF NOT EXISTS `server_config` ( `config` VARCHAR(35) NOT NULL DEFAULT '', `value` INT NOT NULL ) ENGINE = InnoDB;";
-			db->executeQuery(query.str());
 
+			db->executeQuery(query.str());
 			query.str("");
 			query << "INSERT INTO `server_config` VALUES ('db_version', 1);";
 			db->executeQuery(query.str());
@@ -266,7 +266,6 @@ uint32_t DatabaseManager::updateDatabase()
 								break;
 
 							default:
-								continue;
 								break;
 						}
 						db->executeQuery(query.str());
@@ -387,7 +386,7 @@ uint32_t DatabaseManager::updateDatabase()
 									break;
 
 								case 3:
-									query << "INSERT INTO `bans2` (`type`, `value`, `active`, `expires`, `added`, `admin_id`, `comment`, `reason`, `action`) VALUES (3, " << result->getDataInt("player") << ", " << (result->getDataInt("expired") ? 0 : 1) << ", " << result->getDataInt("time") << ", 0, " << result->getDataInt("banned_by") << ", '" << db->escapeString(result->getDataString("comment")) << ", " << result->getDataInt("reason_id") << ", " << result->getDataInt("action_id") << ");";
+									query << "INSERT INTO `bans2` (`type`, `value`, `active`, `expires`, `added`, `admin_id`, `comment`, `reason`, `action`) VALUES (3, " << result->getDataInt("player") << ", " << (result->getDataInt("expired") ? 0 : 1) << ", " << result->getDataInt("time") << ", 0, " << result->getDataInt("banned_by") << ", " << db->escapeString(result->getDataString("comment")) << ", " << result->getDataInt("reason_id") << ", " << result->getDataInt("action_id") << ");";
 									break;
 
 								case 4:
@@ -396,7 +395,6 @@ uint32_t DatabaseManager::updateDatabase()
 									break;
 
 								default:
-									continue;
 									break;
 							}
 							db->executeQuery(query.str());
@@ -432,7 +430,6 @@ uint32_t DatabaseManager::updateDatabase()
 
 			query.str("");
 			return 1;
-			break;
 		}
 
 		case 1:
@@ -534,7 +531,6 @@ uint32_t DatabaseManager::updateDatabase()
 							break;
 
 						default:
-							continue;
 							break;
 					}
 					db->executeQuery(query.str());
@@ -553,7 +549,6 @@ uint32_t DatabaseManager::updateDatabase()
 
 			registerDatabaseConfig("db_version", 2);
 			return 2;
-			break;
 		}
 
 		case 2:
@@ -578,13 +573,11 @@ uint32_t DatabaseManager::updateDatabase()
 			query.str("");
 			registerDatabaseConfig("db_version", 3);
 			return 3;
-			break;
 		}
 
 		case 3:
 		{
 			Database* db = Database::getInstance();
-
 			std::cout << "> Updating database to version: 4..." << std::endl;
 
 			DBQuery query;
@@ -629,12 +622,92 @@ uint32_t DatabaseManager::updateDatabase()
 			query.str("");
 			registerDatabaseConfig("db_version", 4);
 			return 4;
-			break;
+		}
+
+		case 4:
+		{
+			Database* db = Database::getInstance();
+			std::cout << "> Updating database to version: 5..." << std::endl;
+
+			DBQuery query;
+			query << "ALTER TABLE `player_deaths` ADD `altkilled_by` VARCHAR(255) NOT NULL;";
+			db->executeQuery(query.str());
+
+			query.str("");
+			registerDatabaseConfig("db_version", 5);
+			return 5;
+		}
+
+		case 5:
+		{
+			Database* db = Database::getInstance();
+			std::cout << "> Updating database to version: 6..." << std::endl;
+
+			DBQuery query;
+			switch(db->getDatabaseEngine())
+			{
+				case DATABASE_ENGINE_MYSQL:
+				{
+					query << "ALTER TABLE `global_storage` CHANGE `value` `value` VARCHAR(255) NOT NULL DEFAULT '0'";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "ALTER TABLE `player_storage` CHANGE `value` `value` VARCHAR(255) NOT NULL DEFAULT '0'";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "ALTER TABLE `tiles` CHANGE `x` `x` INT(5) UNSIGNED NOT NULL, CHANGE `y` `y` INT(5) UNSIGNED NOT NULL, CHANGE `z` `z` TINYINT(2) UNSIGNED NOT NULL;";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "ALTER TABLE `tiles` ADD INDEX (`x`, `y`, `z`);";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "ALTER TABLE `tile_items` ADD INDEX (`sid`);";
+					break;
+				}
+
+				case DATABASE_ENGINE_SQLITE:
+				{
+					query << "ALTER TABLE `global_storage` RENAME TO `global_storage2`;";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "CREATE TABLE `global_storage` (`key` INTEGER NOT NULL, `value` VARCHAR(255) NOT NULL DEFAULT '0', UNIQUE (`key`));";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "INSERT INTO `global_storage` SELECT * FROM `global_storage2`;";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "ALTER TABLE `player_storage` RENAME TO `player_storage2`;";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "CREATE TABLE `player_storage` (`player_id` INTEGER NOT NULL, `key` INTEGER NOT NULL, `value` VARCHAR(255) NOT NULL DEFAULT '0', UNIQUE (`player_id`, `key`), FOREIGN KEY (`player_id`) REFERENCES `players` (`id`));";
+					db->executeQuery(query.str());
+
+					query.str("");
+					query << "INSERT INTO `player_storage` SELECT * FROM `player_storage2`;";
+					break;
+				}
+
+				default:
+					break;
+			}
+
+			db->executeQuery(query.str());
+			query.str("");
+			registerDatabaseConfig("db_version", 6);
+			return 6;
 		}
 
 		default:
 			break;
 	}
+
 	return 0;
 }
 

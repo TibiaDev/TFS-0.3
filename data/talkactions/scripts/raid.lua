@@ -1,23 +1,18 @@
 function onSay(cid, words, param)
 	if(param == "") then
 		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Command param required.")
-		return FALSE
+		return TRUE
 	end
 
-	local ret = execute
-	if(ret == nil) then
+	local ret = executeRaid(param)
+	if(ret == LUA_ERROR) then
 		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Such raid does not exists.")
-		return FALSE
+		return TRUE
 	end
 
 	if(ret == FALSE) then
-		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Another raid is already being executed.")
-		return FALSE
-	end
-
-	if(ret == LUA_ERROR) then
-		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "The raid does not contain any data.")
-		return FALSE
+		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Could not execute raid.")
+		return TRUE
 	end
 
 	doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Raid started.")

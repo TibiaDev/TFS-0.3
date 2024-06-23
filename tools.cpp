@@ -409,7 +409,8 @@ bool isValidPassword(std::string text)
 
 bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 {
-	uint32_t textLength = text.length(), lenBeforeSpace = 1, lenBeforeQuote = 1, lenBeforeDash = 1;
+	uint32_t textLength = text.length(), lenBeforeSpace = 1, lenBeforeQuote = 1, lenBeforeDash = 1, repeatedCharacter = 0;
+	char lastChar = 32;
 
 	if(forceUppercaseOnFirstLetter)
 	{
@@ -444,6 +445,17 @@ bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 
 				lenBeforeDash = 0;
 			}
+
+			if(text[size] == lastChar)
+			{
+				repeatedCharacter++;
+				if(repeatedCharacter > 2)
+					return false;
+			}
+			else
+				repeatedCharacter = 0;
+
+			lastChar = text[size];
 		}
 		else
 		{
@@ -453,8 +465,8 @@ bool isValidName(std::string text, bool forceUppercaseOnFirstLetter/* = true*/)
 			lenBeforeSpace = lenBeforeQuote = lenBeforeDash = 0;
 		}
 
-		if(!isLowercaseLetter(text[size]) && text[size] != 32 && text[size] != 39 && text[size] != 45
-			&& !(isUppercaseLetter(text[size]) && text[size - 1] == 32))
+		if((!isLowercaseLetter(text[size]) && text[size] != 32 && text[size] != 39 && text[size] != 45)
+			|| (text[size - 1] == 32 && !isUppercaseLetter(text[size])))
 			return false;
 	}
 	return true;
@@ -969,9 +981,9 @@ FluidTypes_t getFluidType(const std::string& strValue)
 	return FLUID_NONE;
 }
 
-std::string getSkillName(uint16_t skillid)
+std::string getSkillName(uint16_t skillId)
 {
-	switch(skillid)
+	switch(skillId)
 	{
 		case SKILL_FIST:
 			return "fist fighting";

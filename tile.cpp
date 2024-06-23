@@ -208,6 +208,22 @@ Item* Tile::getTopDownItem()
 	return NULL;
 }
 
+Item* Tile::getItemByTopOrder(int32_t topOrder)
+{
+	//topOrder:
+	//1: borders
+	//2: ladders, signs, splashes
+	//3: doors etc
+	//4: creatures
+	for(ItemVector::reverse_iterator it = topItems.rbegin(); it != topItems.rend(); ++it)
+	{
+		if(Item::items[(*it)->getID()].alwaysOnTopOrder == topOrder)
+			return (*it);
+	}
+
+	return NULL;
+}
+
 Item* Tile::getTopTopItem()
 {
 	if(!topItems.empty())
@@ -416,8 +432,7 @@ void Tile::moveCreature(Creature* creature, Cylinder* toCylinder, bool teleport 
 	toTile->postAddNotification(creature, newStackPos);
 }
 
-ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
-	uint32_t flags) const
+ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, uint32_t flags) const
 {
 	Thing* iithing = NULL;
 
@@ -484,7 +499,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 			if(hasFlag(TILESTATE_MAGICFIELD))
 			{
 				MagicField* field = getFieldItem();
-				if(!field->isBlocking())
+				if(field && !field->isBlocking())
 				{
 					CombatType_t combatType = field->getCombatType();
 					//There is 3 options for a monster to enter a magic field
@@ -495,7 +510,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 						//2) Monster is already afflicated by this type of condition
 						if(hasBitSet(FLAG_IGNOREFIELDDAMAGE, flags))
 						{
-							if(!(monster->canPushItems() || monster->hasCondition(Combat::DamageToConditionType(combatType))))
+							if(!monster->canPushItems() && !monster->hasCondition(Combat::DamageToConditionType(combatType)))
 								return RET_NOTPOSSIBLE;
 						}
 						else
@@ -503,6 +518,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 					}
 				}
 			}
+
 			return RET_NOERROR;
 		}
 		else if(const Player* player = creature->getPlayer())
@@ -567,7 +583,8 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 				{
 					if(hasBitSet(FLAG_IGNOREBLOCKITEM, flags))
 					{
-						if(!iiType.moveable || iitem->getUniqueId() != 0)
+						if(!iiType.moveable || ((iitem->getUniqueId() != 0 || iitem->getActionId() != 0) &&
+							iitem->isLoadedFromMap()))
 							return RET_NOTPOSSIBLE;
 					}
 					else
@@ -617,7 +634,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 				{
 					if(item->isPickupable())
 					{
-						if(iitem->getTrashHolder())
+						if(iiType.allowPickupable)
 							continue;
 
 						if(!iiType.hasHeight || iiType.pickupable || iiType.isBed())
@@ -642,7 +659,7 @@ ReturnValue Tile::__queryMaxCount(int32_t index, const Thing* thing, uint32_t co
 	return RET_NOERROR;
 }
 
-ReturnValue Tile::__queryRemove(const Thing* thing, uint32_t count) const
+ReturnValue Tile::__queryRemove(const Thing* thing, uint32_t count, uint32_t flags) const
 {
 	int32_t index = __getIndexOfThing(thing);
 
@@ -656,7 +673,7 @@ ReturnValue Tile::__queryRemove(const Thing* thing, uint32_t count) const
 	if(count == 0 || (item->isStackable() && count > item->getItemCount()))
 		return RET_NOTPOSSIBLE;
 
-	if(item->isNotMoveable())
+	if(item->isNotMoveable() && !hasBitSet(FLAG_IGNORENOTMOVEABLE, flags))
 		return RET_NOTMOVEABLE;
 
 	return RET_NOERROR;
@@ -1149,17 +1166,17 @@ Thing* Tile::__getThing(uint32_t index) const
 		--index;
 	}
 
-	if((unsigned) index < topItems.size())
+	if((unsigned)index < topItems.size())
 		return topItems[index];
 
 	index -= (uint32_t)topItems.size();
 
-	if((unsigned) index < creatures.size())
+	if((unsigned)index < creatures.size())
 		return creatures[index];
 
 	index -= (uint32_t)creatures.size();
 
-	if((unsigned) index < downItems.size())
+	if((unsigned)index < downItems.size())
 		return downItems[index];
 
 	return NULL;
@@ -1181,34 +1198,29 @@ void Tile::postAddNotification(Thing* thing, int32_t index, cylinderlink_t link 
 
 	//add a reference to this item, it may be deleted after being added (mailbox for example)
 	thing->useThing2();
+	Item* item = thing->getItem();
 
 	bool removal = false;
 	if(link == LINK_OWNER)
 	{
 		//calling movement scripts
-		Creature* creature = thing->getCreature();
-		if(creature)
+		if(Creature* creature = thing->getCreature())
 			g_moveEvents->onCreatureMove(creature, this, true);
-		else
-		{
-			Item* item = thing->getItem();
-			if(item)
-				g_moveEvents->onItemMove(item, this, true);
-		}
+		else if(item)
+			g_moveEvents->onItemMove(item, this, true);
 
 		if(Teleport* teleport = getTeleportItem())
 			teleport->__addThing(thing);
 		else if(TrashHolder* trashHolder = getTrashHolder())
 		{
 			trashHolder->__addThing(thing);
-			removal = thing != trashHolder;
+			removal = (thing != trashHolder);
 		}
 		else if(Mailbox* mailbox = getMailbox())
 			mailbox->__addThing(thing);
 	}
 
 	//update floor change flags
-	Item* item = thing->getItem();
 	if(item)
 		updateTileFlags(item, removal);
 
@@ -1234,18 +1246,13 @@ void Tile::postRemoveNotification(Thing* thing, int32_t index, bool isCompleteRe
 	}
 
 	//calling movement scripts
-	Creature* creature = thing->getCreature();
-	if(creature)
+	Item* item = thing->getItem();
+	if(Creature* creature = thing->getCreature())
 		g_moveEvents->onCreatureMove(creature, this, false);
-	else
-	{
-		Item* item = thing->getItem();
-		if(item)
-			g_moveEvents->onItemMove(item, this, false);
-	}
+	else if(item)
+		g_moveEvents->onItemMove(item, this, false);
 
 	//update floor change flags
-	Item* item = thing->getItem();
 	if(item)
 		updateTileFlags(item, true);
 }
@@ -1269,8 +1276,7 @@ void Tile::__internalAddThing(uint32_t index, Thing* thing)
 	else
 	{
 		Item* item = thing->getItem();
-
-		if(item == NULL)
+		if(!item)
 			return;
 
 		if(item->isGroundTile())

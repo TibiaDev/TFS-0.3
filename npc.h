@@ -91,7 +91,7 @@ class NpcEventsHandler
 		virtual void onCreatureAppear(const Creature* creature) {}
 		virtual void onCreatureDisappear(const Creature* creature) {}
 		virtual void onCreatureMove(const Creature* creature, const Position& oldPos, const Position& newPos) {}
-		virtual void onCreatureSay(const Creature* creature, SpeakClasses, const std::string& text) {}
+		virtual void onCreatureSay(const Creature* creature, SpeakClasses, const std::string& text, Position* pos = NULL) {}
 		virtual void onPlayerTrade(const Player* player, int32_t callback, uint16_t itemid,
 			uint8_t count, uint8_t amount, bool ignoreCap, bool inBackpacks) {}
 		virtual void onPlayerCloseChannel(const Player* player) {}
@@ -114,7 +114,7 @@ class NpcScript : public NpcEventsHandler
 		virtual void onCreatureAppear(const Creature* creature);
 		virtual void onCreatureDisappear(const Creature* creature);
 		virtual void onCreatureMove(const Creature* creature, const Position& oldPos, const Position& newPos);
-		virtual void onCreatureSay(const Creature* creature, SpeakClasses, const std::string& text);
+		virtual void onCreatureSay(const Creature* creature, SpeakClasses, const std::string& text, Position* pos = NULL);
 		virtual void onPlayerTrade(const Player* player, int32_t callback, uint16_t itemid,
 			uint8_t count, uint8_t amount, bool ignoreCap, bool inBackpacks);
 		virtual void onPlayerCloseChannel(const Player* player);
@@ -408,6 +408,8 @@ struct NpcState
 	int32_t amount;
 	int32_t itemId;
 	int32_t subType;
+	bool ignoreCap;
+	bool inBackpacks;
 	std::string spellName;
 	std::string listName;
 	std::string listPluralName;
@@ -450,7 +452,7 @@ class Npc : public Creature
 		void reload();
 
 		virtual const std::string& getName() const {return name;}
-		virtual const std::string& getNameDescription() const {return name;}
+		virtual const std::string& getNameDescription() const {return nameDescription;}
 
 		void doSay(std::string msg, Player* focus = NULL, bool publicize = false);
 		void doMove(Direction dir);
@@ -485,10 +487,10 @@ class Npc : public Creature
 			const Tile* oldTile, const Position& oldPos, uint32_t oldStackPos, bool teleport);
 
 		virtual void onCreatureTurn(const Creature* creature, uint32_t stackpos);
-		virtual void onCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text);
+		virtual void onCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text, Position* pos = NULL);
 		virtual void onCreatureChangeOutfit(const Creature* creature, const Outfit_t& outfit);
 		virtual void onThink(uint32_t interval);
-		virtual std::string getDescription(int32_t lookDistance) const;
+		virtual std::string getDescription(int32_t lookDistance) const {return nameDescription + ".";}
 
 		bool isImmune(CombatType_t type) const {return true;}
 		bool isImmune(ConditionType_t type) const {return true;}
@@ -531,19 +533,10 @@ class Npc : public Creature
 		void closeAllShopWindows();
 		uint32_t getListItemPrice(uint16_t itemId, ShopEvent_t type);
 
-		std::string name;
-		std::string m_filename;
 		uint32_t walkTicks;
-		bool floorChange;
-		bool attackable;
-		bool isIdle;
-		bool hasBusyReply;
-		bool hasScriptedFocus;
-		int32_t talkRadius;
-		int32_t idleTime;
-		int32_t idleInterval;
-		bool defaultPublic;
-		int32_t focusCreature;
+		std::string name, nameDescription, m_filename;
+		int32_t talkRadius, idleTime, idleInterval, focusCreature;
+		bool floorChange, attackable, isIdle, hasBusyReply, hasScriptedFocus, defaultPublic;
 
 		typedef std::list<Player*> ShopPlayerList;
 		ShopPlayerList shopPlayerList;

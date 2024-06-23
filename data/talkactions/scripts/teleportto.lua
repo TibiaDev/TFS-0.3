@@ -1,26 +1,36 @@
 function onSay(cid, words, param)
 	if(param == "") then
 		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Command requires param.")
-		return FALSE
+		return TRUE
 	end
 
-	local tmpCreature = getCreatureByName(param)
-	local tmpPlayer = getPlayerByNameWildcard(param)
-	local tmpPos = string.explode(param, ",")
-	local pos = {}
+	local creature = getCreatureByName(param)
+	local player = getPlayerByNameWildcard(param)
+	local tile = string.explode(param, ",")
+	local pos = {x = 0, y = 0, z = 0}
 
-	if(tmpPlayer ~= 0) then
-		pos = getCreaturePosition(tmpPlayer)
-	elseif(tmpCreature ~= 0) then
-		pos = getCreaturePosition(tmpCreature)
-	elseif(tmpPos[3]) then
-		pos = {x = tmpPos[1], y = tmpPos[2], z = tmpPos[3]}
+	if(player ~= 0 and (isPlayerGhost(player) == FALSE or getPlayerAccess(player) <= getPlayerAccess(cid))) then
+		pos = getCreaturePosition(player)
+	elseif(creature ~= 0 and (isPlayer(creature) == FALSE or (isPlayerGhost(creature) == FALSE or getPlayerAccess(creature) <= getPlayerAccess(cid)))) then
+		pos = getCreaturePosition(creature)
+	elseif(tile[3]) then
+		pos = {x = tile[1], y = tile[2], z = tile[3]}
 	else
 		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Invalid param specified.")
-		return FALSE
+		return TRUE
 	end
 
-	pos = getClosestFreeTile(cid, pos)
+	if(pos == LUA_ERROR or isInArray({pos.x, pos.y, pos.z}, 0) == TRUE) then
+		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Destination not reachable.")
+		return TRUE
+	end
+
+	pos = getClosestFreeTile(cid, pos, TRUE)
+	if(pos == LUA_ERROR or isInArray({pos.x, pos.y, pos.z}, 0) == TRUE) then
+		doPlayerSendTextMessage(cid, MESSAGE_STATUS_CONSOLE_BLUE, "Cannot perform action.")
+		return TRUE
+	end
+
 	local tmp = getCreaturePosition(cid)
 	if(doTeleportThing(cid, pos, TRUE) ~= LUA_ERROR and isPlayerGhost(cid) ~= TRUE) then
 		doSendMagicEffect(tmp, CONST_ME_POFF)

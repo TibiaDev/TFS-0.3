@@ -299,11 +299,10 @@ bool Item::unserialize(xmlNodePtr nodeItem)
 	int32_t intValue;
 	std::string strValue;
 
-	if(readXMLInteger(nodeItem, "id", intValue))
-		id = intValue;
-	else
+	if(!readXMLInteger(nodeItem, "id", intValue))
 		return false;
 
+	id = intValue;
 	if(readXMLInteger(nodeItem, "count", intValue))
 		setSubType(intValue);
 
@@ -334,6 +333,7 @@ bool Item::unserialize(xmlNodePtr nodeItem)
 		if(decayState != DECAYING_FALSE)
 			setDecaying(DECAYING_PENDING);
 	}
+
 	return true;
 }
 
@@ -405,6 +405,7 @@ xmlNodePtr Item::serialize()
 		sprintf(buffer, "%d", decayState);
 		xmlSetProp(nodeItem, (const xmlChar*)"decayState", (const xmlChar*)buffer);
 	}
+
 	return nodeItem;
 }
 
@@ -620,12 +621,13 @@ bool Item::readAttr(AttrTypes_t attr, PropStream& propStream)
 
 			if(state != DECAYING_FALSE)
 				setDecaying(DECAYING_PENDING);
+
 			break;
 		}
 
-		//these should be handled through derived classes
+		//These should be handled through derived classes
 		//If these are called then something has changed in the items.otb since the map was saved
-		//just read the values
+		//Just read the values
 
 		//Depot class
 		case ATTR_DEPOT_ID:
@@ -635,7 +637,6 @@ bool Item::readAttr(AttrTypes_t attr, PropStream& propStream)
 				return false;
 
 			return true;
-			break;
 		}
 
 		//Door class
@@ -646,7 +647,6 @@ bool Item::readAttr(AttrTypes_t attr, PropStream& propStream)
 				return false;
 
 			return true;
-			break;
 		}
 
 		//Teleport class
@@ -657,12 +657,10 @@ bool Item::readAttr(AttrTypes_t attr, PropStream& propStream)
 				return false;
 
 			return true;
-			break;
 		}
 
 		default:
 			return false;
-			break;
 	}
 
 	return true;
@@ -677,9 +675,9 @@ bool Item::unserializeAttr(PropStream& propStream)
 		{
 			std::cout << "Failed to unserialize attr_type: " << (AttrTypes_t)attr_type << " for item: " << id << std::endl;
 			return false;
-			break;
 		}
 	}
+
 	return true;
 }
 
@@ -692,25 +690,28 @@ bool Item::serializeAttr(PropWriteStream& propWriteStream)
 {
 	if(isStackable() || isFluidContainer() || isSplash())
 	{
-		uint8_t _count = getSubType();
 		propWriteStream.ADD_UCHAR(ATTR_COUNT);
-		propWriteStream.ADD_UCHAR(_count);
+		propWriteStream.ADD_UCHAR(getSubType());
 	}
 
 	if(hasCharges())
 	{
-		uint16_t _count = getCharges();
 		propWriteStream.ADD_UCHAR(ATTR_CHARGES);
-		propWriteStream.ADD_USHORT(_count);
+		propWriteStream.ADD_USHORT(getCharges());
 	}
 
 	if(!isNotMoveable())
 	{
-		uint16_t _actionId = getActionId();
-		if(_actionId)
+		if(getActionId())
 		{
 			propWriteStream.ADD_UCHAR(ATTR_ACTION_ID);
-			propWriteStream.ADD_USHORT(_actionId);
+			propWriteStream.ADD_USHORT(getActionId());
+		}
+
+		if(getUniqueId())
+		{
+			propWriteStream.ADD_UCHAR(ATTR_UNIQUE_ID);
+			propWriteStream.ADD_USHORT(getUniqueId());
 		}
 	}
 
@@ -721,11 +722,10 @@ bool Item::serializeAttr(PropWriteStream& propWriteStream)
 		propWriteStream.ADD_STRING(_text);
 	}
 
-	const time_t _writtenDate = getDate();
-	if(_writtenDate > 0)
+	if(getDate())
 	{
 		propWriteStream.ADD_UCHAR(ATTR_WRITTENDATE);
-		propWriteStream.ADD_ULONG(_writtenDate);
+		propWriteStream.ADD_ULONG(getDate());
 	}
 
 	const std::string& _writer = getWriter();
@@ -744,9 +744,8 @@ bool Item::serializeAttr(PropWriteStream& propWriteStream)
 
 	if(hasAttribute(ATTR_ITEM_DURATION))
 	{
-		uint32_t duration = getDuration();
 		propWriteStream.ADD_UCHAR(ATTR_DURATION);
-		propWriteStream.ADD_ULONG(duration);
+		propWriteStream.ADD_ULONG(getDuration());
 	}
 
 	uint32_t decayState = getDecaying();
@@ -788,51 +787,44 @@ bool Item::serializeAttr(PropWriteStream& propWriteStream)
 
 	if(hasAttribute(ATTR_ITEM_ATTACK))
 	{
-		int32_t attack = getAttack();
 		propWriteStream.ADD_UCHAR(ATTR_ATTACK);
-		propWriteStream.ADD_ULONG(attack);
+		propWriteStream.ADD_ULONG(getAttack());
 	}
 
 	if(hasAttribute(ATTR_ITEM_EXTRAATTACK))
 	{
-		int32_t extraattack = getExtraAttack();
 		propWriteStream.ADD_UCHAR(ATTR_EXTRAATTACK);
-		propWriteStream.ADD_ULONG(extraattack);
+		propWriteStream.ADD_ULONG(getExtraAttack());
 	}
 
 	if(hasAttribute(ATTR_ITEM_DEFENSE))
 	{
-		int32_t defense = getDefense();
 		propWriteStream.ADD_UCHAR(ATTR_DEFENSE);
-		propWriteStream.ADD_ULONG(defense);
+		propWriteStream.ADD_ULONG(getDefense());
 	}
 
 	if(hasAttribute(ATTR_ITEM_EXTRADEFENSE))
 	{
-		int32_t extradefense = getExtraDefense();
 		propWriteStream.ADD_UCHAR(ATTR_EXTRADEFENSE);
-		propWriteStream.ADD_ULONG(extradefense);
+		propWriteStream.ADD_ULONG(getExtraDefense());
 	}
 
 	if(hasAttribute(ATTR_ITEM_ARMOR))
 	{
-		int32_t armor = getArmor();
 		propWriteStream.ADD_UCHAR(ATTR_ARMOR);
-		propWriteStream.ADD_ULONG(armor);
+		propWriteStream.ADD_ULONG(getArmor());
 	}
 
 	if(hasAttribute(ATTR_ITEM_ATTACKSPEED))
 	{
-		int32_t attackspeed = getAttackSpeed();
 		propWriteStream.ADD_UCHAR(ATTR_ATTACKSPEED);
-		propWriteStream.ADD_ULONG(attackspeed);
+		propWriteStream.ADD_ULONG(getAttackSpeed());
 	}
 
 	if(hasAttribute(ATTR_ITEM_HITCHANCE))
 	{
-		int32_t hitchance = getHitChance();
 		propWriteStream.ADD_UCHAR(ATTR_HITCHANCE);
-		propWriteStream.ADD_ULONG(hitchance);
+		propWriteStream.ADD_ULONG(getHitChance());
 	}
 
 	return true;
@@ -841,7 +833,6 @@ bool Item::serializeAttr(PropWriteStream& propWriteStream)
 bool Item::hasProperty(enum ITEMPROPERTY prop) const
 {
 	const ItemType& it = items[id];
-
 	switch(prop)
 	{
 		case BLOCKSOLID:
@@ -850,7 +841,7 @@ bool Item::hasProperty(enum ITEMPROPERTY prop) const
 			break;
 
 		case MOVEABLE:
-			if(it.moveable && getUniqueId() == 0)
+			if(it.moveable && (!isLoadedFromMap() || (getUniqueId() == 0 && getActionId() == 0)))
 				return true;
 			break;
 
@@ -880,12 +871,12 @@ bool Item::hasProperty(enum ITEMPROPERTY prop) const
 			break;
 
 		case IMMOVABLEBLOCKSOLID:
-			if(it.blockSolid && (!it.moveable || getUniqueId() != 0))
+			if(it.blockSolid && (!it.moveable || ((getUniqueId() != 0 || getActionId() != 0) && isLoadedFromMap())))
 				return true;
 			break;
 
 		case IMMOVABLEBLOCKPATH:
-			if(it.blockPathFind && (!it.moveable || getUniqueId() != 0))
+			if(it.blockPathFind && (!it.moveable || ((getUniqueId() != 0 || getActionId() != 0) && isLoadedFromMap())))
 				return true;
 			break;
 
@@ -895,7 +886,7 @@ bool Item::hasProperty(enum ITEMPROPERTY prop) const
 			break;
 
 		case IMMOVABLENOFIELDBLOCKPATH:
-			if(!it.isMagicField() && it.blockPathFind && (!it.moveable || getUniqueId() != 0))
+			if(!it.isMagicField() && it.blockPathFind && (!it.moveable || ((getUniqueId() != 0 || getActionId() != 0) && isLoadedFromMap())))
 				return true;
 			break;
 
@@ -905,9 +896,9 @@ bool Item::hasProperty(enum ITEMPROPERTY prop) const
 			break;
 
 		default:
-			return false;
 			break;
 	}
+
 	return false;
 }
 
@@ -920,7 +911,7 @@ double Item::getWeight() const
 }
 
 std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
-	const Item* item /*= NULL*/, int32_t subType /*= -1*/)
+	const Item* item /*= NULL*/, int32_t subType /*= -1*/, bool addArticle /*= true*/)
 {
 	if(item)
 		subType = item->getSubType();
@@ -937,10 +928,13 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 		}
 		else
 		{
-			if(item && !item->getArticle().empty())
-				s << item->getArticle() << " ";
-			else if(!it.article.empty())
-				s << it.article << " ";
+			if(addArticle)
+			{
+				if(item && !item->getArticle().empty())
+					s << item->getArticle() << " ";
+				else if(!it.article.empty())
+					s << it.article << " ";
+			}
 
 			s << (item ? item->getName() : it.name);
 		}
@@ -1020,9 +1014,6 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 
 			s << ")";
 		}
-
-		if(it.showCharges)
-			s << " that has " << subType << " charge" << (subType > 1 ? "s" : "") << " left";
 	}
 	else if(it.armor != 0 || (item && item->getArmor() != 0))
 	{
@@ -1134,13 +1125,20 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 			}
 		}
 
+		if(it.abilities.stats[STAT_MAGICLEVEL] != 0)
+			s << ", magic level " << std::showpos << (int32_t)it.abilities.stats[STAT_MAGICLEVEL] << std::noshowpos;
+
 		if(it.abilities.speed > 0)
 			s << ", speed +" << it.abilities.speed / 2;
 
 		s << ")";
 	}
+	else if(it.isContainer())
+		s << " (Vol:" << (int32_t)it.maxItems << ")";
 	else if(it.abilities.speed > 0)
 		s << " (speed +" << it.abilities.speed / 2 << ")";
+	else if(it.isKey())
+		s << " (Key:" << (item ? (int32_t)item->getActionId() : 0) << ")";
 	else if(it.isFluidContainer())
 	{
 		if(subType > 0)
@@ -1156,10 +1154,6 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 		else
 			s << "unknown";
 	}
-	else if(it.isContainer())
-		s << " (Vol:" << (int32_t)it.maxItems << ")";
-	else if(it.isKey())
-		s << " (Key:" << (item ? (int32_t)item->getActionId() : 0) << ")";
 	else if(it.allowDistRead)
 	{
 		s << std::endl;
@@ -1191,9 +1185,13 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 		else
 			s << "Nothing is written on it";
 	}
-	else if(it.showCharges)
+	else if(it.isLevelDoor() && item && item->getActionId() >= 1000)
+		s << " for level " << item->getActionId() - 1000;
+
+	if(it.showCharges)
 		s << " that has " << subType << " charge" << (subType > 1 ? "s" : "") << " left";
-	else if(it.showDuration)
+
+	if(it.showDuration)
 	{
 		if(item && item->hasAttribute(ATTR_ITEM_DURATION))
 		{
@@ -1210,8 +1208,6 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 		else
 			s << " that is brand-new";
 	}
-	else if(it.isLevelDoor() && item && item->getActionId() >= 1000)
-		s << " for level " << item->getActionId() - 1000;
 
 	s << ".";
 	if(it.wieldInfo != 0)

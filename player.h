@@ -111,7 +111,7 @@ enum AccountManager_t
 typedef std::pair<uint32_t, Container*> containervector_pair;
 typedef std::vector<containervector_pair> ContainerVector;
 typedef std::map<uint32_t, Depot*> DepotMap;
-typedef std::map<uint32_t, int32_t> StorageMap;
+typedef std::map<uint32_t, std::string> StorageMap;
 typedef std::set<uint32_t> VIPListSet;
 typedef std::map<uint32_t, uint32_t> MuteCountMap;
 typedef std::list<std::string> LearnedInstantSpellList;
@@ -137,7 +137,7 @@ class Player : public Creature, public Cylinder
 		static int32_t maxMessageBuffer;
 
 		virtual const std::string& getName() const {return name;}
-		virtual const std::string& getNameDescription() const {return name;}
+		virtual const std::string& getNameDescription() const {return nameDescription;}
 		virtual std::string getDescription(int32_t lookDistance) const;
 
 		void manageAccount(const std::string &text);
@@ -219,8 +219,8 @@ class Player : public Creature, public Cylinder
 		Container* getContainer(uint32_t cid);
 		bool canOpenCorpse(uint32_t ownerId);
 
-		void addStorageValue(const uint32_t key, const int32_t value);
-		bool getStorageValue(const uint32_t key, int32_t& value) const;
+		void addStorageValue(const uint32_t key, const std::string& value);
+		bool getStorageValue(const uint32_t key, std::string& value) const;
 		void genReservedStorageRange();
 
 		bool withdrawMoney(uint64_t amount);
@@ -242,11 +242,11 @@ class Player : public Creature, public Cylinder
 		bool canSeeGhost(const Creature* creature) const
 			{return (creature->getPlayer() && creature->getPlayer()->getAccessLevel() <= accessLevel);}
 
-		void switchPrivMsgIgnore() {ignorePrivMsg = !ignorePrivMsg;}
-		bool isIgnoringPrivMsg() const {return ignorePrivMsg;}
+		void switchPrivateIgnore() {privateIgnore = !privateIgnore;}
+		bool isIgnoringPrivate() const {return privateIgnore;}
 
-		void switchTeleportByMap() {teleportByMap = !teleportByMap;}
-		bool isTeleportingByMap() const {return teleportByMap;}
+		void switchClickTeleport() {clickTeleport = !clickTeleport;}
+		bool isTeleportingByClick() const {return clickTeleport;}
 
 		void switchSaving() {saving = !saving;}
 		bool isSaving() const {return saving;}
@@ -293,18 +293,22 @@ class Player : public Creature, public Cylinder
 
 		double getCapacity() const
 		{
-			if(!hasFlag(PlayerFlag_HasInfiniteCapacity))
-				return capacity;
+			if(hasFlag(PlayerFlag_CannotPickupItem))
+				return 0.00;
+			else if(hasFlag(PlayerFlag_HasInfiniteCapacity))
+				return 10000.00;
 
-			return 5000.00;
+			return capacity;
 		}
 
 		double getFreeCapacity() const
 		{
-			if(!hasFlag(PlayerFlag_HasInfiniteCapacity))
-				return std::max(0.00, capacity - inventoryWeight);
+			if(hasFlag(PlayerFlag_CannotPickupItem))
+				return 0.00;
+			else if(hasFlag(PlayerFlag_HasInfiniteCapacity))
+				return 10000.00;
 
-			return 5000.00;
+			return std::max(0.00, capacity - inventoryWeight);
 		}
 
 		virtual int32_t getMaxHealth() const {return getPlayerInfo(PLAYERINFO_MAXHEALTH);}
@@ -433,7 +437,7 @@ class Player : public Creature, public Cylinder
 		void addWeaponExhaust(uint32_t ticks);
 		void addCombatExhaust(uint32_t ticks);
 		void addHealExhaust(uint32_t ticks);
-		void addInFightTicks();
+		void addInFightTicks(bool pzLock = false);
 		void addDefaultRegeneration(uint32_t addTicks);
 
 		virtual uint64_t getGainedExperience(Creature* attacker) const;
@@ -493,7 +497,7 @@ class Player : public Creature, public Cylinder
 		void sendUpdateTile(const Tile* tile, const Position& pos)
 			{if(client) client->sendUpdateTile(tile, pos);}
 
-		void sendChannelMessage(std::string author, std::string text, SpeakClasses type, unsigned char channel)
+		void sendChannelMessage(std::string author, std::string text, SpeakClasses type, uint8_t channel)
 			{if(client) client->sendChannelMessage(author, text, type, channel);}
 		void sendCreatureAppear(const Creature* creature, bool isLogin)
 			{if(client) client->sendAddCreature(creature, isLogin);}
@@ -505,8 +509,8 @@ class Player : public Creature, public Cylinder
 
 		void sendCreatureTurn(const Creature* creature, uint32_t stackpos)
 			{if(client) client->sendCreatureTurn(creature, stackpos);}
-		void sendCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text)
-			{if(client) client->sendCreatureSay(creature, type, text);}
+		void sendCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text, Position* pos = NULL)
+			{if(client) client->sendCreatureSay(creature, type, text, pos);}
 		void sendCreatureSquare(const Creature* creature, SquareColor_t color)
 			{if(client) client->sendCreatureSquare(creature, color);}
 		void sendCreatureChangeOutfit(const Creature* creature, const Outfit_t& outfit)
@@ -601,8 +605,8 @@ class Player : public Creature, public Cylinder
 		void sendStats();
 		void sendSkills() const
 			{if(client) client->sendSkills();}
-		void sendTextMessage(MessageClasses mclass, const std::string& message) const
-			{if(client) client->sendTextMessage(mclass, message);}
+		void sendTextMessage(MessageClasses type, const std::string& message) const
+			{if(client) client->sendTextMessage(type, message);}
 		void sendReLoginWindow() const
 			{if(client) client->sendReLoginWindow();}
 		void sendTextWindow(Item* item, uint16_t maxlen, bool canWrite) const
@@ -692,7 +696,7 @@ class Player : public Creature, public Cylinder
 		void setNextWalkTask(SchedulerTask* task);
 		void setNextActionTask(SchedulerTask* task);
 
-		void death();
+		bool onDeath();
 		virtual void dropCorpse();
 		virtual Item* getCorpse();
 
@@ -701,7 +705,7 @@ class Player : public Creature, public Cylinder
 			uint32_t flags) const;
 		virtual ReturnValue __queryMaxCount(int32_t index, const Thing* thing, uint32_t count, uint32_t& maxQueryCount,
 			uint32_t flags) const;
-		virtual ReturnValue __queryRemove(const Thing* thing, uint32_t count) const;
+		virtual ReturnValue __queryRemove(const Thing* thing, uint32_t count, uint32_t flags) const;
 		virtual Cylinder* __queryDestination(int32_t& index, const Thing* thing, Item** destItem,
 			uint32_t& flags);
 
@@ -764,8 +768,8 @@ class Player : public Creature, public Cylinder
 		int32_t groupId;
 		OperatingSystem_t operatingSystem;
 		bool ghostMode;
-		bool ignorePrivMsg;
-		bool teleportByMap;
+		bool privateIgnore;
+		bool clickTeleport;
 		bool saving;
 
 		bool talkState[13];

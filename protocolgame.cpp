@@ -328,24 +328,22 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 		}
 
 		Ban ban;
-		if(IOBan::getInstance()->getData(accnumber, ban) && !player->hasFlag(PlayerFlag_CannotBeBanned))
+		if(IOBan::getInstance()->getData(accnumber, ban) && (ban.type == BANTYPE_BANISHMENT ||
+			ban.type == BANTYPE_DELETION) && !player->hasFlag(PlayerFlag_CannotBeBanned))
 		{
-			bool deletion = (ban.type == BANTYPE_DELETION);
-
+			bool deletion = ban.type == BANTYPE_DELETION;
 			std::string name_;
 			if(ban.adminid == 0)
 				name_ = (deletion ? "Automatic deletion" : "Automatic banishment");
 			else
 				IOLoginData::getInstance()->getNameByGuid(ban.adminid, name_);
 
-			char date[16], date2[16];
+			char date[16], date2[16], buffer[500 + ban.comment.length()];
 			formatDate2(ban.added, date);
 			formatDate2(ban.expires, date2);
-
-			char buffer[500 + ban.comment.length()];
 			sprintf(buffer, "Your account has been %s at:\n%s by: %s,\nfor the following reason:\n%s.\nThe action taken was:\n%s.\nThe comment given was:\n%s.\nYour %s%s.",
 				(deletion ? "deleted" : "banished"), date, name_.c_str(), getReason(ban.reason).c_str(), getAction(ban.action, false).c_str(),
-				ban.comment.c_str(), (deletion ? "account won't be undeleted" : "banishment will be lifted at:\n"),	(deletion ? "." : date2));
+				ban.comment.c_str(), (deletion ? "account won't be undeleted" : "banishment will be lifted at:\n"), (deletion ? "." : date2));
 
 			disconnectClient(0x14, buffer);
 			return false;
@@ -369,32 +367,45 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 			return false;
 		}
 
-		if(g_config.getBool(ConfigManager::ONE_PLAYER_ON_ACCOUNT) && !player->isAccountManager()
-			&& g_game.getPlayerByAccount(player->getAccount()) && !IOLoginData::getInstance()->hasCustomFlag(accnumber, PlayerCustomFlag_CanLoginMultipleCharacters))
+		if(g_config.getBool(ConfigManager::ONE_PLAYER_ON_ACCOUNT) && !player->isAccountManager() && !IOLoginData::getInstance()->hasCustomFlag(accnumber, PlayerCustomFlag_CanLoginMultipleCharacters))
 		{
-			disconnectClient(0x14, "You may only login with one character\nof your account at the same time.");
-			return false;
+			bool found = false;
+			PlayerVector tmp = g_game.getPlayersByAccount(accnumber);
+			for(PlayerVector::iterator it = tmp.begin(); it != tmp.end(); ++it)
+			{
+				if((*it)->getName() == name)
+					found = true;
+			}
+
+			if(tmp.size() > 0 && !found)
+			{
+				disconnectClient(0x14, "You may only login with one character\nof your account at the same time.");
+				return false;
+			}
 		}
 
 		if(!WaitingList::getInstance()->clientLogin(player))
 		{
-			int32_t currentSlot = WaitingList::getInstance()->getClientSlot(player);
-			int32_t retryTime = WaitingList::getTime(currentSlot);
-			std::stringstream ss;
+			if(OutputMessage* output = OutputMessagePool::getInstance()->getOutputMessage(this, false))
+			{
+				int32_t currentSlot = WaitingList::getInstance()->getClientSlot(player);
 
-			ss << "Too many players online.\n" << "You are at ";
-			if(currentSlot > 0)
-				ss << currentSlot;
-			else
-				ss << "unknown";
-			ss << " place on the waiting list.";
+				std::stringstream ss;
+				ss << "Too many players online.\n" << "You are at ";
+				if(currentSlot > 0)
+					ss << currentSlot;
+				else
+					ss << "unknown";
 
-			OutputMessage* output = OutputMessagePool::getInstance()->getOutputMessage(this, false);
-			TRACK_MESSAGE(output);
-			output->AddByte(0x16);
-			output->AddString(ss.str());
-			output->AddByte(retryTime);
-			OutputMessagePool::getInstance()->send(output);
+				ss << " place on the waiting list.";
+
+				TRACK_MESSAGE(output);
+				output->AddByte(0x16);
+				output->AddString(ss.str());
+				output->AddByte(WaitingList::getTime(currentSlot));
+				OutputMessagePool::getInstance()->send(output);
+			}
+
 			getConnection()->closeConnection();
 			return false;
 		}
@@ -407,7 +418,7 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 
 		if(!g_game.placeCreature(player, player->getLoginPosition()))
 		{
-			if(!g_game.placeCreature(player, player->getTemplePosition(), true))
+			if(!g_game.placeCreature(player, player->getTemplePosition(), false, true))
 			{
 				disconnectClient(0x14, "Temple position is wrong. Contact the administrator.");
 				return false;
@@ -438,8 +449,10 @@ bool ProtocolGame::login(const std::string& name, uint32_t accnumber, const std:
 
 			return true;
 		}
+
 		return connect(_player->getID());
 	}
+
 	return false;
 }
 
@@ -538,6 +551,7 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 
 	uint8_t gamemasterLogin = msg.GetByte();
 	std::string accName = msg.GetString();
+	toLowerCaseString(accName);
 	const std::string name = msg.GetString();
 	std::string password = msg.GetString();
 	uint32_t accId = 1;
@@ -587,12 +601,12 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 	if(((accName.length() && !IOLoginData::getInstance()->getAccountId(accName, accId)) ||
 		!IOLoginData::getInstance()->getPassword(accId, name, accPass) || !passwordTest(password, accPass)) && name != "Account Manager")
 	{
-		ConnectionManager::getInstance()->addLoginAttempt(getIP(), false);
+		ConnectionManager::getInstance()->addAttempt(getIP(), false);
 		getConnection()->closeConnection();
 		return false;
 	}
 
-	ConnectionManager::getInstance()->addLoginAttempt(getIP(), true);
+	ConnectionManager::getInstance()->addAttempt(getIP(), true);
 	Dispatcher::getDispatcher().addTask(
 		createTask(boost::bind(&ProtocolGame::login, this, name, accId, password, operatingSystem, gamemasterLogin)));
 
@@ -887,13 +901,13 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 				break;
 
 			case 0xD2: // request outfit
-				if(g_config.getBool(ConfigManager::ALLOW_CHANGEOUTFIT))
+				if(g_config.getBool(ConfigManager::ALLOW_CHANGECOLORS)
+					|| g_config.getBool(ConfigManager::ALLOW_CHANGEOUTFIT))
 					parseRequestOutfit(msg);
 				break;
 
 			case 0xD3: // set outfit
-				if(g_config.getBool(ConfigManager::ALLOW_CHANGEOUTFIT))
-					parseSetOutfit(msg);
+				parseSetOutfit(msg);
 				break;
 
 			case 0xDC:
@@ -1279,20 +1293,23 @@ void ProtocolGame::parseRequestOutfit(NetworkMessage& msg)
 
 void ProtocolGame::parseSetOutfit(NetworkMessage& msg)
 {
-	uint16_t looktype = msg.GetU16();
-	uint8_t lookhead = msg.GetByte();
-	uint8_t lookbody = msg.GetByte();
-	uint8_t looklegs = msg.GetByte();
-	uint8_t lookfeet = msg.GetByte();
-	uint8_t lookaddons = msg.GetByte();
+	Outfit_t newOutfit = player->defaultOutfit;
+	if(g_config.getBool(ConfigManager::ALLOW_CHANGEOUTFIT))
+		newOutfit.lookType = msg.GetU16();
+	else
+		msg.SkipBytes(2);
 
-	Outfit_t newOutfit;
-	newOutfit.lookType = looktype;
-	newOutfit.lookHead = lookhead;
-	newOutfit.lookBody = lookbody;
-	newOutfit.lookLegs = looklegs;
-	newOutfit.lookFeet = lookfeet;
-	newOutfit.lookAddons = lookaddons;
+	if(g_config.getBool(ConfigManager::ALLOW_CHANGECOLORS))
+	{
+		newOutfit.lookHead = msg.GetByte();
+		newOutfit.lookBody = msg.GetByte();
+		newOutfit.lookLegs = msg.GetByte();
+		newOutfit.lookFeet = msg.GetByte();
+		newOutfit.lookAddons = msg.GetByte();
+	}
+	else
+		msg.SkipBytes(5);
+
 	addGameTask(&Game::playerChangeOutfit, player->getID(), newOutfit);
 }
 
@@ -1532,6 +1549,7 @@ void ProtocolGame::parseDebugAssert(NetworkMessage& msg)
 {
 	if(m_debugAssertSent)
 		return;
+
 	m_debugAssertSent = true;
 
 	std::string assertLine = msg.GetString();
@@ -1539,8 +1557,7 @@ void ProtocolGame::parseDebugAssert(NetworkMessage& msg)
 	std::string description = msg.GetString();
 	std::string comment = msg.GetString();
 
-	FILE* file = fopen(getFilePath(FILE_TYPE_LOG, "client_assertions.txt").c_str(), "a");
-	if(file)
+	if(FILE* file = fopen(getFilePath(FILE_TYPE_LOG, "client_assertions.txt").c_str(), "a"))
 	{
 		char bufferDate[32], bufferIp[32];
 		uint64_t tmp = time(NULL);
@@ -1611,22 +1628,21 @@ void ProtocolGame::parseQuestLine(NetworkMessage& msg)
 	if(_msg)
 	{
 		TRACK_MESSAGE(_msg);
-		Quest* quest = Quests::getInstance()->getQuestByID(quid);
-		if(quest)
+		if(Quest* quest = Quests::getInstance()->getQuestById(quid))
 			quest->getMissionList(player, _msg);
 	}
 }
 
 void ProtocolGame::parseViolationWindow(NetworkMessage& msg)
 {
-	std::string targetPlayerName = msg.GetString();
+	std::string playerName = msg.GetString();
 	uint8_t reasonId = msg.GetByte();
 	uint8_t actionId = msg.GetByte();
 	std::string comment = msg.GetString();
 	std::string statement = msg.GetString();
-	msg.GetU16();
+	msg.GetU16(); //Find out what is this byte
 	bool ipBanishment = msg.GetByte();
-	addGameTask(&Game::violationWindow, player->getID(), targetPlayerName, reasonId, actionId, comment, statement, ipBanishment);
+	addGameTask(&Game::violationWindow, player->getID(), playerName, reasonId, actionId, comment, statement, ipBanishment);
 }
 
 //********************** Send methods *******************************//
@@ -1862,8 +1878,7 @@ void ProtocolGame::sendRuleViolationsChannel(uint16_t channelId)
 		TRACK_MESSAGE(msg);
 		msg->AddByte(0xAE);
 		msg->AddU16(channelId);
-		RuleViolationsMap::const_iterator it = g_game.getRuleViolations().begin();
-		for( ; it != g_game.getRuleViolations().end(); ++it)
+		for(RuleViolationsMap::const_iterator it = g_game.getRuleViolations().begin(); it != g_game.getRuleViolations().end(); ++it)
 		{
 			RuleViolation& rvr = *it->second;
 			if(rvr.isOpen && rvr.reporter)
@@ -2077,13 +2092,13 @@ void ProtocolGame::sendCreatureTurn(const Creature* creature, uint8_t stackPos)
 	}
 }
 
-void ProtocolGame::sendCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text)
+void ProtocolGame::sendCreatureSay(const Creature* creature, SpeakClasses type, const std::string& text, Position* pos/* = NULL*/)
 {
 	NetworkMessage* msg = getOutputBuffer();
 	if(msg)
 	{
 		TRACK_MESSAGE(msg);
-		AddCreatureSpeak(msg, creature, type, text, 0);
+		AddCreatureSpeak(msg, creature, type, text, 0, 0, pos);
 	}
 }
 
@@ -2635,55 +2650,66 @@ void ProtocolGame::sendHouseWindow(uint32_t windowTextId, House* _house,
 
 void ProtocolGame::sendOutfitWindow()
 {
-	#define MAX_NUMBER_OF_OUTFITS 25
 	NetworkMessage* msg = getOutputBuffer();
 	if(msg)
 	{
 		TRACK_MESSAGE(msg);
 		msg->AddByte(0xC8);
+
 		AddCreatureOutfit(msg, player, player->getDefaultOutfit());
-
-		const OutfitListType& global_outfits = Outfits::getInstance()->getOutfits(player->getSex());
-		int32_t count_outfits = global_outfits.size();
-
-		if(count_outfits > MAX_NUMBER_OF_OUTFITS)
-			count_outfits = MAX_NUMBER_OF_OUTFITS;
-		else if(count_outfits == 0)
+		const OutfitListType& globalOutfits = Outfits::getInstance()->getOutfits(player->getSex());
+		if(!globalOutfits.size())
 			return;
 
-		OutfitListType::const_iterator it, it_;
-		for(it = global_outfits.begin(); it != global_outfits.end(); ++it)
-		{
-			if((*it)->premium && !player->isPremium())
-				count_outfits--;
-		}
+		uint32_t count = std::min((size_t)OUTFITS_MAX_NUMBER, globalOutfits.size());
+		OTSERV_HASH_SET<uint32_t> tmpList;
 
-		msg->AddByte(count_outfits);
-
-		bool addedAddon;
-		const OutfitListType& player_outfits = player->getPlayerOutfits();
-		for(it = global_outfits.begin(); it != global_outfits.end() && (count_outfits > 0); ++it)
+		OutfitListType::const_iterator git, it;
+		for(git = globalOutfits.begin(); git != globalOutfits.end(); ++git)
 		{
-			if(((*it)->premium && player->isPremium()) || !(*it)->premium)
+			if((*git)->premium && !player->isPremium())
+				tmpList.insert((*git)->looktype);
+
+			if((*git)->quest)
 			{
-				addedAddon = false;
-				msg->AddU16((*it)->looktype);
-				msg->AddString(Outfits::getInstance()->getOutfitName((*it)->looktype));
-				//TODO: Try to avoid using loop to get addons
-				for(it_ = player_outfits.begin(); it_ != player_outfits.end(); ++it_)
-				{
-					if((*it_)->looktype == (*it)->looktype)
-					{
-						msg->AddByte((*it_)->addons);
-						addedAddon = true;
-						break;
-					}
-				}
-				if(!addedAddon)
-					msg->AddByte(0x00);
-				count_outfits--;
+				std::string value;
+				if(!player->getStorageValue((*git)->quest, value) || atoi(value.c_str()) != OUTFITS_QUEST_VALUE)
+					tmpList.insert((*git)->looktype);
 			}
 		}
+
+		count -= tmpList.size();
+		if(!count)
+			return;
+
+		msg->AddByte(count);
+		const OutfitListType& playerOutfits = player->getPlayerOutfits();
+		for(git = globalOutfits.begin(); git != globalOutfits.end() && count > 0; ++git)
+		{
+			OTSERV_HASH_SET<uint32_t>::const_iterator tit = tmpList.find((*git)->looktype);
+			if(tit != tmpList.end())
+				continue;
+
+			msg->AddU16((*git)->looktype);
+			msg->AddString(Outfits::getInstance()->getOutfitName((*git)->looktype));
+
+			bool addedAddon = false;
+			for(it = playerOutfits.begin(); it != playerOutfits.end(); ++it)
+			{
+				if((*it)->looktype == (*git)->looktype)
+				{
+					msg->AddByte((*it)->addons);
+					addedAddon = true;
+					break;
+				}
+			}
+
+			if(!addedAddon)
+				msg->AddByte(0x00);
+
+			count--;
+		}
+
 		player->hasRequestedOutfit(true);
 	}
 }
@@ -2839,31 +2865,27 @@ void ProtocolGame::AddPlayerSkills(NetworkMessage* msg)
 	msg->AddByte(player->getSkill(SKILL_FISH, SKILL_PERCENT));
 }
 
-void ProtocolGame::AddCreatureSpeak(NetworkMessage* msg, const Creature* creature,
-	SpeakClasses type, std::string text, uint16_t channelId, uint32_t time /*= 0*/)
+void ProtocolGame::AddCreatureSpeak(NetworkMessage* msg, const Creature* creature, SpeakClasses type,
+	std::string text, uint16_t channelId, uint32_t time /*= 0*/, Position* pos/* = NULL*/)
 {
 	msg->AddByte(0xAA);
 	msg->AddU32(0x00000000);
-
-	//Do not add name for anonymous channel talk
-	if(type != SPEAK_CHANNEL_R2)
+	switch(type)
 	{
-		if(type != SPEAK_RVR_ANSWER)
-			msg->AddString(creature->getName());
-		else
+		case SPEAK_CHANNEL_R2:
+			msg->AddString("");
+			break;
+		case SPEAK_RVR_ANSWER:
 			msg->AddString("Gamemaster");
+			break;
+		default:
+			msg->AddString(creature->getName());
+			break;
 	}
-	else
-		msg->AddString("");
 
-	//Add level only for players
-	if(const Player* speaker = creature->getPlayer())
-	{
-		if(type != SPEAK_RVR_ANSWER && !speaker->isAccountManager())
-			msg->AddU16(speaker->getPlayerInfo(PLAYERINFO_LEVEL));
-		else
-			msg->AddU16(0x0000);
-	}
+	const Player* speaker = creature->getPlayer();
+	if(speaker && type != SPEAK_RVR_ANSWER && !speaker->isAccountManager() && !speaker->hasCustomFlag(PlayerCustomFlag_HideLevel))
+		msg->AddU16(speaker->getPlayerInfo(PLAYERINFO_LEVEL));
 	else
 		msg->AddU16(0x0000);
 
@@ -2876,8 +2898,13 @@ void ProtocolGame::AddCreatureSpeak(NetworkMessage* msg, const Creature* creatur
 		case SPEAK_MONSTER_SAY:
 		case SPEAK_MONSTER_YELL:
 		case SPEAK_PRIVATE_NP:
-			msg->AddPosition(creature->getPosition());
+		{
+			if(pos)
+				msg->AddPosition(*pos);
+			else
+				msg->AddPosition(creature->getPosition());
 			break;
+		}
 
 		case SPEAK_CHANNEL_Y:
 		case SPEAK_CHANNEL_R1:
@@ -2888,8 +2915,7 @@ void ProtocolGame::AddCreatureSpeak(NetworkMessage* msg, const Creature* creatur
 
 		case SPEAK_RVR_CHANNEL:
 		{
-			uint32_t _time = (OTSYS_TIME() / 1000) & 0xFFFFFFFF;
-			msg->AddU32(_time - time);
+			msg->AddU32(uint32_t(OTSYS_TIME() / 1000 & 0xFFFFFFFF) - time);
 			break;
 		}
 
@@ -3163,7 +3189,13 @@ void ProtocolGame::AddShopItem(NetworkMessage* msg, const ShopInfo item)
 {
 	const ItemType& it = Item::items[item.itemId];
 	msg->AddU16(it.clientId);
-	msg->AddByte(item.subType);
+	if(it.stackable || it.isRune())
+		msg->AddByte(item.subType);
+	else if(it.isSplash() || it.isFluidContainer())
+		msg->AddByte(fluidMap[item.subType % 8]);
+	else
+		msg->AddByte(0x01);
+
 	msg->AddString(item.itemName);
 	msg->AddU32(uint32_t(it.weight * 100));
 	msg->AddU32(item.buyPrice);

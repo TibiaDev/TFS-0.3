@@ -46,7 +46,7 @@ extern ConfigManager g_config;
 extern CreatureEvents* g_creatureEvents;
 
 Creature::Creature() :
-	isInternalRemoved(false)
+isInternalRemoved(false)
 {
 	id = 0;
 	_tile = NULL;
@@ -82,8 +82,9 @@ Creature::Creature() :
 	memset(localMapCache, false, sizeof(localMapCache));
 
 	attackedCreature = NULL;
-	_lastHitCreature = NULL;
-	lastHitCreature = 0;
+	lastHitCreatureId = 0;
+	lastHitCreature = NULL;
+	mostDamageCreature = NULL;
 	blockCount = 0;
 	blockTicks = 0;
 	walkUpdateTicks = 0;
@@ -439,7 +440,7 @@ int32_t Creature::getWalkCache(const Position& pos) const
 
 #ifdef __DEBUG__
 		//testing
-		Tile* tile = g_game.getTile(pos.x, pos.y, pos.z);
+		Tile* tile = g_game.getTile(pos);
 		if(tile && (tile->__queryAdd(0, this, 1, FLAG_PATHFINDING | FLAG_IGNOREFIELDDAMAGE) == RET_NOERROR))
 		{
 			if(!localMapCache[y][x])
@@ -754,29 +755,33 @@ void Creature::onCreatureChangeVisible(const Creature* creature, bool visible)
 	//
 }
 
-void Creature::onDeath()
+bool Creature::onDeath()
 {
-	Creature* mostDamageCreature = NULL;
-	Creature* mostDamageCreatureMaster = NULL;
 	Creature* lastHitCreatureMaster = NULL;
-
-	if(getKillers(&_lastHitCreature, &mostDamageCreature))
+	Creature* mostDamageCreatureMaster = NULL;
+	if(getKillers(&lastHitCreature, &mostDamageCreature))
 	{
-		if(_lastHitCreature)
+		if(lastHitCreature)
 		{
-			_lastHitCreature->onKilledCreature(this);
-			lastHitCreatureMaster = _lastHitCreature->getMaster();
+			lastHitCreature->onKilledCreature(this);
+			lastHitCreatureMaster = lastHitCreature->getMaster();
 		}
 
 		if(mostDamageCreature)
 		{
 			mostDamageCreatureMaster = mostDamageCreature->getMaster();
 			bool isNotLastHitMaster = (mostDamageCreature != lastHitCreatureMaster);
-			bool isNotMostDamageMaster = (_lastHitCreature != mostDamageCreatureMaster);
+			bool isNotMostDamageMaster = (lastHitCreature != mostDamageCreatureMaster);
 			bool isNotSameMaster = lastHitCreatureMaster == NULL || (mostDamageCreatureMaster != lastHitCreatureMaster);
-			if(mostDamageCreature != _lastHitCreature && isNotLastHitMaster && isNotMostDamageMaster && isNotSameMaster)
+			if(mostDamageCreature != lastHitCreature && isNotLastHitMaster && isNotMostDamageMaster && isNotSameMaster)
 				mostDamageCreature->onKilledCreature(this);
 		}
+	}
+
+	if(CreatureEvent* eventPrepareDeath = getCreatureEvent(CREATURE_EVENT_PREPAREDEATH))
+	{
+		if(!eventPrepareDeath->executeOnPrepareDeath(this, lastHitCreature, mostDamageCreature))
+			return false;
 	}
 
 	for(CountMap::iterator it = damageMap.begin(); it != damageMap.end(); ++it)
@@ -785,60 +790,59 @@ void Creature::onDeath()
 			attacker->onAttackedCreatureKilled(this);
 	}
 
-	death();
-	dropCorpse();
-
 	if(getMaster())
 		getMaster()->removeSummon(this);
+
+	dropCorpse();
+	return true;
 }
 
 void Creature::dropCorpse()
 {
-	Item* splash = NULL;
-	switch(getRace())
-	{
-		case RACE_VENOM:
-			splash = Item::CreateItem(ITEM_FULLSPLASH, FLUID_GREEN);
-			break;
-
-		case RACE_BLOOD:
-			splash = Item::CreateItem(ITEM_FULLSPLASH, FLUID_BLOOD);
-			break;
-
-		case RACE_UNDEAD:
-		case RACE_FIRE:
-		default:
-			break;
-	}
-
-	Tile* tile = getTile();
-	if(splash)
-	{
-		g_game.internalAddItem(tile, splash, INDEX_WHEREEVER, FLAG_NOLIMIT);
-		g_game.startDecay(splash);
-	}
-
 	Item* corpse = getCorpse();
-	if(corpse)
+	if(Tile* tile = getTile())
 	{
-		g_game.internalAddItem(tile, corpse, INDEX_WHEREEVER, FLAG_NOLIMIT);
-		dropLoot(corpse->getContainer());
-		g_game.startDecay(corpse);
+		Item* splash = NULL;
+		switch(getRace())
+		{
+			case RACE_VENOM:
+				splash = Item::CreateItem(ITEM_FULLSPLASH, FLUID_GREEN);
+				break;
+
+			case RACE_BLOOD:
+				splash = Item::CreateItem(ITEM_FULLSPLASH, FLUID_BLOOD);
+				break;
+
+			case RACE_UNDEAD:
+			case RACE_FIRE:
+			default:
+				break;
+		}
+
+		if(splash)
+		{
+			g_game.internalAddItem(tile, splash, INDEX_WHEREEVER, FLAG_NOLIMIT);
+			g_game.startDecay(splash);
+		}
+
+		if(corpse)
+		{
+			g_game.internalAddItem(tile, corpse, INDEX_WHEREEVER, FLAG_NOLIMIT);
+			dropLoot(corpse->getContainer());
+			g_game.startDecay(corpse);
+		}
 	}
 
 	//scripting event - onDeath
-	CreatureEvent* eventDeath = getCreatureEvent(CREATURE_EVENT_DEATH);
-	if(eventDeath)
-		eventDeath->executeOnDeath(this, corpse, _lastHitCreature);
-
-	g_game.removeCreature(this, false);
+	if(CreatureEvent* eventDeath = getCreatureEvent(CREATURE_EVENT_DEATH))
+		eventDeath->executeOnDeath(this, corpse, lastHitCreature, mostDamageCreature);
 }
 
 bool Creature::getKillers(Creature** _lastHitCreature, Creature** _mostDamageCreature)
 {
-	*_lastHitCreature = g_game.getCreatureByID(lastHitCreature);
-
+	*_lastHitCreature = g_game.getCreatureByID(lastHitCreatureId);
 	int32_t mostDamage = 0;
+
 	CountBlock_t cb;
 	for(CountMap::iterator it = damageMap.begin(); it != damageMap.end(); ++it)
 	{
@@ -849,6 +853,7 @@ bool Creature::getKillers(Creature** _lastHitCreature, Creature** _mostDamageCre
 				mostDamage = cb.total;
 		}
 	}
+
 	return (*_lastHitCreature || *_mostDamageCreature);
 }
 
@@ -1156,7 +1161,7 @@ void Creature::addDamagePoints(Creature* attacker, int32_t damagePoints)
 	}
 
 	if(damagePoints > 0)
-		lastHitCreature = attackerId;
+		lastHitCreatureId = attackerId;
 }
 
 void Creature::addHealPoints(Creature* caster, int32_t healthPoints)
@@ -1332,7 +1337,7 @@ void Creature::removeSummon(const Creature* creature)
 	if(cit != summons.end())
 	{
 		(*cit)->setDropLoot(false);
-		(*cit)->setLossSkill(true);
+		(*cit)->setLossSkill(false);
 		(*cit)->setMaster(NULL);
 		(*cit)->releaseThing2();
 		summons.erase(cit);
@@ -1507,7 +1512,7 @@ bool Creature::hasCondition(ConditionType_t type) const
 
 	for(ConditionList::const_iterator it = conditions.begin(); it != conditions.end(); ++it)
 	{
-		if((*it)->getType() == type)
+		if((*it)->getType() == type && ((*it)->getTicks() == -1 || (*it)->getEndTime() >= OTSYS_TIME()))
 			return true;
 	}
 

@@ -441,7 +441,7 @@ enum PlayerFlags
 	PlayerFlag_CanTalkRedChannelAnonymous,  //2^32 = 4294967296
 	PlayerFlag_IgnoreProtectionZone,        //2^33 = 8589934592
 	PlayerFlag_IgnoreSpellCheck,            //2^34 = 17179869184
-	PlayerFlag_IgnoreWeaponCheck,           //2^35 = 34359738368
+	PlayerFlag_IgnoreEquipCheck,           //2^35 = 34359738368
 	PlayerFlag_CannotBeMuted,               //2^36 = 68719476736
 	PlayerFlag_IsAlwaysPremium,             //2^37 = 137438953472
 	PlayerFlag_CanAnswerRuleViolations,     //2^38 = 274877906944
@@ -472,7 +472,7 @@ enum PlayerCustomFlags
 	PlayerCustomFlag_CanSeeStaffChannel,				//2^18 = 262144
 	PlayerCustomFlag_CanSeeCounsellorChannel,		//2^19 = 524288
 	PlayerCustomFlag_DescriptionGroupInsteadVocation,				//2^20 = 1048576
-	PlayerCustomFlag_DescriptionHideLevel,		//2^21 = 2097152
+	PlayerCustomFlag_HideLevel,		//2^21 = 2097152
 
 	PlayerCustomFlag_LastFlag
 };
@@ -522,11 +522,11 @@ const int32_t violationReasons[4] =
 
 //Reserved player storage key ranges
 //[10000000 - 20000000]
-#define PSTRG_RESERVED_RANGE_START  10000000
-#define PSTRG_RESERVED_RANGE_SIZE   10000000
+#define PSTRG_RESERVED_RANGE_START	10000000
+#define PSTRG_RESERVED_RANGE_SIZE	10000000
 //[1000 - 1500]
-#define PSTRG_OUTFITS_RANGE_START   (PSTRG_RESERVED_RANGE_START + 1000)
-#define PSTRG_OUTFITS_RANGE_SIZE    500
+#define PSTRG_OUTFITS_RANGE_START	(PSTRG_RESERVED_RANGE_START + 1000)
+#define PSTRG_OUTFITS_RANGE_SIZE	500
 
 #define IS_IN_KEYRANGE(key, range) (key >= PSTRG_##range##_START && ((key - PSTRG_##range##_START) < PSTRG_##range##_SIZE))
 

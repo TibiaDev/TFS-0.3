@@ -39,6 +39,7 @@
 	noDamageToSameLookfeet = "no"
 	experienceByKillingPlayers = "no"
 	showHealingDamage = "no"
+	fieldOwnershipDuration = 5 * 1000
 
 	-- Connection config
 	ip = "127.0.0.1"
@@ -93,7 +94,6 @@
 	housePriceAsRent = "no"
 	housePriceEachSQM = 1000
 	houseRentPeriod = "never"
-	houseNeedPremiumAccount = "yes"
 
 	-- Item usage
 	timeBetweenActions = 200
@@ -109,29 +109,36 @@
 	-- NOTE: defaultPriority works only on Windows
 	kickIdlePlayerAfterMinutes = 15
 	allowChangeOutfit = "yes"
+	allowChangeColors = "yes"
 	maxMessageBuffer = 4
 	displayGamemastersWithOnlineCommand = "no"
 	defaultPriority = "high"
 	saveGlobalStorage = "yes"
 	bankSystem = "yes"
 	displaySkillLevelOnAdvance = "no"
-	spellNameInsteadOfWordsOnCast = "no"
+	spellNameInsteadOfWords = "no"
+	emoteSpells = "no"
 
 	-- Premium account
 	freePremium = "no"
-	premiumForPromotion = "yes"
 	removePremiumOnInit = "yes"
+	premiumForPromotion = "yes"
+	blessingsOnlyPremium = "yes"
+	houseNeedPremium = "yes"
+	bedsRequirePremium = "yes"
 
 	-- Rates
+	-- NOTE: experienceStages configuration is located in data/XML/stages.xml.
 	rateExp = 5
 	rateSkill = 3
 	rateLoot = 2
 	rateMagic = 3
 	rateSpawn = 1
+	experienceStages = "no"
 
 	-- Global save
 	-- NOTE: globalSaveHour means like 03:00, not that it will save every 3 hours,
-	-- if you want such a system please check out data/globalevents directory.
+	-- if you want such a system please check out data/globalevents/globalevents.xml.
 	globalSaveEnabled = "no"
 	globalSaveHour = 8
 	shutdownAtGlobalSave = "yes"

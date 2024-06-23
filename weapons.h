@@ -46,7 +46,7 @@ class Weapons : public BaseEvents
 		const Weapon* getWeapon(const Item* item) const;
 
 		static int32_t getMaxMeleeDamage(int32_t attackSkill, int32_t attackValue);
-		static int32_t getMaxWeaponDamage(int32_t attackSkill, int32_t attackValue, float attackFactor);
+		static int32_t getMaxWeaponDamage(int32_t level, int32_t attackSkill, int32_t attackValue, float attackFactor);
 
 	protected:
 		virtual void clear();
@@ -70,7 +70,6 @@ class Weapon : public Event
 		virtual bool configureEvent(xmlNodePtr p);
 		virtual bool loadFunction(const std::string& functionName);
 		virtual bool configureWeapon(const ItemType& it);
-		virtual bool interuptSwing() const {return false;}
 
 		virtual int32_t playerWeaponCheck(Player* player, Creature* target) const;
 		static bool useFist(Player* player, Creature* target);
@@ -82,6 +81,7 @@ class Weapon : public Event
 		uint16_t getID() const {return id;}
 		virtual int32_t getWeaponDamage(const Player* player, const Creature* target, const Item* item, bool maxDamage = false) const = 0;
 		virtual int32_t getElementDamage(const Player* player, const Creature* target) const {return 0;}
+		virtual bool interruptSwing() const {return false;}
 
 		const uint32_t getReqLevel() const {return level;}
 		const uint32_t getReqMagLv() const {return magLevel;}
@@ -154,6 +154,7 @@ class WeaponDistance : public Weapon
 		virtual int32_t playerWeaponCheck(Player* player, Creature* target) const;
 		virtual bool useWeapon(Player* player, Item* item, Creature* target) const;
 		virtual int32_t getWeaponDamage(const Player* player, const Creature* target, const Item* item, bool maxDamage = false) const;
+		virtual bool interruptSwing() const {return true;}
 
 	protected:
 		virtual void onUsedWeapon(Player* player, Item* item, Tile* destTile) const;

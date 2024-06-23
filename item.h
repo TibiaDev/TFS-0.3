@@ -300,7 +300,7 @@ class Item : virtual public Thing, public ItemAttributes
 		virtual const BedItem* getBed() const {return NULL;}
 
 		static std::string getDescription(const ItemType& it, int32_t lookDistance,
-			const Item* item = NULL, int32_t subType = -1);
+			const Item* item = NULL, int32_t subType = -1, bool addArticle = true);
 		static std::string getWeightDescription(const ItemType& it, double weight, uint32_t count = 1);
 
 		//serialization
@@ -358,7 +358,7 @@ class Item : virtual public Thing, public ItemAttributes
 		void setHitChance(int32_t hitchance) {setIntAttr(ATTR_ITEM_HITCHANCE, hitchance);}
 
 		virtual double getWeight() const;
-		int32_t getSlotPosition() const {return items[id].slot_position;}
+		int32_t getSlotPosition() const {return items[id].slotPosition;}
 
 		bool isReadable() const {return items[id].canReadText;}
 		bool canWriteText() const {return items[id].canWriteText;}
@@ -420,7 +420,7 @@ class Item : virtual public Thing, public ItemAttributes
 
 		virtual void __startDecaying();
 
-		bool isLoadedFromMap() {return loadedFromMap;}
+		bool isLoadedFromMap() const {return loadedFromMap;}
 		void setLoadedFromMap(bool value) {loadedFromMap = value;}
 
 	protected:
